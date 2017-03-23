@@ -1,0 +1,7 @@
+.idea
+*.iml
+/config.py
+/debug.py
+*.pyc
+.DS_Store
+*.*~
