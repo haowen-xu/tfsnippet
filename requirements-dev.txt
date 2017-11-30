@@ -1,7 +1,11 @@
 # anaconda packages
+coverage >= 4.3.4
+mock >= 2.0.0
 numpy >= 1.11
 pandas >= 0.18
+pytest >= 3.0
 scipy >= 0.18
+sphinx >= 1.6.3
 six >= 1.10.0
 
 # pip-only packages

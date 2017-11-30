@@ -1,7 +1,9 @@
 .idea
+.cache
 *.iml
 /config.py
 /debug.py
+/.coverage
 *.pyc
 .DS_Store
 *.*~
