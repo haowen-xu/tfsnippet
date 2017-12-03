@@ -1,12 +1,12 @@
 import contextlib
 import os
 import unittest
-from tempfile import TemporaryDirectory
 
 import numpy as np
 import tensorflow as tf
 
 from tfsnippet.scaffold import summarize_variables, MetricLogger
+from tfsnippet.utils import TemporaryDirectory
 
 
 class LoggingUtilsTestCase(unittest.TestCase):

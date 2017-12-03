@@ -1,6 +1,8 @@
+import re
+
 import numpy as np
 
-__all__ = ['humanize_duration', 'docstring_inherit']
+__all__ = ['humanize_duration', 'docstring_inherit', 'camel_to_underscore']
 
 
 def humanize_duration(seconds):
@@ -47,9 +49,19 @@ def docstring_inherit(from_method):
         from_method: The original method, where docstring comes from.
 
     Returns:
-        Decorated method.
+        Decorator for a method.
     """
     def wrapper(method):
         method.__doc__ = from_method.__doc__
         return method
     return wrapper
+
+
+def camel_to_underscore(name):
+    """Convert a camel-case name to underscore."""
+    s1 = re.sub(CAMEL_TO_UNDERSCORE_S1, r'\1_\2', name)
+    return re.sub(CAMEL_TO_UNDERSCORE_S2, r'\1_\2', s1).lower()
+
+
+CAMEL_TO_UNDERSCORE_S1 = re.compile('([^_])([A-Z][a-z]+)')
+CAMEL_TO_UNDERSCORE_S2 = re.compile('([a-z0-9])([A-Z])')

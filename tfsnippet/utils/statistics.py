@@ -84,12 +84,15 @@ class StatisticsCollector(object):
                 \\Bigg)
 
         Args:
-            values: Values to be collected in batch,
-                    numpy array or scalar whose shape ends with ``self.shape``.
-                    The leading shape in front of ``self.shape`` is regarded as
-                    the batch shape.
-            weight: Weights of the `values`, should be broadcastable against
-                    the batch shape. (default is 1)
+            values:
+                Values to be collected in batch,
+                numpy array or scalar whose shape ends with ``self.shape``.
+                The leading shape in front of ``self.shape`` is regarded as
+                the batch shape.
+
+            weight:
+                Weights of the `values`, should be broadcastable against the
+                batch shape. (default is 1)
 
         Raises
             ValueError: If the shape of `values` does not end with

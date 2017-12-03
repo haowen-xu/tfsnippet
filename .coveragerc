@@ -23,3 +23,6 @@ omit =
 
     # maintenance scripts need not coverage statistics
     scripts/*
+
+    # imported functions are just thin wrappers around libraries, skip tests
+    tfsnippet/utils/imported.py

@@ -56,7 +56,8 @@ class DefaultMetricFormatter(MetricFormatter):
 
     This class sorts the metrics as follows:
 
-    1.  The metrics are first sorted by the suffices of their names as follows:
+    1.  The metrics are first divided into groups according to the suffices
+        of their names as follows:
 
         1.  names ending with "time" or "timer" should come first
         2.  names ending with "loss" should come the second
