@@ -91,6 +91,9 @@ class DefaultMetricFormatter(MetricFormatter):
         else:
             return '{:.6g}'.format(float(value))
 
+    def __repr__(self):
+        return 'DefaultMetricFormatter()'
+
 
 class MetricLogger(object):
     """

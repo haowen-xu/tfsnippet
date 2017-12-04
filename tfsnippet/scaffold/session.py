@@ -10,6 +10,8 @@ __all__ = [
     'get_default_session_or_error',
     'get_variables_as_dict',
     'VariableSaver',
+    'get_uninitialized_variables',
+    'ensure_variables_initialized',
 ]
 
 
@@ -161,3 +163,47 @@ class VariableSaver(VarScopeObject):
         elif not ignore_non_exist:
             raise IOError('Checkpoint file does not exist in directory {}'.
                           format(self.save_dir))
+
+
+def get_uninitialized_variables(variables=None, name=None):
+    """
+    Get uninitialized variables as a list.
+
+    Args:
+        variables (list[tf.Variable]):
+            Collect only uninitialized variables within this list.
+            If not specified, will collect all uninitialized variables
+            within ``~tf.GraphKeys.GLOBAL_VARIABLES`` collection.
+        name (str): Name of this operation in TensorFlow graph.
+
+    Returns:
+        list[tf.Variable]: Uninitialized variables.
+    """
+    sess = get_default_session_or_error()
+    if variables is None:
+        variables = tf.global_variables()
+    else:
+        variables = list(variables)
+    with tf.name_scope(name, default_name='get_uninitialized_variables'):
+        init_flag = sess.run(tf.stack(
+            [tf.is_variable_initialized(v) for v in variables]
+        ))
+    return [v for v, f in zip(variables, init_flag) if not f]
+
+
+def ensure_variables_initialized(variables=None, name=None):
+    """
+    Ensure variables are initialized.
+
+    Args:
+        variables (list[tf.Variable]):
+            Ensure only the variables within this list to be initialized.
+            If not specified, will ensure all variables within
+            ``~tf.GraphKeys.GLOBAL_VARIABLES`` collection to be initialized.
+        name (str): Name of this operation in TensorFlow graph.
+    """
+    with tf.name_scope(name, default_name='ensure_variables_initialized'):
+        uninitialized = get_uninitialized_variables(variables)
+        if uninitialized:
+            sess = get_default_session_or_error()
+            sess.run(tf.variables_initializer(uninitialized))

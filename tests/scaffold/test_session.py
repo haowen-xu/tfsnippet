@@ -2,7 +2,10 @@ import pytest
 import tensorflow as tf
 
 from tfsnippet.scaffold import (get_default_session_or_error,
-                                get_variables_as_dict, VariableSaver)
+                                get_variables_as_dict,
+                                VariableSaver,
+                                get_uninitialized_variables,
+                                ensure_variables_initialized)
 from tfsnippet.utils import TemporaryDirectory
 
 
@@ -154,3 +157,67 @@ class VariablesSaverTestCase(tf.test.TestCase):
             with pytest.raises(
                     ValueError, message='At least 2 versions should be kept'):
                 _ = VariableSaver([a], tempdir, max_versions=1)
+
+
+class GetUninitializedVariablesTestCase(tf.test.TestCase):
+
+    def test_get_uninitialized_variables(self):
+        with self.test_session() as sess:
+            a = tf.get_variable('a', dtype=tf.int32, initializer=1)
+            b = tf.get_variable('b', dtype=tf.int32, initializer=2)
+            c = tf.get_variable('c', dtype=tf.int32, initializer=3,
+                                collections=[tf.GraphKeys.MODEL_VARIABLES])
+            d = tf.get_variable('d', dtype=tf.int32, initializer=4,
+                                collections=[tf.GraphKeys.MODEL_VARIABLES])
+            self.assertEqual(
+                get_uninitialized_variables(),
+                [a, b]
+            )
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                [a, b, c, d]
+            )
+            sess.run(tf.variables_initializer([a, c]))
+            self.assertEqual(
+                get_uninitialized_variables(),
+                [b]
+            )
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                [b, d]
+            )
+            sess.run(tf.variables_initializer([b, d]))
+            self.assertEqual(
+                get_uninitialized_variables(),
+                []
+            )
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                []
+            )
+
+
+class EnsureVariablesInitializedTestCase(tf.test.TestCase):
+
+    def test_ensure_variables_initialized(self):
+        with self.test_session():
+            a = tf.get_variable('a', dtype=tf.int32, initializer=1)
+            b = tf.get_variable('b', dtype=tf.int32, initializer=2)
+            c = tf.get_variable('c', dtype=tf.int32, initializer=3,
+                                collections=[tf.GraphKeys.MODEL_VARIABLES])
+            d = tf.get_variable('d', dtype=tf.int32, initializer=4,
+                                collections=[tf.GraphKeys.MODEL_VARIABLES])
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                [a, b, c, d]
+            )
+            ensure_variables_initialized()
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                [c, d]
+            )
+            ensure_variables_initialized([a, b, c, d])
+            self.assertEqual(
+                get_uninitialized_variables([a, b, c, d]),
+                []
+            )

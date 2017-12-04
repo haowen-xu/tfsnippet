@@ -2,7 +2,8 @@ import re
 
 import numpy as np
 
-__all__ = ['humanize_duration', 'docstring_inherit', 'camel_to_underscore']
+__all__ = ['humanize_duration', 'docstring_inherit', 'camel_to_underscore',
+           'NOT_SET']
 
 
 def humanize_duration(seconds):
@@ -65,3 +66,13 @@ def camel_to_underscore(name):
 
 CAMEL_TO_UNDERSCORE_S1 = re.compile('([^_])([A-Z][a-z]+)')
 CAMEL_TO_UNDERSCORE_S2 = re.compile('([a-z0-9])([A-Z])')
+
+
+class NotSet(object):
+    """Object for denoting ``not set`` value."""
+
+    def __repr__(self):
+        return 'NOT_SET'
+
+
+NOT_SET = NotSet()
