@@ -8,7 +8,7 @@ import six
 import tensorflow as tf
 
 from tfsnippet.utils import StatisticsCollector
-from .logging import summarize_variables, DefaultMetricFormatter, MetricLogger
+from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 from .validation import (EarlyStoppingContext, 
                          early_stopping as open_early_stopping)
 
