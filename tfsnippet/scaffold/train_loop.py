@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 import os
 import time
 from collections import OrderedDict
 from contextlib import contextmanager
 
-import six
 import tensorflow as tf
 
 from tfsnippet.utils import StatisticsCollector
@@ -18,13 +19,6 @@ __all__ = [
 
 EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
-
-
-if six.PY2:
-    def print_function(message):
-        print(message)
-else:
-    print_function = print
 
 
 class TrainLoopContext(object):
@@ -412,7 +406,7 @@ class TrainLoopContext(object):
 
 @contextmanager
 def train_loop(param_vars,
-               print_func=print_function,
+               print_func=print,
                summary_dir=None,
                summary_writer=None,
                metric_formatter=DefaultMetricFormatter(),
