@@ -6,6 +6,7 @@ Subpackages
 
 .. toctree::
 
+    tfsnippet.modules
     tfsnippet.scaffold
     tfsnippet.utils
 

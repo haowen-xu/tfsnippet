@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
+import re
 from contextlib import contextmanager
 
+import six
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as variable_scope_ops
 
@@ -99,6 +100,10 @@ class VarScopeObject(object):
             self._variable_scope = vs       # type: tf.VariableScope
             self._name = name
 
+    def __repr__(self):
+        return '{}({!r})'.format(
+            self.__class__.__name__, self.variable_scope.name)
+
     @property
     def name(self):
         """Get the name of this object."""
@@ -109,6 +114,42 @@ class VarScopeObject(object):
         """Get the variable scope of this object."""
         return self._variable_scope
 
-    def __repr__(self):
-        return '{}({!r})'.format(
-            self.__class__.__name__, self.variable_scope.name)
+    def get_variables_as_dict(self, sub_scope=None,
+                              collection=tf.GraphKeys.GLOBAL_VARIABLES,
+                              strip_sub_scope=True):
+        """
+        Get the variables created inside this :class:`VarScopeObject`.
+
+        This method will collect variables from specified `collection`,
+        which are created in the :attr:`variable_scope` of this object
+        (or in the `sub_scope` of :attr:`variable_scope`, if `sub_scope`
+        is not :obj:`None`).
+
+        Args:
+            sub_scope (str): The sub-scope of :attr:`variable_scope`.
+            collection (str): The collection from which to collect variables.
+                              (default ``tf.GraphKeys.GLOBAL_VARIABLES``).
+            strip_sub_scope (bool): Whether or not to also strip the common
+                                    prefix of `sub_scope`? (default :obj:`True`)
+
+        Returns:
+            dict[str, tf.Variable]:
+                Dict which maps from the relative names of variables
+                to variable objects.  By `relative names` we mean the
+                full names of variables, without the common prefix of
+                :attr:`variable_scope` (and `sub_scope` if `strip_sub_scope`
+                is :obj:`True`).
+        """
+        from .session import get_variables_as_dict
+        scope_name = self.variable_scope.name
+        if sub_scope:
+            sub_scope = sub_scope.strip('/')
+            if scope_name and not scope_name.endswith('/'):
+                scope_name += '/'
+            scope_name += sub_scope
+
+        ret = get_variables_as_dict(scope_name, collection)
+        if not strip_sub_scope and sub_scope:
+            sub_scope += '/'
+            ret = {sub_scope + k: v for k, v in six.iteritems(ret)}
+        return ret

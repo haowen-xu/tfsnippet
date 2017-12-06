@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from distutils.version import StrictVersion
 
 __all__ = ['is_tensorflow_version_higher_or_equal']

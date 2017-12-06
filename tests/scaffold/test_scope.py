@@ -175,6 +175,14 @@ class MyVarScopeObj(VarScopeObject):
     def f(self):
         return tf.get_variable('var', shape=()), tf.add(1, 2, name='op')
 
+    @instance_reuse
+    def g(self):
+        a = tf.get_variable('a', shape=())
+        with tf.variable_scope('nested'):
+            b = tf.get_variable('b', shape=())
+            c = tf.get_variable('c', shape=(), trainable=False)
+        return a, b, c
+
 
 class VarScopeObjectTestCase(tf.test.TestCase):
 
@@ -230,3 +238,54 @@ class VarScopeObjectTestCase(tf.test.TestCase):
             var_4, op_4 = o4.f()
             self.assertEqual(var_4.name, 'c/o/f/var:0')
             self.assertEqual(op_4.name, 'c/o/f/op:0')
+
+    def test_get_variables_as_dict(self):
+        _ = tf.get_variable('global_var', shape=(), dtype=tf.int32)
+        obj = MyVarScopeObj()
+        f_var = obj.f()[0]
+        a, b, c = obj.g()
+
+        # test get all variables
+        self.assertEqual(
+            obj.get_variables_as_dict(),
+            {'f/var': f_var, 'g/a': a, 'g/nested/b': b, 'g/nested/c': c}
+        )
+
+        # test get trainable variables
+        self.assertEqual(
+            obj.get_variables_as_dict(
+                collection=tf.GraphKeys.TRAINABLE_VARIABLES),
+            {'f/var': f_var, 'g/a': a, 'g/nested/b': b}
+        )
+
+        # test get nested variables
+        self.assertEqual(
+            obj.get_variables_as_dict(sub_scope='g'),
+            {'a': a, 'nested/b': b, 'nested/c': c}
+        )
+
+        # test get nested and nested variables
+        self.assertEqual(
+            obj.get_variables_as_dict(sub_scope='g/nested'),
+            {'b': b, 'c': c}
+        )
+
+        # test get nested and nested variables with informal sub-scope name
+        self.assertEqual(
+            obj.get_variables_as_dict(sub_scope='/g/nested/'),
+            {'b': b, 'c': c}
+        )
+
+        # test get nested and trainable variables
+        self.assertEqual(
+            obj.get_variables_as_dict(
+                sub_scope='g', collection=tf.GraphKeys.TRAINABLE_VARIABLES),
+            {'a': a, 'nested/b': b}
+        )
+
+        # test get nested variables without removing common prefix of sub-scope
+        self.assertEqual(
+            obj.get_variables_as_dict(sub_scope='g/nested',
+                                      strip_sub_scope=False),
+            {'g/nested/b': b, 'g/nested/c': c}
+        )
