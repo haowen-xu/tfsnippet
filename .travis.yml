@@ -24,7 +24,7 @@ install:
 
   # install python dependencies
   - conda install --yes -q python=$TRAVIS_PYTHON_VERSION
-  - python scripts/install-deps.py
+  - python -m pip install -r requirements-dev.txt
   - python -m pip install --upgrade scipy numpy  # should upgrade to newest versions to avoid errors
   - python -m pip install "coveralls>=1.1"
 
