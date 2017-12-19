@@ -1,14 +1,11 @@
-# anaconda packages
 coverage >= 4.3.4
 mock >= 2.0.0
 numpy >= 1.11
-pandas >= 0.18
 pytest >= 3.0
-scipy >= 0.18
+scipy >= 1.0.0
 sphinx >= 1.6.3
 six >= 1.10.0
 
-# pip-only packages
 backports.tempfile >= 1.0 ; python_version < '3.2'
 frozendict >= 1.2.0
 pathlib2 >= 2.3.0 ; python_version < '3.5'

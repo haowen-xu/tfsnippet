@@ -1,10 +1,7 @@
-# anaconda packages
-numpy >= 1.11
-pandas >= 0.18
-scipy >= 0.18
-six >= 1.10.0
+numpy >= 1.12.1
+scipy >= 1.0.0
+six >= 1.11.0
 
-# pip-only packages
 backports.tempfile >= 1.0 ; python_version < '3.2'
 frozendict >= 1.2.0
 pathlib2 >= 2.3.0 ; python_version < '3.5'
