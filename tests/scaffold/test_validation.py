@@ -5,8 +5,8 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.scaffold import early_stopping, get_default_session_or_error
-from tfsnippet.utils import TemporaryDirectory
+from tfsnippet.scaffold import early_stopping
+from tfsnippet.utils import TemporaryDirectory, get_default_session_or_error
 
 
 def get_variable_values(variables):
@@ -37,7 +37,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
     def test_param_vars_must_not_be_empty(self):
         with self.test_session():
             with pytest.raises(
-                    ValueError, message='`param_vars` must not be empty'):
+                    ValueError, match='`param_vars` must not be empty'):
                 with early_stopping([]):
                     pass
 
@@ -95,7 +95,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
     def test_do_not_restore_on_error(self):
         with self.test_session():
             a, b, c = _populate_variables()
-            with pytest.raises(ValueError, message='value error'):
+            with pytest.raises(ValueError, match='value error'):
                 with early_stopping([a, b], restore_on_error=False) as es:
                     self.assertTrue(es.update(1.))
                     set_variable_values([a, b], [10, 20])
@@ -106,7 +106,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
     def test_restore_on_error(self):
         with self.test_session():
             a, b, c = _populate_variables()
-            with pytest.raises(ValueError, message='value error'):
+            with pytest.raises(ValueError, match='value error'):
                 with early_stopping([a, b], restore_on_error=True) as es:
                     self.assertTrue(es.update(1.))
                     set_variable_values([a, b], [10, 20])

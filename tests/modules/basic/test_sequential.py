@@ -49,5 +49,5 @@ class SequentialTestCase(tf.test.TestCase):
 
     def test_errors(self):
         with pytest.raises(
-                ValueError, message='`components` must not be empty'):
+                ValueError, match='`components` must not be empty'):
             Sequential([])

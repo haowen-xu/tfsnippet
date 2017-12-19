@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from logging import getLogger
 
 import tensorflow as tf
-from tfsnippet.utils import TemporaryDirectory, makedirs
-from .session import VariableSaver
+
+from tfsnippet.utils import TemporaryDirectory, makedirs, VariableSaver
 
 __all__ = ['EarlyStoppingContext', 'early_stopping']
 

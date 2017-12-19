@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 from collections import defaultdict
 
-import six
 import numpy as np
+import six
 import tensorflow as tf
 
 from tfsnippet.utils import (humanize_duration, StatisticsCollector,
-                             docstring_inherit)
-from .session import get_default_session_or_error
+                             docstring_inherit, get_default_session_or_error)
 
 __all__ = [
     'MetricFormatter',
@@ -69,7 +68,7 @@ class DefaultMetricFormatter(MetricFormatter):
 
     The values of the metrics would be formatted into 6-digit real numbers,
     except for metrics with "time" or "timer" as suffices in their names,
-    which would be formatted using :func:`tfsnippet.utils.humanize_duration`.
+    which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
     @docstring_inherit(MetricFormatter.sort_metrics)

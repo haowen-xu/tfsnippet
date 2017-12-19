@@ -1,22 +1,22 @@
 import pytest
 import tensorflow as tf
 
-from tfsnippet.scaffold import (get_default_session_or_error,
-                                get_variables_as_dict,
-                                VariableSaver,
-                                get_uninitialized_variables,
-                                ensure_variables_initialized)
-from tfsnippet.utils import TemporaryDirectory
+from tfsnippet.utils import (get_default_session_or_error,
+                             get_variables_as_dict,
+                             VariableSaver,
+                             get_uninitialized_variables,
+                             ensure_variables_initialized,
+                             TemporaryDirectory)
 
 
 class GetDefaultSessionOrErrorTestCase(tf.test.TestCase):
 
     def test_get_default_session_or_error(self):
-        with pytest.raises(RuntimeError, message='No session is active'):
+        with pytest.raises(RuntimeError, match='No session is active'):
             get_default_session_or_error()
         with self.test_session(use_gpu=False) as sess:
             self.assertIs(sess, get_default_session_or_error())
-        with pytest.raises(RuntimeError, message='No session is active'):
+        with pytest.raises(RuntimeError, match='No session is active'):
             get_default_session_or_error()
 
 
@@ -155,7 +155,7 @@ class VariablesSaverTestCase(tf.test.TestCase):
         with TemporaryDirectory() as tempdir:
             a = tf.get_variable('a', initializer=1, dtype=tf.int32)
             with pytest.raises(
-                    ValueError, message='At least 2 versions should be kept'):
+                    ValueError, match='At least 2 versions should be kept'):
                 _ = VariableSaver([a], tempdir, max_versions=1)
 
 

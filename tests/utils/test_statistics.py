@@ -167,5 +167,5 @@ class StatisticsCollectorTestCase(unittest.TestCase):
         collector = StatisticsCollector(shape=(3, 2))
         with pytest.raises(
                 ValueError,
-                message='Shape mismatch: (3,) not ending with (3, 2)'):
+                match=r'Shape mismatch: \(3,\) not ending with \(3, 2\)'):
             collector.collect([1, 2, 3])

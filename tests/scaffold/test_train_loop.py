@@ -7,10 +7,10 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.scaffold import (train_loop,
-                                ensure_variables_initialized,
-                                get_default_session_or_error)
-from tfsnippet.utils import TemporaryDirectory
+from tfsnippet.scaffold import train_loop
+from tfsnippet.utils import (TemporaryDirectory,
+                             ensure_variables_initialized,
+                             get_default_session_or_error)
 
 
 def get_variable_values(variables):
@@ -28,7 +28,7 @@ class TrainLoopTestCase(tf.test.TestCase):
     def assertMatches(self, a, b):
         self.assertTrue(
             not not re.match(b, a),
-            msg='%r should match %r' % (b, a)
+            msg='{!r} should match {!r}'.format(b, a)
         )
 
     def test_counter_attributes(self):
@@ -49,7 +49,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(loop.max_epoch, 20)
             self.assertEqual(loop.max_step, 100)
 
-    def test_counters_with_max_epoch(self):
+    def test_counters(self):
         # test loop with configured `max_epoch`
         with train_loop([], max_epoch=2) as loop:
             epoch_counter = 0
@@ -70,7 +70,6 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(epoch_counter, 2)
             self.assertEqual(step_counter, 8)
 
-    def test_counters_with_max_step(self):
         # test loop with configured `max_step`
         with train_loop([], max_step=10) as loop:
             epoch_counter = 0
@@ -84,7 +83,6 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(epoch_counter, 1)
             self.assertEqual(step_counter, 10)
 
-    def test_counters_with_max_step_with_payload(self):
         # test loop with configured `max_step` with payload
         with train_loop([], max_step=10) as loop:
             epoch_counter = 0
@@ -101,7 +99,6 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(epoch_counter, 3)
             self.assertEqual(step_counter, 10)
 
-    def test_counters_with_max_step_with_max_epoch_and_epoch_finish_first(self):
         # test loop with configured `max_step` and `max_epoch`,
         # while `max_epoch` finishes first
         with train_loop([], max_step=10, max_epoch=2) as loop:
@@ -116,7 +113,6 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(epoch_counter, 2)
             self.assertEqual(step_counter, 8)
 
-    def test_counters_with_max_step_with_max_epoch_and_step_finish_first(self):
         # test loop with configured `max_step` and `max_epoch`,
         # while `max_step` finishes first
         with train_loop([], max_step=10, max_epoch=3) as loop:
@@ -430,31 +426,31 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_errors(self):
         with pytest.raises(
-                RuntimeError, message='Another epoch loop has been opened'):
+                RuntimeError, match='Another epoch loop has been opened'):
             with train_loop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_epochs():
                         pass
 
         with pytest.raises(
-                RuntimeError, message='Step loop must be opened within active '
-                                      'epoch loop'):
+                RuntimeError, match='Step loop must be opened within active '
+                                    'epoch loop'):
             with train_loop([], max_step=10) as loop:
                 for _ in loop.iter_steps():
                     pass
 
         with pytest.raises(
-                RuntimeError, message='Another step loop has been opened'):
+                RuntimeError, match='Another step loop has been opened'):
             with train_loop([], max_epoch=10, max_step=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_steps():
                         for _ in loop.iter_steps():
                             pass
-                        
+
         def require_context():
             return pytest.raises(
-                RuntimeError, message='An epoch or a step loop is expected, '
-                                      'but neither has been opened')
+                RuntimeError, match='An epoch or a step loop is expected, '
+                                    'but neither has been opened')
 
         with require_context():
             with train_loop([]) as loop:
@@ -479,16 +475,16 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
 
         with pytest.raises(
-                RuntimeError, message='`data_generator` is required when '
-                                      '`max_step` is not configured, so as to '
-                                      'prevent an infinite step loop'):
+                RuntimeError, match='`data_generator` is required when '
+                                    '`max_step` is not configured, so as to '
+                                    'prevent an unstoppable step loop'):
             with train_loop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_steps():
                         pass
 
         with pytest.raises(
-                TypeError, message='`metrics` should be a dict'):
+                TypeError, match='`metrics` should be a dict'):
             with train_loop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     loop.collect_metrics(())

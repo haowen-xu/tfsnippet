@@ -27,7 +27,7 @@ class ListMapperTestCase(tf.test.TestCase):
         )
 
     def test_empty_mapper(self):
-        with pytest.raises(ValueError, message='`mapper` must not be empty'):
+        with pytest.raises(ValueError, match='`mapper` must not be empty'):
             _ = ListMapper([])
 
 
@@ -54,13 +54,12 @@ class DictMapperTestCase(tf.test.TestCase):
         )
 
     def test_empty_mapper(self):
-        with pytest.raises(ValueError, message='`mapper` must not be empty'):
+        with pytest.raises(ValueError, match='`mapper` must not be empty'):
             _ = DictMapper({})
 
     def test_invalid_key(self):
         for k in ['.', '', '90ab', 'abc.def']:
             with pytest.raises(
-                ValueError, message='The key for `DictMapper` must be a valid '
-                                    'Python identifier (matching the pattern '
-                                    '"^[A-Za-z_][A-Za-z0-9_]*$")'):
+                ValueError, match='The key for `DictMapper` must be a valid '
+                                  'Python identifier'):
                 _ = DictMapper({k: lambda x: x})

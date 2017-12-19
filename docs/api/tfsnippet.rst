@@ -1,19 +1,12 @@
-tfsnippet package
-=================
-
-Subpackages
------------
+TFSnippet Classes and Functions
+===============================
 
 .. toctree::
 
+    tfsnippet.bayes
+    tfsnippet.distributions
     tfsnippet.modules
     tfsnippet.scaffold
+    tfsnippet.stochastic
     tfsnippet.utils
-
-Module contents
----------------
-
-.. automodule:: tfsnippet
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    tfsnippet.variational

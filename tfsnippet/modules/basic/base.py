@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.scaffold import VarScopeObject, auto_reuse_variables
+from tfsnippet.utils import VarScopeObject, auto_reuse_variables
 
 __all__ = ['Module']
 

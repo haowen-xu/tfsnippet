@@ -1,5 +1,5 @@
-tfsnippet\.scaffold package
-===========================
+tfsnippet\.scaffold
+===================
 
 .. automodule:: tfsnippet.scaffold
     :members:

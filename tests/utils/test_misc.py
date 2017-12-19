@@ -1,6 +1,8 @@
 import unittest
 
-from tfsnippet.utils import humanize_duration, camel_to_underscore
+from tfsnippet.utils import (humanize_duration, camel_to_underscore,
+                             cached_property, clear_cached_property,
+                             NOT_SET, docstring_inherit)
 
 
 class HumanizeDurationTestCase(unittest.TestCase):
@@ -52,12 +54,35 @@ class HumanizeDurationTestCase(unittest.TestCase):
             )
 
 
+class DocStringInheritTestCase(unittest.TestCase):
+
+    def test_inherit_none(self):
+        def f():
+            pass
+
+        @docstring_inherit(f)
+        def g():
+            """docstring of g"""
+
+        self.assertEqual(g.__doc__, 'docstring of g')
+
+    def test_simple_inherit(self):
+        def f():
+            """docstring of f"""
+
+        @docstring_inherit(f)
+        def g():
+            """docstring of g"""
+
+        self.assertEqual(g.__doc__, 'docstring of f')
+
+
 class CamelToUnderscoreTestCase(unittest.TestCase):
     def assert_convert(self, camel, underscore):
         self.assertEqual(
             camel_to_underscore(camel),
             underscore,
-            msg='%r should be converted to %r.' % (camel, underscore)
+            msg='{!r} should be converted to {!r}'.format(camel, underscore)
         )
 
     def test_camel_to_underscore(self):
@@ -75,10 +100,14 @@ class CamelToUnderscoreTestCase(unittest.TestCase):
         for camel, underscore in examples:
             self.assert_convert(camel, underscore)
             self.assert_convert(underscore, underscore)
-            self.assert_convert('_%s_' % camel, '_%s_' % underscore)
-            self.assert_convert('_%s_' % underscore, '_%s_' % underscore)
-            self.assert_convert('__%s__' % camel, '__%s__' % underscore)
-            self.assert_convert('__%s__' % underscore, '__%s__' % underscore)
+            self.assert_convert('_{}_'.format(camel),
+                                '_{}_'.format(underscore))
+            self.assert_convert('_{}_'.format(underscore),
+                                '_{}_'.format(underscore))
+            self.assert_convert('__{}__'.format(camel),
+                                '__{}__'.format(underscore))
+            self.assert_convert('__{}__'.format(underscore),
+                                '__{}__'.format(underscore))
             self.assert_convert(
                 '_'.join([s.capitalize() for s in underscore.split('_')]),
                 underscore
@@ -87,3 +116,42 @@ class CamelToUnderscoreTestCase(unittest.TestCase):
                 '_'.join([s.upper() for s in underscore.split('_')]),
                 underscore
             )
+
+
+class NotSetTestCase(unittest.TestCase):
+
+    def test_repr(self):
+        self.assertEqual(repr(NOT_SET), 'NOT_SET')
+
+
+class _CachedPropertyHelper(object):
+
+    def __init__(self, value):
+        self.value = value
+
+    @cached_property('_cached_value')
+    def cached_value(self):
+        return self.value
+
+
+class CachedPropertyTestCase(unittest.TestCase):
+
+    def test_cached_property(self):
+        o = _CachedPropertyHelper(0)
+        self.assertFalse(hasattr(o, '_cached_value'))
+        o.value = 123
+        self.assertEqual(o.cached_value, 123)
+        self.assertTrue(hasattr(o, '_cached_value'))
+        self.assertEqual(o._cached_value, 123)
+        o.value = 456
+        self.assertEqual(o.cached_value, 123)
+        self.assertEqual(o._cached_value, 123)
+
+    def test_clear_cached_property(self):
+        o = _CachedPropertyHelper(123)
+        _ = o.cached_value
+        clear_cached_property(o, '_cached_value')
+        o.value = 456
+        self.assertFalse(hasattr(o, '_cached_value'))
+        self.assertEqual(o.cached_value, 456)
+        self.assertEqual(o._cached_value, 456)

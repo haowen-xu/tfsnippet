@@ -3,7 +3,7 @@ from logging import getLogger
 
 import tensorflow as tf
 
-from tfsnippet.utils import makedirs
+from .imported import makedirs
 from .scope import VarScopeObject
 
 __all__ = [

@@ -16,7 +16,7 @@ class Config(object):
 
     def __setattr__(self, key, value):
         if not key.startswith('_') and not hasattr(self, key):
-            raise AttributeError('Unknown config attribute {}'.format(key[1:]))
+            raise AttributeError('Unknown config attribute: {}'.format(key))
         super(Config, self).__setattr__(key, value)
 
     def to_dict(self):
@@ -40,7 +40,7 @@ class Config(object):
         """
         for k, v in six.iteritems(config_dict):
             if k.startswith('_') or not hasattr(self, k):
-                raise AttributeError('Unknown config attribute {}'.format(k))
+                raise AttributeError('Unknown config attribute: {}'.format(k))
             setattr(self, k, v)
 
     @property

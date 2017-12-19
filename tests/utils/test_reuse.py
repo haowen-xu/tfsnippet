@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from tfsnippet.scaffold import auto_reuse_variables, instance_reuse
+from tfsnippet.utils import auto_reuse_variables, instance_reuse
 
 
 class AutoReuseVariablesTestCase(tf.test.TestCase):
@@ -27,8 +27,8 @@ class AutoReuseVariablesTestCase(tf.test.TestCase):
 
             with pytest.raises(
                     ValueError,
-                    message='Variable a/v2 does not exist, or was not '
-                            'created with tf.get_variable()'):
+                    match='Variable a/v2 does not exist, or was not '
+                          'created with tf.get_variable()'):
                 tf.get_variable('v2', shape=())
 
         with auto_reuse_variables(a):
@@ -108,8 +108,8 @@ class AutoReuseVariablesTestCase(tf.test.TestCase):
 
             with pytest.raises(
                     ValueError,
-                    message='Variable a/v2 does not exist, or was not '
-                            'created with tf.get_variable()'):
+                    match='Variable a/v2 does not exist, or was not '
+                          'created with tf.get_variable()'):
                 tf.get_variable('v2', shape=())
 
     def test_different_graph(self):
@@ -152,9 +152,9 @@ class AutoReuseVariablesTestCase(tf.test.TestCase):
                 pass
 
         with pytest.raises(
-                ValueError, message='`reopen_name_scope` can be set to True '
-                                    'only if `name_or_scope` is an instance of '
-                                    '`tf.VariableScope`'):
+                ValueError, match='`reopen_name_scope` can be set to True '
+                                  'only if `name_or_scope` is an instance of '
+                                  '`tf.VariableScope`'):
             with auto_reuse_variables('a', reopen_name_scope=True):
                 pass
 
@@ -274,6 +274,6 @@ class InstanceReuseTestCase(tf.test.TestCase):
 
         with pytest.raises(
                 TypeError,
-                message='`method` is expected to be unbound instance method'):
+                match='`method` is expected to be unbound instance method'):
             obj = _Reusable()
             instance_reuse(obj.f)

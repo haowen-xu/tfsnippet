@@ -1,7 +1,7 @@
-tfsnippet\.utils
+tfsnippet\.bayes
 ================
 
-.. automodule:: tfsnippet.utils
+.. automodule:: tfsnippet.bayes
     :members:
     :undoc-members:
     :show-inheritance:

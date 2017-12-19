@@ -1,11 +1,10 @@
-import re
 from contextlib import contextmanager
 
 import six
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as variable_scope_ops
 
-from tfsnippet.utils import camel_to_underscore
+from .misc import camel_to_underscore
 
 __all__ = ['reopen_variable_scope', 'root_variable_scope', 'VarScopeObject']
 
@@ -63,7 +62,7 @@ class VarScopeObject(object):
     """
     Base class for object that owns a variable scope.
 
-    It is typically used along with :func:`tfsnippet.scaffold.instance_reuse`.
+    It is typically used along with :func:`~tfsnippet.utils.instance_reuse`.
 
     Args:
         name (str):
@@ -140,7 +139,7 @@ class VarScopeObject(object):
                 :attr:`variable_scope` (and `sub_scope` if `strip_sub_scope`
                 is :obj:`True`).
         """
-        from .session import get_variables_as_dict
+        from tfsnippet.utils.session import get_variables_as_dict
         scope_name = self.variable_scope.name
         if sub_scope:
             sub_scope = sub_scope.strip('/')

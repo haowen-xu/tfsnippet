@@ -20,12 +20,12 @@ class ConfigTestCase(unittest.TestCase):
     def test_set_unknown_attribute(self):
         with pytest.raises(
                 AttributeError,
-                message='Unknown config attribute \'unknown_attribute\''):
+                match='Unknown config attribute: unknown_attribute'):
             config.unknown_attribute = 'value'
 
         with pytest.raises(
                 AttributeError,
-                message='Unknown config attribute \'unknown_attribute\''):
+                match='Unknown config attribute: unknown_attribute'):
             config.from_dict({'unknown_attribute': 'value'})
 
     def test_float_x(self):
@@ -35,8 +35,8 @@ class ConfigTestCase(unittest.TestCase):
         self.assertEqual(config.float_x, 'float64')
 
         with pytest.raises(
-                ValueError, message='Unknown floatx type: invalid value'):
+                ValueError, match='Unknown floatx type: invalid value'):
             config.float_x = 'invalid value'
         with pytest.raises(
-                ValueError, message='Unknown floatx type: invalid value'):
+                ValueError, match='Unknown floatx type: invalid value'):
             config.from_dict({'float_x': 'invalid value'})

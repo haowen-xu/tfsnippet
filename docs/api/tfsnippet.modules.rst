@@ -1,5 +1,5 @@
-tfsnippet\.modules package
-==========================
+tfsnippet\.modules
+==================
 
 .. automodule:: tfsnippet.modules
     :members:

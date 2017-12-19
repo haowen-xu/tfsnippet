@@ -1,11 +1,11 @@
 import pytest
 import tensorflow as tf
 
-from tfsnippet.utils import is_tensorflow_version_higher_or_equal
-from tfsnippet.scaffold import (reopen_variable_scope,
-                                root_variable_scope,
-                                VarScopeObject,
-                                instance_reuse)
+from tfsnippet.utils import (is_tensorflow_version_higher_or_equal,
+                             reopen_variable_scope,
+                             root_variable_scope,
+                             VarScopeObject,
+                             instance_reuse)
 
 
 class _VarScopeTestMixin:
@@ -143,8 +143,8 @@ class ReopenVariableScopeTestCase(tf.test.TestCase, _VarScopeTestMixin):
             self._check_vs('v8', 'a/b', 'a/b/', 'a/b/v8:0', 'a/b/op_1:0')
 
     def test_errors(self):
-        with pytest.raises(TypeError, message='`var_scope` must be an instance '
-                                              'of `tf.VariableScope`'):
+        with pytest.raises(TypeError, match='`var_scope` must be an instance '
+                                            'of `tf.VariableScope`'):
             with reopen_variable_scope(object()):
                 pass
 

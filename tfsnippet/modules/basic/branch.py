@@ -19,6 +19,20 @@ class ListMapper(Module):
     `mapper` should be a function of a :class:`Module` instance, which
     produces corresponding output given the inputs.
 
+    To merge the outputs of :class:`ListMapper`, one may use functions
+    like :func:`tf.concat` or :func:`tf.stack`, e.g.:
+
+    .. code-block:: python
+
+        net = Sequential([
+            ListMapper([...]),
+            functools.partial(tf.concat, axis=0),
+        ])
+
+    in which the `net` module first maps the inputs into a list by using
+    :class:`ListMapper`, then generates the final output by concatenating
+    the outputs of :class:`ListMapper` along axis-0.
+
     Args:
         mapper (list[(inputs, \**kwargs) -> outputs]): The mapper list.
     """
@@ -34,7 +48,7 @@ class ListMapper(Module):
     def _forward(self, inputs, **kwargs):
         ret = []
         for i, v in enumerate(self._mapper):
-            with tf.variable_scope('_%d' % i):
+            with tf.variable_scope('_{}'.format(i)):
                 ret.append(v(inputs, **kwargs))
         return ret
 

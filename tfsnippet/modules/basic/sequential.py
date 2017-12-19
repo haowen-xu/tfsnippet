@@ -9,10 +9,10 @@ class Sequential(Module):
     """
     Wrapping a sequential of neural network modules as a :class:`Module`.
 
-    This class wraps a sequential of neural network layers (or modules)
-    into a unified :class:`Module`, reusing the parameters inside each
-    component.  Instances of :class:`Module` and any arbitrary function
-    can be mixed together freely.  For example:
+    This class wraps a sequential of neural network components into a
+    unified :class:`Module`, reusing the parameters inside each component.
+    Instances of :class:`Module` and any arbitrary function can be mixed
+    together freely.  For example:
 
     .. code-block:: python
 
@@ -70,7 +70,7 @@ class Sequential(Module):
     def _forward(self, inputs, **kwargs):
         outputs = inputs
         for i, c in enumerate(self._components):
-            with tf.variable_scope('_%d' % i):
+            with tf.variable_scope('_{}'.format(i)):
                 if i == 0:
                     outputs = c(outputs, **kwargs)
                 else:
