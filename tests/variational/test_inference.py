@@ -33,8 +33,7 @@ class VariationalInferenceTestCase(tf.test.TestCase):
         )
 
         x = tf.constant([1., 2., 3.])
-        z = tf.constant([4., 5., 6.])
-        with zs.BayesianNet({'z': z}) as q_net:
+        with zs.BayesianNet() as q_net:
             z_posterior = zs.Normal('z', mean=x, std=tf.ones([3]),
                                     n_samples=n_z)
 
