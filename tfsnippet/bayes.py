@@ -63,7 +63,7 @@ class BayesianNet(object):
 
     To observe any stochastic nodes in the network, pass a dictionary mapping
     of ``(name, Tensor)`` as `observed` when constructing :class:`BayesianNet`.
-    For example::
+    For example:
 
     .. code-block:: python
 
@@ -159,7 +159,7 @@ class BayesianNet(object):
             KeyError: If :class:`StochasticTensor` with `name` already exists.
 
         See Also:
-            :meth:`Distribution.sample`
+            :meth:`tfsnippet.distributions.Distribution.sample`
         """
         if not isinstance(name, six.string_types):
             raise TypeError('`name` must be a str')

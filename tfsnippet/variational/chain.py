@@ -36,7 +36,7 @@ class VariationalChain(object):
             (default :obj:`None`)
 
     See Also:
-        :meth:`BayesianNet.variational_chain`
+        :meth:`tfsnippet.bayes.BayesianNet.variational_chain`
     """
 
     def __init__(self, variational, model, log_joint=None, latent_names=None,

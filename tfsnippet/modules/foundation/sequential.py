@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from .base import Module
+from ..base import Module
 
 __all__ = ['Sequential']
 
@@ -55,9 +55,9 @@ class Sequential(Module):
             the whole :class:`Sequential` module.
 
         name (str): Optional name of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         scope (str): Optional scope of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, components, name=None, scope=None):

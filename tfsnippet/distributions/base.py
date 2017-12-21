@@ -75,10 +75,6 @@ class Distribution(object):
         Note that the re-parameterization can be disabled by specifying
         ``is_reparameterized = False`` as argument of :meth:`sample`.
 
-        .. [VAE] Kingma, D.P. and Welling, M. 2014. Auto-Encoding
-                 Variational Bayes. Proceedings of the International
-                 Conference on Learning Representations (2014).
-
         Returns:
             bool: A boolean indicating whether it is re-parameterized.
         """
@@ -164,8 +160,7 @@ class Distribution(object):
             given (tf.Tensor): The samples to be tested.
             group_ndims (int or tf.Tensor):
                 If specified, the last `group_ndims` dimensions of the
-                log probability densities will be summed up.
-                (default :obj:`None`)
+                log probability densities will be summed up. (default 0)
             name (str):
                 TensorFlow name scope of the graph nodes.
                 (default "log_prob").
@@ -183,8 +178,7 @@ class Distribution(object):
             given (tf.Tensor): The samples to be tested.
             group_ndims (int or tf.Tensor):
                 If specified, the last `group_ndims` dimensions of the
-                log probability densities will be summed up.
-                (default :obj:`None`)
+                log probability densities will be summed up. (default 0)
             name (str):
                 TensorFlow name scope of the graph nodes.
                 (default "prob").
@@ -193,3 +187,32 @@ class Distribution(object):
             tf.Tensor: The probability densities of `given`.
         """
         raise NotImplementedError()
+
+    @classmethod
+    def factory(cls, **kwargs):
+        """
+        Get a factory for constructing a distribution instance of `cls`,
+        with some default parameters.
+
+        .. code-block:: python
+
+            factory = Normal.factory(std=1.)
+
+            # equivalent to Normal(mean=0., std=1.)
+            normal = factory(mean=0.)
+
+            # override `std`
+            normal = factory(mean=1., std=2.)
+
+            # parameters can also be specified via a dict
+            normal = factory({'mean': 0.})
+
+        Args:
+            \**kwargs: The default named arguments.
+
+        Returns:
+            tfsnippet.distributions.DistributionFactory:
+                The distribution factory instance.
+        """
+        from tfsnippet.distributions import DistributionFactory
+        return DistributionFactory(cls, kwargs)

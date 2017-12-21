@@ -3,7 +3,7 @@ import re
 import six
 import tensorflow as tf
 
-from .base import Module
+from ..base import Module
 
 __all__ = ['ListMapper', 'DictMapper']
 
@@ -65,33 +65,33 @@ class DictMapper(Module):
     outputs given the inputs.
 
     A typical usage of :class:`DictMapper` is to derive the distribution
-    parameters for a :class:`~tfsnippet.modules.StochasticLayer`, e.g.:
+    parameters for a :class:`~tfsnippet.distributions.DistributionFactory`,
+    e.g.:
 
     .. code-block:: python
 
-        from tfsnippet.modules import (Sequential, Dense, Linear, DictMapper,
-                                       NormalLayer)
+        from tfsnippet.distributions import Normal
+        from tfsnippet.modules import Sequential, Dense, Linear, DictMapper
 
         net = Sequential([
             Dense(100),
             DictMapper({
                 'mean': Linear(2),
                 'logstd': Linear(2),
-            }),
-            NormalLayer()
+            })
         ])
+        factory = Normal.factory()
+        distribution = factory(net(x))
 
-    In the above example, the `net` module will produce a 2-dimensional
-    :class:`~tfsnippet.modules.StochasticTensor`, following :class:`Normal`
-    distribution, with the `mean` and `logstd` of the distribution derived
-    from two fully-connected linear layers, using the same hidden features.
+    In the above example, the `net` module will produce a dict carrying `mean`
+    and `logstd`, consumed by the `factory`.
 
     Args:
         mapper (dict[str, (inputs, \**kwargs) -> outputs]): The mapper dict.
         name (str): Optional name of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         scope (str): Optional scope of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, mapper, name=None, scope=None):

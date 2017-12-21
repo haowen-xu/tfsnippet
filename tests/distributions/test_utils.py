@@ -1,5 +1,5 @@
-import six
 import pytest
+import six
 import numpy as np
 import tensorflow as tf
 

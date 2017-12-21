@@ -1,9 +1,44 @@
+import contextlib
+
 import tensorflow as tf
 
 from tfsnippet.utils import (TensorWrapper, register_tensor_wrapper_class,
-                             TensorArgValidator)
+                             TensorArgValidator, is_tensor_object)
 
-__all__ = ['StochasticTensor']
+__all__ = ['validate_n_samples', 'StochasticTensor']
+
+
+def validate_n_samples(value, name):
+    """
+    Validate the `n_samples` argument.
+
+    Args:
+        value: An int32 value, a int32 :class:`tf.Tensor`, or :obj:`None`.
+               :obj:`None` is accepted because it is accepted by
+               :meth:`Distribution.sample`.
+        name (str): Name of the argument (in error message).
+
+    Returns:
+        int or tf.Tensor: The validated `n_samples` argument value.
+
+    Raises:
+        TypeError or ValueError or None: If the value cannot be validated.
+    """
+    if is_tensor_object(value):
+        @contextlib.contextmanager
+        def mkcontext():
+            with tf.name_scope('validate_n_samples'):
+                yield
+    else:
+        @contextlib.contextmanager
+        def mkcontext():
+            yield
+
+    if value is not None:
+        with mkcontext():
+            validator = TensorArgValidator(name=name)
+            value = validator.require_positive(validator.require_int32(value))
+    return value
 
 
 class StochasticTensor(TensorWrapper):
@@ -11,7 +46,7 @@ class StochasticTensor(TensorWrapper):
     Samples or observations of a stochastic variable.
 
     :class:`StochasticTensor` is a tensor-like object, carrying samples
-    or observations of a random variable, following some `distribution`n
+    or observations of a random variable, following some `distribution`
     of a specific :class:`Distribution` type.
 
     It mimics the interface of :class:`zhusuan.model.StochasticTensor`,
@@ -48,6 +83,7 @@ class StochasticTensor(TensorWrapper):
         if is_reparameterized is None:
             is_reparameterized = distribution.is_reparameterized
 
+        n_samples = validate_n_samples(n_samples, 'n_samples')
         if n_samples is not None:
             with tf.name_scope('validate_n_samples'):
                 validator = TensorArgValidator('n_samples')

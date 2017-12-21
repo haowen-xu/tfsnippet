@@ -41,10 +41,10 @@ class Dense(Lambda):
             ``tf.GraphKeys.TRAINABLE_VARIABLES``? (default :obj:`True`)
         name (str):
             Optional name of this module
-            (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+            (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         scope (str):
             Optional scope of this module
-            (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+            (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self,
@@ -101,9 +101,9 @@ class Linear(Dense):
                           collection ``tf.GraphKeys.TRAINABLE_VARIABLES``?
                           (default :obj:`True`)
         name (str): Optional name of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         scope (str): Optional scope of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self,

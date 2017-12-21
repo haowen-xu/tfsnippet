@@ -1,5 +1,5 @@
 from tfsnippet.utils import docstring_inherit
-from .base import Module
+from ..base import Module
 
 __all__ = ['Lambda']
 
@@ -32,9 +32,9 @@ class Lambda(Module):
         f ((inputs, \**kwargs) -> outputs): The function or lambda expression
                                                which derives the outputs.
         name (str): Optional name of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         scope (str): Optional scope of this module
-                    (argument of :class:`~tfsippet.scaffold.VarScopeObject`).
+                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, f, name=None, scope=None):

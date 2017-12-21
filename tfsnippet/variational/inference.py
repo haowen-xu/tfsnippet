@@ -29,7 +29,7 @@ class VariationalInference(object):
     the model again, which is very wasteful.
 
     Second, such interface is not very friendly for implementation of a
-    concrete Bayesian network in :class:`~tfsnippet.module.Module` interface.
+    Bayesian network as :class:`~tfsnippet.module.Module`.
 
     We thus provide this class to separate the construction of model and the
     variational inference stage.  It wraps the variational inference algorithms
@@ -169,12 +169,7 @@ class VariationalInference(object):
 
 
 class VariationalLowerBounds(object):
-    """
-    Factory for variational lower-bounds.
-
-    Args:
-        vi (VariationalInference): The variational inference class.
-    """
+    """Factory for variational lower-bounds."""
 
     def __init__(self, vi):
         self._vi = vi
@@ -216,12 +211,7 @@ class VariationalLowerBounds(object):
 
 
 class VariationalTrainingObjectives(object):
-    """
-    Factory for variational training objectives.
-
-    Args:
-        vi (VariationalInference): The variational inference class.
-    """
+    """Factory for variational training objectives."""
 
     def __init__(self, vi):
         self._vi = vi
