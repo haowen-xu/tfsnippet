@@ -1,5 +1,5 @@
-TF Snippet
-==========
+TFSnippet
+=========
 
 .. image:: https://travis-ci.org/korepwx/tfsnippet.svg?branch=master
     :target: https://travis-ci.org/korepwx/tfsnippet
@@ -10,3 +10,11 @@ TF Snippet
 
 
 TF Snippet is a set of utilities for writing and testing TensorFlow models.
+
+Installation
+------------
+
+.. code-block:: bash
+
+    pip install git+https://github.com/thu-ml/zhusuan.git
+    pip install git+https://github.com/korepwx/tfsnippet.git

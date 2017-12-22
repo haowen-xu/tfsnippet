@@ -29,11 +29,13 @@ else:
 version = str(ast.literal_eval(_version_re.search(
     read_file(os.path.join(_source_dir, 'tfsnippet/__init__.py'))).group(1)))
 
-install_requires = read_file(os.path.join(_source_dir, 'requirements.txt'))
-install_requires = list(filter(
+requirements_list = list(filter(
     lambda v: v and not v.startswith('#'),
-    (s.strip() for s in install_requires.split('\n'))
+    (s.strip() for s in read_file(
+        os.path.join(_source_dir, 'requirements.txt')).split('\n'))
 ))
+dependency_links = [s for s in requirements_list if s.startswith('git+')]
+install_requires = [s for s in requirements_list if not s.startswith('git+')]
 
 
 setup(
@@ -50,8 +52,9 @@ setup(
     platforms='any',
     setup_requires=['setuptools'],
     install_requires=install_requires,
+    dependency_links=dependency_links,
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 2 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',

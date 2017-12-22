@@ -153,6 +153,11 @@ class VariableSaver(VarScopeObject):
             ignore_non_exist (bool):
                 Whether or not to ignore error if the checkpoint file does not
                 exist? (default :obj:`False`)
+
+        Raises:
+            IOError:
+                If the checkpoint files do not exist, and `ignore_non_exist`
+                is not :obj:`True`.
         """
         file_path = self.get_latest_file()
         if file_path:

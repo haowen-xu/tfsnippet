@@ -6,9 +6,9 @@ from contextlib import contextmanager
 import six
 import tensorflow as tf
 
-from .scope import reopen_variable_scope
+from .scope import reopen_variable_scope, root_variable_scope
 
-__all__ = ['auto_reuse_variables', 'instance_reuse']
+__all__ = ['auto_reuse_variables', 'instance_reuse', 'global_reuse']
 
 
 @contextmanager
@@ -140,9 +140,12 @@ def instance_reuse(method=None, scope=None):
 
     These two methods will return the same `bar` variable.
 
+    See Also:
+        :func:`tfsnippet.utils.instance_reuse`
+
     Args:
         scope (str):  The name of the variable scope.
-                      If not set, will use the name of the method as scope name.
+                      If not set, will use the method name as scope name.
                       This argument must be specified as named argument.
     """
     if method is None:
@@ -174,6 +177,81 @@ def instance_reuse(method=None, scope=None):
                             '{!r}'.format(obj, variable_scope))
 
         with reopen_variable_scope(variable_scope):
+            with auto_reuse_variables(scope):
+                return method(*args, **kwargs)
+
+    return wrapper
+
+
+def global_reuse(method=None, scope=None):
+    """
+    Decorate a function within :func:`auto_reuse_variables` scope globally.
+
+    Any function or method applied with this decorator will be called within
+    a variable scope opened first by :func:`root_variable_scope`, then by
+    :func:`auto_reuse_variables`. That is to say, the following code:
+
+    .. code-block:: python
+
+        @global_reuse
+        def foo():
+            return tf.get_variable('bar', ...)
+
+        bar = foo()
+
+    is equivalent to:
+
+    .. code-block:: python
+
+        with root_variable_scope():
+            with auto_reuse_variables('foo'):
+                bar = tf.get_variable('bar', ...)
+
+    By default the name of the variable scope should be equal to the name
+    of the decorated method, and the name scope within the context should
+    be equal to the variable scope name, plus some suffix to make it unique.
+    The variable scope name can be set by `scope` argument, for example:
+
+    .. code-block:: python
+
+        @global_reuse(scope='dense')
+        def dense_layer(inputs):
+            w = tf.get_variable('w', ...)
+            b = tf.get_variable('b', ...)
+            return tf.matmul(w, inputs) + b
+
+    Note that the variable reusing is based on the name of the variable
+    scope, rather than the function object.  As a result, two functions
+    with the same name, or with the same `scope` argument, will reuse
+    the same set of variables.  For example:
+
+    .. code-block:: python
+
+        @global_reuse(scope='foo')
+        def foo_1():
+            return tf.get_variable('bar', ...)
+
+        @global_reuse(scope='foo')
+        def foo_2():
+            return tf.get_variable('bar', ...)
+
+    These two functions will return the same `bar` variable.
+
+    See Also:
+        :func:`tfsnippet.utils.instance_reuse`
+
+    Args:
+        scope (str): The name of the variable scope.
+                     If not set, will use the function name as scope name.
+                     This argument must be specified as named argument.
+    """
+    if method is None:
+        return functools.partial(global_reuse, scope=scope)
+    scope = scope or method.__name__
+
+    @six.wraps(method)
+    def wrapper(*args, **kwargs):
+        with root_variable_scope():
             with auto_reuse_variables(scope):
                 return method(*args, **kwargs)
 

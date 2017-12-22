@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from tfsnippet.utils import auto_reuse_variables, instance_reuse
+from tfsnippet.utils import auto_reuse_variables, instance_reuse, global_reuse
 
 
 class AutoReuseVariablesTestCase(tf.test.TestCase):
@@ -277,3 +277,59 @@ class InstanceReuseTestCase(tf.test.TestCase):
                 match='`method` is expected to be unbound instance method'):
             obj = _Reusable()
             instance_reuse(obj.f)
+
+
+class GlobalReuseTestCase(tf.test.TestCase):
+
+    def test_basic(self):
+        @global_reuse
+        def f():
+            return tf.get_variable('var', shape=()), tf.add(1, 2, name='op')
+
+        @global_reuse(scope='f')
+        def f_1():
+            return tf.get_variable('var', shape=())
+
+        @global_reuse
+        def g():
+            return f()
+
+        # test reuse with default settings
+        var_1, op_1 = f()
+        var_2, op_2 = f()
+        self.assertIs(var_1, var_2)
+        self.assertIsNot(op_1, op_2)
+        self.assertEqual(var_1.name, 'f/var:0')
+        self.assertEqual(op_1.name, 'f/op:0')
+        self.assertEqual(op_2.name, 'f_1/op:0')
+
+        # test reuse according to the scope name
+        var_3 = f_1()
+        self.assertIs(var_3, var_1)
+
+        # test reuse within different parent scope
+        with tf.variable_scope('parent'):
+            var_3, op_3 = f()
+            self.assertIs(var_3, var_2)
+            self.assertIsNot(op_3, op_2)
+            self.assertEqual(var_3.name, 'f/var:0')
+            self.assertEqual(op_3.name, 'f_3/op:0')
+
+        # test reuse with nested `global_reuse`
+        var_4, op_4 = g()
+        self.assertIs(var_4, var_1)
+        self.assertEqual(var_4.name, 'f/var:0')
+        self.assertEqual(op_4.name, 'f_4/op:0')
+
+    def test_nested_scope_arg(self):
+        @global_reuse(scope='nested/scope')
+        def nested():
+            return tf.get_variable('var', shape=()), tf.add(1, 2, name='op')
+
+        var_1, op_1 = nested()
+        var_2, op_2 = nested()
+        self.assertIs(var_1, var_2)
+        self.assertIsNot(op_1, op_2)
+        self.assertEqual(var_1.name, 'nested/scope/var:0')
+        self.assertEqual(op_1.name, 'nested/scope/op:0')
+        self.assertEqual(op_2.name, 'nested/scope_1/op:0')
