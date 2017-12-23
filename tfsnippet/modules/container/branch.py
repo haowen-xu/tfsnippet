@@ -70,14 +70,16 @@ class DictMapper(Module):
 
     .. code-block:: python
 
+        from tensorflow import keras as K
+
         from tfsnippet.distributions import Normal
-        from tfsnippet.modules import Sequential, Dense, Linear, DictMapper
+        from tfsnippet.modules import Sequential, DictMapper
 
         net = Sequential([
-            Dense(100),
+            K.layers.Dense(100, activation=tf.nn.relu),
             DictMapper({
-                'mean': Linear(2),
-                'logstd': Linear(2),
+                'mean': K.layers.Dense(2),
+                'logstd': K.layers.Dense(2),
             })
         ])
         factory = Normal.factory()

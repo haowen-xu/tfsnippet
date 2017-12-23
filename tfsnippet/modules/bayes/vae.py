@@ -32,8 +32,8 @@ class VAE(Module):
 
     .. code-block:: python
 
-        from tfsnippet.modules import (VAE, Linear, DictMapper, Dense,
-                                       Sequential)
+        from tfsnippet import keras as K
+        from tfsnippet.modules import VAE, DictMapper, Sequential
 
         batch_size = 128
         x_dims, z_dims = 100, 10
@@ -43,12 +43,14 @@ class VAE(Module):
             p_x_given_z=Normal,
             q_z_given_x=Normal,
             h_for_p_x=Sequential([
-                Dense(100),
-                DictMapper({'mean': Linear(x_dims), 'logstd': Linear(x_dims)})
+                K.layers.Dense(100, activation=tf.nn.relu),
+                DictMapper({'mean': K.layers.Dense(x_dims),
+                            'logstd': K.layers.Dense(x_dims)})
             ]),
             h_for_q_z=Sequential([
-                Dense(100),
-                DictMapper({'mean': Linear(z_dims), 'logstd': Linear(z_dims)})
+                K.layers.Dense(100, activation=tf.nn.relu),
+                DictMapper({'mean': K.layers.Dense(z_dims),
+                            'logstd': K.layers.Dense(z_dims)})
             ])
         )
 

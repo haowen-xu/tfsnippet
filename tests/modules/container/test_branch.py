@@ -2,14 +2,14 @@ import pytest
 import six
 import tensorflow as tf
 
-from tfsnippet.modules import ListMapper, DictMapper, Linear
+from tfsnippet.modules import ListMapper, DictMapper, Lambda
 
 
 class ListMapperTestCase(tf.test.TestCase):
 
     def test_outputs(self):
         net = ListMapper([
-            Linear(2),
+            Lambda(lambda x: x * tf.get_variable('x', initializer=0.)),
             (lambda x: x * tf.get_variable('y', initializer=0.)),
         ])
         inputs = tf.placeholder(dtype=tf.float32, shape=[None, 2])
@@ -21,8 +21,7 @@ class ListMapperTestCase(tf.test.TestCase):
         _ = net(inputs)
         self.assertEqual(
             sorted(v.name for v in tf.global_variables()),
-            ['linear/fully_connected/biases:0',
-             'linear/fully_connected/weights:0',
+            ['lambda/x:0',
              'list_mapper/_1/y:0']
         )
 
@@ -35,7 +34,7 @@ class DictMapperTestCase(tf.test.TestCase):
 
     def test_outputs(self):
         net = DictMapper({
-            'a': Linear(2),
+            'a': Lambda(lambda x: x * tf.get_variable('x', initializer=0.)),
             'b': lambda x: x * tf.get_variable('y', initializer=0.)
         })
         inputs = tf.placeholder(dtype=tf.float32, shape=[None, 2])
@@ -49,8 +48,7 @@ class DictMapperTestCase(tf.test.TestCase):
         self.assertEqual(
             sorted(v.name for v in tf.global_variables()),
             ['dict_mapper/b/y:0',
-             'linear/fully_connected/biases:0',
-             'linear/fully_connected/weights:0']
+             'lambda/x:0']
         )
 
     def test_empty_mapper(self):

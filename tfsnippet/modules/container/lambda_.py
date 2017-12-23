@@ -12,8 +12,8 @@ class Lambda(Module):
     a neural network :class:`Module`, reusing the variables created
     within the specified function.
 
-    For example, one may create a reusable fully connected layer
-    module by using :class:`Lambda` component as follows:
+    For example, one may wrap :func:`tensorflow.contrib.layers.fully_connected`
+    into a reusable module with :class:`Lambda` component as follows:
 
     .. code-block:: python
 

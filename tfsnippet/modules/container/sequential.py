@@ -11,19 +11,19 @@ class Sequential(Module):
 
     This class wraps a sequential of neural network components into a
     unified :class:`Module`, reusing the parameters inside each component.
-    Instances of :class:`Module` and any arbitrary function can be mixed
-    together freely.  For example:
+    Instances of :class:`Module` and any arbitrary 3rd-party components
+    can be mixed together freely.  For example:
 
     .. code-block:: python
 
+        from tensorflow import keras as K
         from tensorflow.contrib import layers
-        from tfsnippet.modules import Dense, Linear
 
         mlp = Sequential([
             lambda inputs: layers.fully_connected(
                 inputs, num_outputs=100, activation_fn=tf.nn.relu),
-            Dense(100, activation_fn=tf.nn.relu),
-            Linear(1),
+            K.layers.Dense(100, activation_fn=tf.nn.relu),
+            K.layers.Dense(1),
             tf.nn.sigmoid
         ])
 
@@ -41,8 +41,8 @@ class Sequential(Module):
         hidden layer (derived by :func:`~tf.contrib.layers.fully_connected`)
         would be collected in the scope ``sequential/_0/``, while the
         parameters of the second hidden layer (derived by an instance of
-        :class:`~tfsnippet.modules.Dense`) would be collected in the scope
-        ``dense/``, which is the scope of the dense module itself.
+        :class:`tensorflow.keras.layers.Dense`) would be collected in its own
+        variable scope.
 
     Args:
         components (list[(inputs, \**kwargs) -> outputs]):

@@ -4,10 +4,11 @@ import numpy as np
 import tensorflow as tf
 import zhusuan as zs
 from mock import Mock
+from tensorflow import keras as K
 
 from tfsnippet.distributions import (Distribution, DistributionFactory, Normal,
                                      Bernoulli)
-from tfsnippet.modules import VAE, Module, Sequential, Dense, DictMapper, Linear
+from tfsnippet.modules import VAE, Module, Sequential, DictMapper
 from tfsnippet.utils import (VarScopeObject, instance_reuse,
                              ensure_variables_initialized)
 
@@ -37,12 +38,14 @@ class Helper(VarScopeObject):
                                   initializer=tf.random_normal_initializer())
 
         self.h_for_p_x = Sequential([
-            Dense(100),
-            DictMapper({'mean': Linear(X_DIMS), 'logstd': Linear(X_DIMS)})
+            K.layers.Dense(100, activation=tf.nn.relu),
+            DictMapper({'mean': K.layers.Dense(X_DIMS),
+                        'logstd': K.layers.Dense(X_DIMS)})
         ])
         self.h_for_q_z = Sequential([
-            Dense(100),
-            DictMapper({'mean': Linear(Z_DIMS), 'logstd': Linear(Z_DIMS)})
+            K.layers.Dense(100, activation=tf.nn.relu),
+            DictMapper({'mean': K.layers.Dense(Z_DIMS),
+                        'logstd': K.layers.Dense(Z_DIMS)})
         ])
 
         # ensure variables created
