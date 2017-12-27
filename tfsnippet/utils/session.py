@@ -1,6 +1,7 @@
 import os
 from logging import getLogger
 
+import six
 import tensorflow as tf
 
 from .imported import makedirs
@@ -36,13 +37,12 @@ def get_variables_as_dict(scope=None, collection=tf.GraphKeys.GLOBAL_VARIABLES):
     Get TensorFlow variables as dict.
 
     Args:
-        scope (str or tf.VariableScope):
-            Name of a variable scope, or a variable scope object.
-            Only the variables within this scope would be returned if specified.
-
-        collection (str):
-            Only the variables belonging to this collection would be returned.
-            (default is ``tf.GraphKeys.GLOBAL_VARIABLES``)
+        scope (str or tf.VariableScope or None): If :obj:`None`, will collect
+            all the variables within current graph.  If a :class:`str` or a
+            :class:`tf.VariableScope`, will collect the variables only from
+            this scope. (default :obj:`None`)
+        collection (str): Collect the variables only from this collection.
+            (default ``tf.GraphKeys.GLOBAL_VARIABLES``)
 
     Returns:
         dict[str, tf.Variable]:
@@ -201,13 +201,16 @@ def ensure_variables_initialized(variables=None, name=None):
     Ensure variables are initialized.
 
     Args:
-        variables (list[tf.Variable]):
-            Ensure only the variables within this list to be initialized.
-            If not specified, will ensure all variables within
-            ``~tf.GraphKeys.GLOBAL_VARIABLES`` collection to be initialized.
+        variables (list[tf.Variable] or dict[str, tf.Variable]):
+            Ensure only the variables within this collection to be initialized.
+            If not specified, will ensure all variables within the collection
+            `tf.GraphKeys.GLOBAL_VARIABLES` to be initialized.
         name (str): Name of this operation in TensorFlow graph.
+            (default `ensure_variables_initialized`)
     """
     with tf.name_scope(name, default_name='ensure_variables_initialized'):
+        if isinstance(variables, dict):
+            variables = list(six.itervalues(variables))
         uninitialized = get_uninitialized_variables(variables)
         if uninitialized:
             sess = get_default_session_or_error()

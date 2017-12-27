@@ -200,13 +200,15 @@ class GetUninitializedVariablesTestCase(tf.test.TestCase):
 class EnsureVariablesInitializedTestCase(tf.test.TestCase):
 
     def test_ensure_variables_initialized(self):
+        a = tf.get_variable('a', dtype=tf.int32, initializer=1)
+        b = tf.get_variable('b', dtype=tf.int32, initializer=2)
+        c = tf.get_variable('c', dtype=tf.int32, initializer=3,
+                            collections=[tf.GraphKeys.MODEL_VARIABLES])
+        d = tf.get_variable('d', dtype=tf.int32, initializer=4,
+                            collections=[tf.GraphKeys.MODEL_VARIABLES])
+
+        # test using list
         with self.test_session():
-            a = tf.get_variable('a', dtype=tf.int32, initializer=1)
-            b = tf.get_variable('b', dtype=tf.int32, initializer=2)
-            c = tf.get_variable('c', dtype=tf.int32, initializer=3,
-                                collections=[tf.GraphKeys.MODEL_VARIABLES])
-            d = tf.get_variable('d', dtype=tf.int32, initializer=4,
-                                collections=[tf.GraphKeys.MODEL_VARIABLES])
             self.assertEqual(
                 get_uninitialized_variables([a, b, c, d]),
                 [a, b, c, d]
@@ -220,4 +222,16 @@ class EnsureVariablesInitializedTestCase(tf.test.TestCase):
             self.assertEqual(
                 get_uninitialized_variables([a, b, c, d]),
                 []
+            )
+
+    def test_ensure_variables_initialized_using_dict(self):
+        a = tf.get_variable('a', dtype=tf.int32, initializer=1)
+        b = tf.get_variable('b', dtype=tf.int32, initializer=2)
+
+        # test using dict
+        with self.test_session():
+            ensure_variables_initialized({'a': a})
+            self.assertEqual(
+                get_uninitialized_variables([a, b]),
+                [b]
             )
