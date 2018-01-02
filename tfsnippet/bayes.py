@@ -96,6 +96,13 @@ class BayesianNet(object):
     """
 
     def __init__(self, observed=None):
+        """
+        Construct the :class:`BayesianNet`.
+
+        Args:
+            observed: Dict of ``(str, tf.Tensor)``, the names of stochastic
+                nodes and their observations.
+        """
         super(BayesianNet, self).__init__()
         self._observed = frozendict([
             (name, tf.convert_to_tensor(tensor))
@@ -109,8 +116,8 @@ class BayesianNet(object):
         Get the read-only dict of observations.
 
         Returns:
-            collections.Mapping[str, tf.Tensor]:
-                The read-only dict of observations.
+            collections.Mapping[str, tf.Tensor]: The read-only dict of
+                observations.
         """
         return self._observed
 
@@ -135,21 +142,20 @@ class BayesianNet(object):
         `distribution`.
 
         Args:
-            name (str):
-                Name of the stochastic node.
+            name (str): Name of the stochastic node.
             distribution (Distribution or zhusuan.distributions.Distribution):
                 Distribution where the samples should be taken from.
-            n_samples (int or tf.Tensor):
-                Number of samples to take.  If specified, `n_samples` will
-                be taken, with a dedicated sampling dimension ``[n_samples]``
-                at the front.  If not specified, just one sample will be
-                taken, without the dedicated dimension.
-            group_ndims (int or tf.Tensor):
-                Number of dimensions at the end of ``[n_samples] + batch_shape``
-                to be considered as events group. (default 0)
-            is_reparameterized:
-                Whether or not the re-parameterization trick should be applied?
-                (default :obj:`None`, following the setting of `distribution`)
+            n_samples (int or tf.Tensor): Number of samples to take.
+                If specified, `n_samples` will be taken, with a dedicated
+                sampling dimension ``[n_samples]`` at the front.
+                If not specified, just one sample will be taken, without the
+                dedicated dimension.
+            group_ndims (int or tf.Tensor): Number of dimensions at the end of
+                ``[n_samples] + batch_shape`` to be considered as events group.
+                (default 0)
+            is_reparameterized: Whether or not the re-parameterization trick
+                should be applied? (default :obj:`None`, following the setting
+                of `distribution`)
 
         Returns:
             StochasticTensor: The sampled stochastic tensor.
@@ -195,7 +201,7 @@ class BayesianNet(object):
 
         Returns:
             StochasticTensor: :class:`StochasticTensor` of the queried node,
-                              or :obj:`None` if no node exists with `name`.
+                or :obj:`None` if no node exists with `name`.
         """
         return self._stochastic_tensors.get(name)
 
@@ -264,8 +270,8 @@ class BayesianNet(object):
             names (Iterable[str]): Names of the queried stochastic nodes.
 
         Returns:
-            list[tf.Tensor]:
-                Log-probability densities of the queried stochastic nodes.
+            list[tf.Tensor]: Log-probability densities of the queried stochastic
+                nodes.
 
         Raises:
             KeyError: If non-exist name is queried.
@@ -296,8 +302,8 @@ class BayesianNet(object):
             names (Iterable[str]): Names of the queried stochastic nodes.
 
         Returns:
-            list[(tf.Tensor, tf.Tensor)]:
-                Tuples of `(output, log-prob)` of the queried stochastic nodes.
+            list[(tf.Tensor, tf.Tensor)]: Tuples of `(output, log-prob)` of the
+                queried stochastic nodes.
 
         Raises:
             KeyError: If non-exist name is queried.
@@ -312,32 +318,25 @@ class BayesianNet(object):
         net chained after this variational net.
 
         Args:
-            model_builder:
-                Function which receives the `observed` dict, and produce the
-                model :class:`BayesianNet` or a tuple of the model
+            model_builder: Function which receives the `observed` dict, and
+                produce the model :class:`BayesianNet` or a tuple of the model
                 :class:`BayesianNet` and the log-joint of the model.
-
-            latent_names (Iterable[str]):
-                Names of the nodes to be considered as latent variables in
-                this :class:`BayesianNet`.  All these variables will be
-                fed into `model_builder` as observed variables, overriding
-                the observations in `observed`.
+            latent_names (Iterable[str]): Names of the nodes to be considered
+                as latent variables in this :class:`BayesianNet`.  All these
+                variables will be fed into `model_builder` as observed
+                variables, overriding the observations in `observed`.
                 (default all the variables in this :class:`BayesianNet`)
-
-            latent_axis:
-                The axis or axes to be considered as the sampling dimensions
-                of latent variables.  The specified axes will be summed up in
-                the variational lower-bounds or training objectives.
-                (default :obj:`None`)
-
-            observed:
-                Dict of ``(name, observation)`` fed into `model_builder`.
+            latent_axis: The axis or axes to be considered as the sampling
+                dimensions of latent variables.  The specified axes will be
+                summed up in the variational lower-bounds or training
+                objectives. (default :obj:`None`)
+            observed: Dict of ``(name, observation)`` fed into `model_builder`.
                 (default :obj:`None`)
 
         Returns:
-            tfsnippet.variational.VariationalChain:
-                The object that holds this :class:`BayesianNet` as the
-                `variational` net, the constructed `model` net, and the
+            tfsnippet.variational.VariationalChain: The object that holds this
+                :class:`BayesianNet` as the `variational` net, the constructed
+                `model` net, and the
                 :class:`~tfsnippet.variational.VariationalInference` object
                 for obtaining the variational lower-bounds and training
                 objectives.

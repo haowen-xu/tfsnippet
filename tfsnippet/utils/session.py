@@ -45,13 +45,11 @@ def get_variables_as_dict(scope=None, collection=tf.GraphKeys.GLOBAL_VARIABLES):
             (default ``tf.GraphKeys.GLOBAL_VARIABLES``)
 
     Returns:
-        dict[str, tf.Variable]:
-            Dict which maps from names to TensorFlow variables.
-
-            The names will be the full names of variables if `scope` is not
-            specified, or the `relative names` within the `scope` otherwise.
-            By `relative names` we mean the variable names without the common
-            scope name prefix.
+        dict[str, tf.Variable]: Dict which maps from names to TensorFlow
+            variables.  The names will be the full names of variables if
+            `scope` is not specified, or the `relative names` within the
+            `scope` otherwise. By `relative names` we mean the variable names
+            without the common scope name prefix.
     """
     # get the common prefix to be stripped
     if isinstance(scope, tf.VariableScope):
@@ -71,42 +69,33 @@ def get_variables_as_dict(scope=None, collection=tf.GraphKeys.GLOBAL_VARIABLES):
 
 
 class VariableSaver(VarScopeObject):
-    """
-    Version controlled saving and restoring TensorFlow variables.
-
-    Args:
-        variables (collections.Iterable[tf.Variable] or dict[str, any]):
-            List of variables, or dict of variables with explicit keys,
-            which should be saved and restored.
-
-        save_dir (str):
-            Directory where to place the saved variables.
-
-        max_versions (int):
-            Maximum versions to keep in the directory (Default is 2).
-            At least 2 versions should be kept, in order to prevent corrupted
-            checkpoint files caused by IO failure.
-
-        filename (str):
-            Name of the files of variable values (default is ``variables.dat``).
-
-        latest_file (str):
-            Name of the file which organizes the checkpoint versions
-            (default is ``latest``).
-
-        save_meta (bool):
-            Whether or not to save meta graph (default is :obj:`True`).
-
-        name (str):
-            Optional name of this :class:`VariableSaver`.
-
-        scope (str):
-            Optional scope of this :class:`VariableSaver`.
-    """
+    """Version controlled saving and restoring TensorFlow variables."""
 
     def __init__(self, variables, save_dir, max_versions=2,
                  filename='variables.dat', latest_file='latest',
                  save_meta=True, name=None, scope=None):
+        """
+        Construct the :class:`VariableSaver`.
+
+        Args:
+            variables (collections.Iterable[tf.Variable] or dict[str, any]):
+                List of variables, or dict of variables with explicit keys,
+                which should be saved and restored.
+            save_dir (str): Directory where to place the saved variables.
+            max_versions (int): Maximum versions to keep in the directory
+                (Default is 2). At least 2 versions should be kept, in order to
+                prevent corrupted checkpoint files caused by IO failure.
+            filename (str): Name of the files of variable values (default is
+                ``variables.dat``).
+            latest_file (str): Name of the file which organizes the checkpoint
+                versions (default is ``latest``).
+            save_meta (bool): Whether or not to save meta graph (default
+                is :obj:`True`).
+            name (str): Optional name of this :class:`VariableSaver`
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this :class:`VariableSaver`
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+        """
         if not isinstance(variables, dict):
             variables = list(variables)
         if max_versions < 2:
@@ -150,14 +139,12 @@ class VariableSaver(VarScopeObject):
         Restore the checkpoint from file if it exists.
 
         Args:
-            ignore_non_exist (bool):
-                Whether or not to ignore error if the checkpoint file does not
-                exist? (default :obj:`False`)
+            ignore_non_exist (bool): Whether or not to ignore error if the
+                checkpoint file does not exist? (default :obj:`False`)
 
         Raises:
-            IOError:
-                If the checkpoint files do not exist, and `ignore_non_exist`
-                is not :obj:`True`.
+            IOError: If the checkpoint files do not exist, and
+                `ignore_non_exist` is not :obj:`True`.
         """
         file_path = self.get_latest_file()
         if file_path:
@@ -175,10 +162,9 @@ def get_uninitialized_variables(variables=None, name=None):
     Get uninitialized variables as a list.
 
     Args:
-        variables (list[tf.Variable]):
-            Collect only uninitialized variables within this list.
-            If not specified, will collect all uninitialized variables
-            within ``~tf.GraphKeys.GLOBAL_VARIABLES`` collection.
+        variables (list[tf.Variable]): Collect only uninitialized variables
+            within this list. If not specified, will collect all uninitialized
+            variables within ``tf.GraphKeys.GLOBAL_VARIABLES`` collection.
         name (str): Name of this operation in TensorFlow graph.
 
     Returns:
@@ -201,12 +187,12 @@ def ensure_variables_initialized(variables=None, name=None):
     Ensure variables are initialized.
 
     Args:
-        variables (list[tf.Variable] or dict[str, tf.Variable]):
-            Ensure only the variables within this collection to be initialized.
-            If not specified, will ensure all variables within the collection
+        variables (list[tf.Variable] or dict[str, tf.Variable]): Ensure only
+            the variables within this collection to be initialized. If not
+            specified, will ensure all variables within the collection
             `tf.GraphKeys.GLOBAL_VARIABLES` to be initialized.
-        name (str): Name of this operation in TensorFlow graph.
-            (default `ensure_variables_initialized`)
+        name (str): Name of this operation in TensorFlow graph. (default
+            `ensure_variables_initialized`)
     """
     with tf.name_scope(name, default_name='ensure_variables_initialized'):
         if isinstance(variables, dict):

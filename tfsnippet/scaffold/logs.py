@@ -119,16 +119,18 @@ class MetricLogger(object):
             print('Epoch {}, step {}: {}'.format(
                 epoch, global_step, logger.format_logs()))
             logger.clear()
-
-    Args:
-        summary_writer: TensorFlow summary writer.
-
-        formatter (MetricFormatter):
-            Metric formatter for this logger. If not specified,
-            will use an instance of `DefaultMetricFormatter`.
     """
 
     def __init__(self, summary_writer=None, formatter=None):
+        """
+        Construct the :class:`MetricLogger`.
+
+        Args:
+            summary_writer: TensorFlow summary writer.
+            formatter (MetricFormatter): Metric formatter for this logger.
+                If not specified, will use an instance of
+                :class:`DefaultMetricFormatter`.
+        """
         if formatter is None:
             formatter = DefaultMetricFormatter()
         self._formatter = formatter
@@ -150,20 +152,16 @@ class MetricLogger(object):
         Collect the statistics of metrics.
 
         Args:
-            metrics (dict[str, float or np.ndarray]):
-                Dict from metrics names to their values.
-
-                For :meth:`format_logs`, there is no difference between
-                calling :meth:`collect_metrics` only once, with an array of
-                metric values; or calling :meth:`collect_metrics` multiple
-                times, with one value at each time.
-
-                However, for the TensorFlow summary writer, only the mean
-                of the metric values would be recorded, if calling
+            metrics (dict[str, float or np.ndarray]): Dict from metrics names
+                to their values.  For :meth:`format_logs`, there is no
+                difference between calling :meth:`collect_metrics` only once,
+                with an array of metric values; or calling
+                :meth:`collect_metrics` multiple times, with one value at
+                each time.  However, for the TensorFlow summary writer, only
+                the mean of the metric values would be recorded, if calling
                 :meth:`collect_metrics` with an array.
-
-            global_step (int or tf.Variable or tf.Tensor):
-                The global step counter. (optional)
+            global_step (int or tf.Variable or tf.Tensor): The global step
+                counter. (optional)
         """
         tf_summary_values = []
         for k, v in six.iteritems(metrics):
@@ -186,7 +184,7 @@ class MetricLogger(object):
         """
         Format the metric statistics as human readable strings.
 
-        Returns
+        Returns:
             str: The formatted metric statistics.
         """
         buf = []
@@ -209,9 +207,8 @@ def summarize_variables(variables, title='Variables Summary'):
     Get a formatted summary about the variables.
 
     Args:
-        variables (list[tf.Variable] or dict[str, tf.Variable]):
-            List or dict of variables to be summarized.
-
+        variables (list[tf.Variable] or dict[str, tf.Variable]): List or
+            dict of variables to be summarized.
         title (str): Optional title of this summary.
 
     Returns:

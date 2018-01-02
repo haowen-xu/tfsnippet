@@ -37,20 +37,21 @@ class VariationalInference(object):
     returns the pre-computed log-joint :class:`tf.Tensor`.
 
     .. _`ZhuSuan`: https://github.com/thu-ml/zhusuan
-
-    Args:
-        log_joint (tf.Tensor): The log-joint of model.
-        latent_log_probs (Iterable[tf.Tensor]):
-            The log-probability densities of latent variables from the
-            variational net.
-        axis:
-            The axis or axes to be considered as the sampling dimensions
-            of latent variables.  The specified axes will be summed up in
-            the variational lower-bounds or training objectives.
-            (default :obj:`None`)
     """
 
     def __init__(self, log_joint, latent_log_probs, axis=None):
+        """
+        Construct the :class:`VariationalInference`.
+
+        Args:
+            log_joint (tf.Tensor): The log-joint of model.
+            latent_log_probs (Iterable[tf.Tensor]): The log-probability
+                densities of latent variables from the variational net.
+            axis: The axis or axes to be considered as the sampling dimensions
+                of latent variables.  The specified axes will be summed up in
+                the variational lower-bounds or training objectives.
+                (default :obj:`None`)
+        """
         self._log_joint = tf.convert_to_tensor(log_joint)
         self._latent_log_probs = tuple(tf.convert_to_tensor(t)
                                        for t in latent_log_probs)
@@ -92,18 +93,15 @@ class VariationalInference(object):
         pre-computed log-joint, by specified algorithm.
 
         Args:
-            func: The variational algorithm from `ZhuSuan`_.
-                  Supported functions are:
-
-                  1. :func:`zhusuan.variational.elbo`
-                  2. :func:`zhusuan.variational.importance_weighted_objective`
-                  3. :func:`zhusuan.variational.klpq`
-
+            func: The variational algorithm from `ZhuSuan`_. Supported
+                functions are: 1. :func:`zhusuan.variational.elbo`
+                2. :func:`zhusuan.variational.importance_weighted_objective`
+                3. :func:`zhusuan.variational.klpq`
             \**kwargs: Named arguments passed to `func`.
 
         Returns:
-            zhusuan.variational.VariationalObjective:
-                The constructed variational objective.
+            zhusuan.variational.VariationalObjective: The constructed
+                variational objective.
         """
         return func(
             log_joint=lambda observed: self._log_joint,
@@ -120,8 +118,8 @@ class VariationalInference(object):
         with pre-computed log-joint.
 
         Returns:
-            zhusuan.variational.EvidenceLowerBoundObjective:
-                The constructed ELBO objective.
+            zhusuan.variational.EvidenceLowerBoundObjective: The constructed
+                ELBO objective.
         """
         return self.zs_objective(zs.variational.elbo)
 
@@ -131,8 +129,8 @@ class VariationalInference(object):
         with pre-computed log-joint.
 
         Returns:
-            zhusuan.variational.ImportanceWeightedObjective:
-                The constructed importance weighted objective.
+            zhusuan.variational.ImportanceWeightedObjective: The constructed
+                importance weighted objective.
         """
         return self.zs_objective(zs.variational.importance_weighted_objective)
 
@@ -142,8 +140,8 @@ class VariationalInference(object):
         with pre-computed log-joint.
 
         Returns:
-            zhusuan.variational.InclusiveKLObjective:
-                The constructed inclusive KL objective.
+            zhusuan.variational.InclusiveKLObjective: The constructed
+                inclusive KL objective.
         """
         return self.zs_objective(zs.variational.klpq)
 
@@ -180,7 +178,7 @@ class VariationalLowerBounds(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "elbo")
+                (default "elbo")
 
         Returns:
             tf.Tensor: The evidence lower-bound.
@@ -197,7 +195,7 @@ class VariationalLowerBounds(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "importance_weighted_objective")
+                (default "importance_weighted_objective")
 
         Returns:
             tf.Tensor: The importance weighted lower-bound.
@@ -222,7 +220,7 @@ class VariationalTrainingObjectives(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "sgvb")
+                (default "sgvb")
 
         Returns:
             tf.Tensor: The SGVB training objective.
@@ -241,10 +239,10 @@ class VariationalTrainingObjectives(object):
         Args:
             variance_reduction (bool): Whether to use variance reduction.
             baseline (tf.Tensor): A trainable estimation for the scale of
-                                  the elbo value.
+                the elbo value.
             decay (float): The moving average decay for variance normalization.
             name (str): Name of this operation in TensorFlow graph.
-                        (default "reinforce")
+                (default "reinforce")
 
         Returns:
             tf.Tensor: The REINFORCE training objective.
@@ -267,11 +265,11 @@ class VariationalTrainingObjectives(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "iwae")
+                (default "iwae")
 
         Returns:
-            tf.Tensor:
-                The SGVB training objective for importance weighted objective.
+            tf.Tensor: The SGVB training objective for importance weighted
+                objective.
 
         See Also:
             :meth:`zhusuan.variational.ImportanceWeightedObjective.sgvb`
@@ -286,7 +284,7 @@ class VariationalTrainingObjectives(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "vimco")
+                (default "vimco")
 
         Returns:
             tf.Tensor: The VIMCO training objective.
@@ -304,7 +302,7 @@ class VariationalTrainingObjectives(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                        (default "rws_wake")
+                (default "rws_wake")
 
         Returns:
             tf.Tensor: The wake-phase RWS training objective.

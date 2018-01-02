@@ -32,12 +32,19 @@ class ListMapper(Module):
     in which the `net` module first maps the inputs into a list by using
     :class:`ListMapper`, then generates the final output by concatenating
     the outputs of :class:`ListMapper` along axis-0.
-
-    Args:
-        mapper (list[(inputs, \**kwargs) -> outputs]): The mapper list.
     """
 
     def __init__(self, mapper, name=None, scope=None):
+        """
+        Construct the :class:`ListMapper`.
+
+        Args:
+            mapper (list[(inputs, \**kwargs) -> outputs]): The mapper list.
+            name (str): Optional name of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+        """
         mapper = tuple(mapper)
         if not mapper:
             raise ValueError('`mapper` must not be empty')
@@ -87,16 +94,19 @@ class DictMapper(Module):
 
     In the above example, the `net` module will produce a dict carrying `mean`
     and `logstd`, consumed by the `factory`.
-
-    Args:
-        mapper (dict[str, (inputs, \**kwargs) -> outputs]): The mapper dict.
-        name (str): Optional name of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-        scope (str): Optional scope of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, mapper, name=None, scope=None):
+        """
+        Construct the :class:`DictMapper`.
+
+        Args:
+            mapper (dict[str, (inputs, \**kwargs) -> outputs]): The mapper dict.
+            name (str): Optional name of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+        """
         mapper = {k: v for k, v in six.iteritems(mapper)}
         if not mapper:
             raise ValueError('`mapper` must not be empty')

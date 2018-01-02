@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from tfsnippet.utils import StatisticsCollector
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
-from .validation import (EarlyStoppingContext, 
+from .validation import (EarlyStoppingContext,
                          early_stopping as open_early_stopping)
 
 __all__ = [
@@ -21,26 +21,7 @@ STEP_TIME_METRIC = 'step_time'
 
 
 class TrainLoopContext(object):
-    """
-    Training loop context object.
-
-    Args:
-        param_vars (list[tf.Variable] or dict[str, tf.Variable]):
-            List or dict of variables, optimized during training.
-        print_func ((str) -> None): Function for printing log messages.
-        summary_writer: TensorFlow summary writer for writing metrics onto disk.
-        metric_formatter (MetricFormatter): The training metrics formatter.
-        valid_metric_name (str): Name of the validation metric.
-        initial_valid_metric (float):
-            Initial value of the validation metric for early-stopping.
-        valid_metric_smaller_is_better (bool):
-            Whether or not the smaller value is better for validation metric?
-        early_stopping (EarlyStoppingContext): The early-stopping context.
-        initial_epoch (int): The initial epoch.
-        initial_step (int): The initial step.
-        max_epoch (int or None): The maximum epoch to run.
-        max_step (int or None): The maximum step to run.
-    """
+    """Training loop context object."""
 
     def __init__(self,
                  param_vars,
@@ -55,6 +36,27 @@ class TrainLoopContext(object):
                  initial_step,
                  max_epoch,
                  max_step):
+        """
+        Construct the :class:`TrainLoopContext`.
+
+        Args:
+            param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
+                dict of variables, optimized during training.
+            print_func ((str) -> None): Function for printing log messages.
+            summary_writer: TensorFlow summary writer for writing metrics onto
+                disk.
+            metric_formatter (MetricFormatter): The training metrics formatter.
+            valid_metric_name (str): Name of the validation metric.
+            initial_valid_metric (float): Initial value of the validation metric
+                for early-stopping.
+            valid_metric_smaller_is_better (bool): Whether or not the smaller
+                value is better for validation metric?
+            early_stopping (EarlyStoppingContext): The early-stopping context.
+            initial_epoch (int): The initial epoch.
+            initial_step (int): The initial step.
+            max_epoch (int or None): The maximum epoch to run.
+            max_step (int or None): The maximum step to run.
+        """
         self._param_vars = param_vars
         self._print_func = print_func
         self._metric_formatter = metric_formatter
@@ -182,15 +184,14 @@ class TrainLoopContext(object):
         is being iterated, and an epoch loop is active.
 
         Args:
-            data_generator:
-                Optional iterable data to be yielded at every step.
+            data_generator: Optional iterable data to be yielded at every step.
                 This is required if `max_step` is not configured, so as to
                 prevent an infinite step loop.
 
         Yields:
-            int or (int, any):
-                The global step counter (starting from 1), or the tuple of
-                ``(step counter, batch data)`` if `data_generator` is specified.
+            int or (int, any): The global step counter (starting from 1), or
+                the tuple of ``(step counter, batch data)`` if `data_generator`
+                is specified.
         """
         def loop_condition():
             return self._max_step is None or self._step < self._max_step
@@ -241,11 +242,10 @@ class TrainLoopContext(object):
         Open a context for timing.
 
         Args:
-            metric_name (str):
-                Store the timing result in metric of this name.
+            metric_name (str): Store the timing result in metric of this name.
                 Note that `metric_name` must end with ``time`` or ``timer``,
-                otherwise by default the time values will not be formatted
-                as human readable strings.
+                otherwise by default the time values will not be formatted as
+                human readable strings.
         """
         self._require_context()
         start_time = time.time()
@@ -325,8 +325,8 @@ class TrainLoopContext(object):
         Add a summary object, with ``self.step`` as `global_step`.
 
         Args:
-            summary (tf.summary.Summary or byes):
-                TensorFlow summary object, or serialized summary.
+            summary (tf.summary.Summary or byes): TensorFlow summary object,
+                or serialized summary.
         """
         self._summary_writer.add_summary(summary, global_step=self.step)
 
@@ -337,7 +337,7 @@ class TrainLoopContext(object):
         Args:
             message (str): Message to be printed.
             with_tag (bool): Whether or not to add the epoch & step tag?
-                             (default :obj:`False`)
+                (default :obj:`False`)
         """
         if with_tag:
             def format_tag(v, max_v, name):
@@ -448,35 +448,31 @@ def train_loop(param_vars,
                 loop.print_logs()
 
     Args:
-        param_vars (list[tf.Variable] or dict[str, tf.Variable]):
-            List or dict of variables, optimized during training.
-        print_func ((str) -> None):
-            Function for printing log messages (calling ``print`` by default).
-            An alternative of this argument may be ``getLogger(__name__).info``,
-            such that the log messages will be printed via logging facilities.
-        summary_dir (str):
-            Directory for writing TensorFlow summaries.
-            Ignored if `summary_writer` is specified.
+        param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or dict
+            of variables, optimized during training.
+        print_func ((str) -> None): Function for printing log messages
+            (calling ``print`` by default). An alternative of this argument may
+            be ``getLogger(__name__).info``, such that the log messages will be
+            printed via logging facilities.
+        summary_dir (str): Directory for writing TensorFlow summaries. Ignored
+            if `summary_writer` is specified.
         summary_writer: TensorFlow summary writer for writing metrics onto disk.
         metric_formatter (MetricFormatter): The training metrics formatter.
         valid_metric_name (str): Name of the validation metric.
-        initial_valid_metric (float or tf.Tensor or tf.Variable):
-            Initial value of the validation metric for early-stopping.
-        valid_metric_smaller_is_better (bool):
-            Whether or not the smaller value is better for validation metric?
-            If not specified, it will be inferred according to
-            `valid_metric_name`: metric names with ``acc`` or ``accuracy`` as
-            suffix imply :obj:`True`, while other names imply :obj:`False`.
-        early_stopping (bool):
-            Whether or not to do early-stopping? (default :obj:`False`)
-            If :obj:`True`, early-stopping will be applied on `param_vars`,
-            according to the validation metric.
-        initial_epoch (int or tf.Tensor or tf.Variable):
-            The initial epoch (default 0).
-            Should be one less than the actual first epoch.
-        initial_step (int or tf.Tensor or tf.Variable):
-            The initial step (default 0).
-            Should be one less than the actual first step.
+        initial_valid_metric (float or tf.Tensor or tf.Variable): Initial value
+            of the validation metric for early-stopping.
+        valid_metric_smaller_is_better (bool): Whether or not the smaller value
+            is better for validation metric? If not specified, it will be
+            inferred according to `valid_metric_name`: metric names with ``acc``
+            or ``accuracy`` as suffix imply :obj:`True`, while other names imply
+            :obj:`False`.
+        early_stopping (bool): Whether or not to do early-stopping? (default
+            :obj:`False`)  If :obj:`True`, early-stopping will be applied on
+            `param_vars`, according to the validation metric.
+        initial_epoch (int or tf.Tensor or tf.Variable): The initial epoch
+            (default 0). Should be one less than the actual first epoch.
+        initial_step (int or tf.Tensor or tf.Variable): The initial step
+            (default 0). Should be one less than the actual first step.
         max_epoch (int or tf.Tensor or tf.Variable): The maximum epoch to run.
         max_step (int or tf.Tensor or tf.Variable): The maximum step to run.
 

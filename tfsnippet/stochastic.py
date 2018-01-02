@@ -14,8 +14,6 @@ def validate_n_samples(value, name):
 
     Args:
         value: An int32 value, a int32 :class:`tf.Tensor`, or :obj:`None`.
-               :obj:`None` is accepted because it is accepted by
-               :meth:`Distribution.sample`.
         name (str): Name of the argument (in error message).
 
     Returns:
@@ -54,30 +52,27 @@ class StochasticTensor(TensorWrapper):
     any :class:`BayesianNet` context automatically.
     This modified design fits the concept of :class:`~tfsnippet.modules.Module`
     better than the original :class:`zhusuan.model.StochasticTensor`.
-
-    Args:
-        distribution (tfsnippet.distributions.Distribution):
-            The distribution of this :class:`StochasticTensor`.
-
-        tensor (tf.Tensor or TensorWrapper):
-            The samples or observations of this :class:`StochasticTensor`.
-
-        n_samples (tf.Tensor or int):
-            The number of samples taken in :class:`Distribution.sample`.
-            If not :obj:`None`, the first dimension of `tensor` should be
-            considered as the sampling dimension.
-
-        group_ndims (int or tf.Tensor):
-            The number of dimensions to be considered as events group in
-            samples. (default 0)
-
-        is_reparameterized (bool):
-            Whether or not the samples are re-parameterized?  If not specified,
-            will inherit `is_reparameterized` attribute from `distribution`.
     """
 
     def __init__(self, distribution, tensor, n_samples=None,
                  group_ndims=0, is_reparameterized=None):
+        """
+        Construct the :class:`StochasticTensor`.
+
+        Args:
+            distribution (tfsnippet.distributions.Distribution): The
+                distribution of this :class:`StochasticTensor`.
+            tensor (tf.Tensor or TensorWrapper): The samples or observations
+                of this :class:`StochasticTensor`.
+            n_samples (tf.Tensor or int): The number of samples taken in
+                :class:`Distribution.sample`.  If not :obj:`None`, the first
+                dimension of `tensor` should be the sampling dimension.
+            group_ndims (int or tf.Tensor): The number of dimensions to be
+                considered as events group in samples. (default 0)
+            is_reparameterized (bool): Whether or not the samples are
+                re-parameterized?  If not specified, will inherit from
+                :attr:`tfsnippet.distributions.Distribution.is_reparameterized`.
+        """
         from tfsnippet.distributions import validate_group_ndims
 
         if is_reparameterized is None:
@@ -178,8 +173,8 @@ class StochasticTensor(TensorWrapper):
         Compute the log probability densities of this :class:`StochasticTensor`.
 
         Args:
-            group_ndims (int or tf.Tensor):
-                If specified, overriding the configured `group_ndims`.
+            group_ndims (int or tf.Tensor): If specified, overriding the
+                configured `group_ndims`.
 
         Returns:
             tf.Tensor: The log probability densities.
@@ -197,8 +192,8 @@ class StochasticTensor(TensorWrapper):
         Compute the probability densities of this :class:`StochasticTensor`.
 
         Args:
-            group_ndims (int or tf.Tensor):
-                If specified, overriding the configured `group_ndims`.
+            group_ndims (int or tf.Tensor): If specified, overriding the
+                configured `group_ndims`.
 
         Returns:
             tf.Tensor: The probability densities.

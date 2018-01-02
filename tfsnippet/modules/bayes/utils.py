@@ -11,14 +11,13 @@ def validate_distribution_factory(factory, name):
 
     Args:
         factory: A class object which is subclass of :class:`Distribution`,
-                 or an instance of :class:`DistributionFactory`.
+            or an instance of :class:`DistributionFactory`.
         name (str): Name of the argument (in error message).
 
     Returns:
-        DistributionFactory:
-            ``factory.factory()`` if `factory` is a subclass of
-            :class:`Distribution`, or the `factory` itself if it is
-            already an instance of :class:`DistributionFactory`.
+        DistributionFactory: ``factory.factory()`` if `factory` is a subclass
+            of :class:`Distribution`, or the `factory` itself if it is already
+            an instance of :class:`DistributionFactory`.
 
     Raises:
         TypeError: If neither of the above conditions is satisfied.

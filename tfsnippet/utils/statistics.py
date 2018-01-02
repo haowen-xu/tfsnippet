@@ -8,14 +8,16 @@ __all__ = ['StatisticsCollector']
 class StatisticsCollector(object):
     """
     Computing :math:`\\mathrm{E}[X]` and :math:`\\operatorname{Var}[X]` online.
-
-    Args:
-        shape: Shape of the values.
-               The statistics will be collected for per element of the values.
-               (default is ``()``).
     """
 
     def __init__(self, shape=()):
+        """
+        Construct the :class:`StatisticsCollector`.
+
+        Args:
+            shape: Shape of the values. The statistics will be collected for
+                per element of the values. (default is ``()``).
+        """
         self._shape = shape
         self._mean = np.zeros(shape=shape)      # E[X]
         self._square = np.zeros(shape=shape)    # E[X^2]
@@ -46,12 +48,16 @@ class StatisticsCollector(object):
 
     @property
     def var(self):
-        """Get the variance of the values, i.e., :math:`\\operatorname{Var}[X]`."""
+        """
+        Get the variance of the values, i.e., :math:`\\operatorname{Var}[X]`.
+        """
         return self._square - self._mean ** 2
 
     @property
     def stddev(self):
-        """Get the std of the values, i.e., :math:`\\sqrt{\\operatorname{Var}[X]}`."""
+        """
+        Get the std of the values, i.e., :math:`\\sqrt{\\operatorname{Var}[X]}`.
+        """
         return math.sqrt(self.var)
 
     @property
@@ -84,19 +90,14 @@ class StatisticsCollector(object):
                 \\Bigg)
 
         Args:
-            values:
-                Values to be collected in batch,
-                numpy array or scalar whose shape ends with ``self.shape``.
-                The leading shape in front of ``self.shape`` is regarded as
-                the batch shape.
+            values: Values to be collected in batch, numpy array or scalar
+                whose shape ends with ``self.shape``. The leading shape in
+                front of ``self.shape`` is regarded as the batch shape.
+            weight: Weights of the `values`, should be broadcastable against
+                the batch shape. (default is 1)
 
-            weight:
-                Weights of the `values`, should be broadcastable against the
-                batch shape. (default is 1)
-
-        Raises
-            ValueError: If the shape of `values` does not end with
-                        ``self.shape``.
+        Raises:
+            ValueError: If the shape of `values` does not end with `self.shape`.
         """
         values = np.asarray(values)
         if not values.size:

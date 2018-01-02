@@ -68,14 +68,16 @@ def is_tensor_object(x):
 
 
 class TensorArgValidator(object):
-    """
-    Class to validate argument values of tensors.
-
-    Args:
-        name (str): Name of the argument, used in error messages.
-    """
+    """Class to validate argument values of tensors."""
 
     def __init__(self, name):
+        """
+        Construct the :class:`TensorArgValidator`.
+
+        Args:
+            name (str): Name of the argument to be validated, used in error
+                messages.
+        """
         self.name = name
 
     def _value_test(self, value, tf_assertion, value_test, err_msg):
@@ -94,20 +96,17 @@ class TensorArgValidator(object):
 
         Args:
             value: Value to be validated.
-
                 If ``is_tensor_object(value) == True``, it will be casted
                 into a :class:`tf.Tensor` with `dtype` as :obj:`tf.int32`.
-
                 If otherwise ``is_integer(value) == True``, the type will
                 not be casted, but its value will be checked to ensure it
                 falls between  `-2**31 ~ 2**31-1`.
-
         Returns:
             The validated value.
 
         Raises:
-            TypeError: If specified `value` cannot be casted into int32, or
-                       the value is out of range.
+            TypeError: If specified `value` cannot be casted into int32, or the
+                value is out of range.
         """
         if is_tensor_object(value):
             compatible = tf.int32.is_compatible_with(value.dtype)
@@ -129,10 +128,9 @@ class TensorArgValidator(object):
 
         Args:
             value: Value to be validated.
-
-                If ``is_tensor_object(value) == True``, additional assertion
-                will be added to `value`.  Otherwise it will be validated
-                against ``value >= 0`` immediately.
+                If ``is_tensor_object(value) == True``, additional
+                assertion will be added to `value`.  Otherwise it will
+                be validated against ``value >= 0`` immediately.
 
         Returns:
             The validated value.
@@ -154,7 +152,6 @@ class TensorArgValidator(object):
 
         Args:
             value: Value to be validated.
-
                 If ``is_tensor_object(value) == True``, additional assertion
                 will be added to `value`.  Otherwise it will be validated
                 against ``value > 0`` immediately.

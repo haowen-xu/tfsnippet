@@ -73,10 +73,11 @@ class Distribution(object):
         """
         Whether or not the distribution is re-parameterized?
 
-        The re-parameterization trick is proposed in [VAE]_, allowing the
-        gradients to be propagated back along the samples.
-        Note that the re-parameterization can be disabled by specifying
-        ``is_reparameterized = False`` as argument of :meth:`sample`.
+        The re-parameterization trick is proposed in "Auto-Encoding Variational
+        Bayes" (Kingma, D.P. and Welling), allowing the gradients to be
+        propagated back along the samples.  Note that the re-parameterization
+        can be disabled by specifying ``is_reparameterized = False`` as an
+        argument of :meth:`sample`.
 
         Returns:
             bool: A boolean indicating whether it is re-parameterized.
@@ -127,31 +128,26 @@ class Distribution(object):
         Generate samples from the distribution.
 
         Args:
-            n_samples (int or tf.Tensor or None):
-                A 0-D `int32` Tensor or None.  How many independent samples
-                to draw from the distribution.  The samples will have shape
-                ``[n_samples] + batch_shape + value_shape``, or
-                ``batch_shape + value_shape`` if `n_samples` is :obj:`None`.
-
-            group_ndims (int or tf.Tensor):
-                Number of dimensions at the end of ``[n_samples] + batch_shape``
-                to be considered as events group.  This will effect the behavior
-                of :meth:`log_prob` and :meth:`prob`. (default 0)
-
-            is_reparameterized (bool):
-                If :obj:`True`, raise :class:`RuntimeError` if the distribution
-                is not re-parameterized.
-                If :obj:`False`, disable re-parameterization even if the
-                distribution is re-parameterized.
+            n_samples (int or tf.Tensor or None): A 0-D `int32` Tensor or None.
+                How many independent samples to draw from the distribution.
+                The samples will have shape ``[n_samples] + batch_shape +
+                value_shape``, or ``batch_shape + value_shape`` if `n_samples`
+                is :obj:`None`.
+            group_ndims (int or tf.Tensor): Number of dimensions at the end of
+                ``[n_samples] + batch_shape`` to be considered as events group.
+                This will effect the behavior of :meth:`log_prob` and
+                :meth:`prob`. (default 0)
+            is_reparameterized (bool): If :obj:`True`, raises
+                :class:`RuntimeError` if the distribution is not
+                re-parameterized.  If :obj:`False`, disable re-parameterization
+                even if the distribution is re-parameterized.
                 (default :obj:`None`, following the setting of distribution)
-
-            name (str):
-                TensorFlow name scope of the graph nodes.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "sample").
 
         Returns:
-            tfsnippet.stochastic.StochasticTensor:
-                The samples as :class:`~tfsnippet.stochastic.StochasticTensor`.
+            tfsnippet.stochastic.StochasticTensor: The samples as
+                :class:`~tfsnippet.stochastic.StochasticTensor`.
         """
         raise NotImplementedError()
 
@@ -161,11 +157,10 @@ class Distribution(object):
 
         Args:
             given (tf.Tensor): The samples to be tested.
-            group_ndims (int or tf.Tensor):
-                If specified, the last `group_ndims` dimensions of the
-                log probability densities will be summed up. (default 0)
-            name (str):
-                TensorFlow name scope of the graph nodes.
+            group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
+                dimensions of the log probability densities will be summed up.
+                (default 0)
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "log_prob").
 
         Returns:
@@ -179,11 +174,10 @@ class Distribution(object):
 
         Args:
             given (tf.Tensor): The samples to be tested.
-            group_ndims (int or tf.Tensor):
-                If specified, the last `group_ndims` dimensions of the
-                log probability densities will be summed up. (default 0)
-            name (str):
-                TensorFlow name scope of the graph nodes.
+            group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
+                dimensions of the log probability densities will be summed up.
+                (default 0)
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "prob").
 
         Returns:
@@ -214,8 +208,8 @@ class Distribution(object):
             \**kwargs: The default named arguments.
 
         Returns:
-            tfsnippet.distributions.DistributionFactory:
-                The distribution factory instance.
+            tfsnippet.distributions.DistributionFactory: The distribution
+                factory instance.
         """
         from tfsnippet.distributions import DistributionFactory
         return DistributionFactory(cls, kwargs)

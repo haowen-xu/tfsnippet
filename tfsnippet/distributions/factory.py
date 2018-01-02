@@ -6,19 +6,18 @@ __all__ = ['DistributionFactory']
 
 
 class DistributionFactory(object):
-    """
-    A factory for constructing a :class:`Distribution` instance.
-
-    Args:
-        distribution_class:
-            The class of the distribution to be constructed, a subclass of
-            :class:`Distribution`.
-
-        default_args (dict[str, any]):
-            Dict of default named arguments for constructing the distribution.
-    """
+    """A factory for constructing a :class:`Distribution` instance."""
 
     def __init__(self, distribution_class, default_args=None):
+        """
+        Construct the :class:`DistributionFactory`.
+
+        Args:
+            distribution_class: The class of the distribution to be constructed,
+                a subclass of :class:`Distribution`.
+            default_args (dict[str, any]): Dict of default named arguments for
+                constructing the distribution.
+        """
         if not isinstance(distribution_class, six.class_types) or \
                 not issubclass(distribution_class, Distribution):
             raise TypeError('`distribution_class` must be a subclass of '
@@ -28,18 +27,14 @@ class DistributionFactory(object):
 
     def __call__(self, distribution_params=None, **kwargs):
         """
-        Construct a distribution instance.
+        Construct a :class:`Distribution`.
 
         Args:
-            distribution_params (dict[str, any]):
-                Dict of distribution parameters for constructing the
-                distribution.  Usually used for consuming the output
-                of a :class:`tfsnippet.modules.DictMapper`.
-
+            distribution_params (dict[str, any]): Dict of distribution
+                parameters for constructing the distribution.  Usually used for
+                consuming the output of a :class:`tfsnippet.modules.DictMapper`.
                 Will override the default arguments in `default_args`.
-
-            \**kwargs:
-                Other named arguments for constructing the distribution.
+            \**kwargs: Other named arguments for constructing the distribution.
                 Will override the arguments in `default_args` and in
                 `distribution_params`.
 

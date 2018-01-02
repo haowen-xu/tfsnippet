@@ -12,17 +12,19 @@ __all__ = ['EarlyStoppingContext', 'early_stopping']
 
 
 class EarlyStoppingContext(object):
-    """
-    Class to hold the best loss within an early-stopping context.
-
-    Args:
-        saver (VariableSaver): The :class:`VariableSaver` for early-stopping.
-        best_metric (float): The initial best metric (default :obj:`None`).
-        smaller_is_better (bool): Whether or not it is better to have smaller
-                                  metric values? (default :obj:`True`)
-    """
+    """Class to hold the best loss within an early-stopping context."""
 
     def __init__(self, saver, best_metric=None, smaller_is_better=True):
+        """
+        Construct the :class:`EarlyStoppingContext`.
+
+        Args:
+            saver (VariableSaver): The :class:`VariableSaver` for saving
+                variables during early-stopping.
+            best_metric (float): The initial best metric (default :obj:`None`).
+            smaller_is_better (bool): Whether or not it is better to have
+                smaller metric values? (default :obj:`True`)
+        """
         self._saver = saver
         self._best_metric = best_metric
         self._smaller_is_better = smaller_is_better
@@ -85,34 +87,24 @@ def early_stopping(param_vars, initial_metric=None, checkpoint_dir=None,
     would keep their latest values when exiting the early-stopping context.
 
     Args:
-        param_vars (list[tf.Variable] or dict[str, tf.Variable]):
-            List or dict of variables to be memorized.
-            If a dict is specified, the keys of the dict would be used as the
-            serializations keys via :class:`VariableSaver`.
-
-        initial_metric (float or tf.Tensor or tf.Variable):
-            The initial best metric (for recovering from previous session).
-
-        checkpoint_dir (str):
-            The directory where to save the checkpoint files.
+        param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
+            dict of variables to be memorized. If a dict is specified, the
+            keys of the dict would be used as the serializations keys via
+            :class:`VariableSaver`.
+        initial_metric (float or tf.Tensor or tf.Variable): The initial best
+            metric (for recovering from previous session).
+        checkpoint_dir (str): The directory where to save the checkpoint files.
             If not specified, will use a temporary directory.
-
-        smaller_is_better (bool):
-            Whether or not it is better to have smaller metric values?
-            (default :obj:`True`)
-
-        restore_on_error (bool):
-            Whether or not to restore the memorized parameters even on error?
-            (default :obj:`False`)
-
-        cleanup (bool):
-            Whether or not to cleanup the checkpoint directory on exit?
-            This argument will be ignored if `checkpoint_dir` is :obj:`None`,
-            where the temporary directory will always be deleted on exit.
-
-        name (str):
-            Name scope of all TensorFlow operations.
-            (default ``early_stopping``).
+        smaller_is_better (bool): Whether or not it is better to have smaller
+            metric values? (default :obj:`True`)
+        restore_on_error (bool): Whether or not to restore the memorized
+            parameters even on error? (default :obj:`False`)
+        cleanup (bool): Whether or not to cleanup the checkpoint directory
+            on exit? This argument will be ignored if `checkpoint_dir` is
+            :obj:`None`, where the temporary directory will always be deleted
+            on exit.
+        name (str): Name scope of all TensorFlow operations. (default
+            "early_stopping").
 
     Yields:
         EarlyStoppingContext: The early-stopping context object.

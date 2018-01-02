@@ -17,30 +17,31 @@ class VariationalChain(object):
     the variational and the model nets, and the :class:`VariationalInference`
     object for this chain.
 
-    Args:
-        variational (BayesianNet): The variational net.
-        model (BayesianNet): The model net.
-        log_joint (tf.Tensor):
-            The log-joint of the model net.
-            If :obj:`None`, the log-probability densities of all variables
-            within `model` net will be summed up as the log-joint.
-            (default :obj:`None`)
-        latent_names (Iterable[str]):
-            Names of the latent variables in variational inference.
-            If :obj:`None`, all of the variables within `variational` net
-            will be collected. (default :obj:`None`)
-        latent_axis:
-            The axis or axes to be considered as the sampling dimensions
-            of latent variables.  The specified axes will be summed up in
-            the variational lower-bounds or training objectives.
-            (default :obj:`None`)
-
     See Also:
         :meth:`tfsnippet.bayes.BayesianNet.variational_chain`
     """
 
     def __init__(self, variational, model, log_joint=None, latent_names=None,
                  latent_axis=None):
+        """
+        Construct the :class:`VariationalChain`.
+
+        Args:
+            variational (BayesianNet): The variational net.
+            model (BayesianNet): The model net.
+            log_joint (tf.Tensor): The log-joint of the model net. If
+                :obj:`None`, the log-probability densities of all variables
+                within `model` net will be summed up as the log-joint.
+                (default :obj:`None`)
+            latent_names (Iterable[str]): Names of the latent variables in
+                variational inference. If :obj:`None`, all of the variables
+                within `variational` net will be collected. (default
+                :obj:`None`)
+            latent_axis: The axis or axes to be considered as the sampling
+                dimensions of latent variables.  The specified axes will be
+                summed up in the variational lower-bounds or training
+                objectives. (default :obj:`None`)
+        """
         if latent_names is None:
             latent_names = tuple(variational)
         else:

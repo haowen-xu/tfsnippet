@@ -11,6 +11,7 @@ class Config(object):
     _config_initialized = False
 
     def __init__(self):
+        """Construct the :class:`Config`."""
         self._float_x = 'float32'
         self._config_initialized = True
 
@@ -31,12 +32,12 @@ class Config(object):
         """
         Set the config values via a dict.
 
-        Args
+        Args:
             config_dict: Config values dict.
 
         Raises:
             AttributeError: If an unknown config attribute is specified in
-                            `config_dict`.
+                `config_dict`.
         """
         for k, v in six.iteritems(config_dict):
             if k.startswith('_') or not hasattr(self, k):

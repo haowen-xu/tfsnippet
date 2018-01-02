@@ -63,31 +63,26 @@ def root_variable_scope(**kwargs):
 class VarScopeObject(object):
     """
     Base class for object that owns a variable scope.
-
     It is typically used along with :func:`~tfsnippet.utils.instance_reuse`.
-
-    Args:
-        name (str):
-            Name of this object.
-
-            A unique variable scope name would be picked up according to this
-            argument, if `scope` is not specified.
-            If both this argument and `scope` is not specified, the underscored
-            class name would be considered as `name`.
-
-            This argument will be stored and can be accessed via :attr:`name`
-            attribute of the instance.  If not specified, :attr:`name` would
-            be :obj:`None`.
-
-        scope (str):
-            Scope of this object.
-
-            If specified, it will be used as the variable scope name, even if
-            another object has already taken the same scope.  That is to say,
-            these two objects will share the same variable scope.
     """
 
     def __init__(self, name=None, scope=None):
+        """
+        Construct the :class:`VarScopeObject`.
+
+        Args:
+            name (str): Name of this object.  A unique variable scope name
+                would be picked up according to this argument, if `scope` is
+                not specified.  If both this argument and `scope` is not
+                specified, the underscored class name would be considered as
+                `name`.  This argument will be stored and can be accessed via
+                :attr:`name` attribute of the instance.  If not specified,
+                :attr:`name` would be :obj:`None`.
+            scope (str): Scope of this object.  If specified, it will be used
+                as the variable scope name, even if another object has already
+                taken the same scope.  That is to say, these two objects will
+                share the same variable scope.
+        """
         scope = scope or None
         name = name or None
 
@@ -129,14 +124,13 @@ class VarScopeObject(object):
         Args:
             sub_scope (str): The sub-scope of :attr:`variable_scope`.
             collection (str): The collection from which to collect variables.
-                              (default ``tf.GraphKeys.GLOBAL_VARIABLES``).
+                (default ``tf.GraphKeys.GLOBAL_VARIABLES``).
             strip_sub_scope (bool): Whether or not to also strip the common
-                                    prefix of `sub_scope`? (default :obj:`True`)
+                prefix of `sub_scope`? (default :obj:`True`)
 
         Returns:
-            dict[str, tf.Variable]:
-                Dict which maps from the relative names of variables
-                to variable objects.  By `relative names` we mean the
+            dict[str, tf.Variable]: Dict which maps from the relative names of
+                variables to variable objects.  By `relative names` we mean the
                 full names of variables, without the common prefix of
                 :attr:`variable_scope` (and `sub_scope` if `strip_sub_scope`
                 is :obj:`True`).

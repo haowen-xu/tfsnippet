@@ -15,8 +15,9 @@ class VAE(Module):
     """
     A general implementation of variational auto-encoder as module.
 
-    The variational auto-encoder [VAE]_ is a deep Bayesian network, with
-    observed variable `x` and latent variable `z`.  The generative process
+    The variational auto-encoder ("Auto-Encoding Variational Bayes",
+    Kingma, D.P. and Welling) is a deep Bayesian network, with observed
+    variable `x` and latent variable `z`.  The generative process
     starts from `z` with prior distribution :math:`p(z)`, following a
     hidden network :math:`h(z)`, then comes to `x` with distribution
     :math:`p(x|h(z))`.  To do posterior inference of :math:`p(z|x)`,
@@ -106,42 +107,40 @@ class VAE(Module):
 
         # sample multiple `x` for each observed `z`
         x = vae.model(z=observed_z, n_x=10)['x']
-
-    .. [VAE] Kingma, D.P. and Welling, M. 2014. Auto-Encoding Variational
-             Bayes.  Proceedings of the International Conference on Learning
-             Representations (2014).
-
-    Args:
-        p_z (Distribution): :math:`p(z)`, the distribution instance.
-        p_x_given_z (Type[Distribution] or DistributionFactory):
-            :math:`p(x|h(z))`, the distribution class or factory.
-        q_z_given_x (Type[Distribution] or DistributionFactory):
-            :math:`q(z|h(x))`, the distribution class or factory.
-        h_for_p_x (Module):
-            :math:`h(z)`, the hidden network module for :math:`p(x|h(z))`.
-            The output of `h_for_p_x` must be a ``dict[str, any]``, the
-            parameters for `p_x_given_z`.
-        h_for_q_z (Module):
-            :math:`h(x)`, the hidden network module for :math:`q(z|h(x))`.
-            The output of `h_for_q_z` must be a ``dict[str, any]``, the
-            parameters for `q_z_given_x`.
-        z_group_ndims (int or tf.Tensor): `group_ndims` for `z`. (default 1)
-        x_group_ndims (int or tf.Tensor): `group_ndims` for `x`. (default 1)
-        is_reparameterized (bool or None):
-            Whether or not `z` should be re-parameterized?
-            (default :obj:`None`, following the settings of z distributions.)
-        name (str): Optional name of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-        scope (str): Optional scope of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-
-    See Also:
-        :meth:`tfsnippet.distributions.Distribution.log_prob` for `group_ndims`
     """
 
     def __init__(self, p_z, p_x_given_z, q_z_given_x, h_for_p_x, h_for_q_z,
                  z_group_ndims=1, x_group_ndims=1, is_reparameterized=None,
                  name=None, scope=None):
+        """
+        Construct the :class:`VAE`.
+
+        Args:
+            p_z (Distribution): :math:`p(z)`, the distribution instance.
+            p_x_given_z (Type[Distribution] or DistributionFactory):
+                :math:`p(x|h(z))`, the distribution class or factory.
+            q_z_given_x (Type[Distribution] or DistributionFactory):
+                :math:`q(z|h(x))`, the distribution class or factory.
+            h_for_p_x (Module): :math:`h(z)`, the hidden network module for
+                :math:`p(x|h(z))`. The output of `h_for_p_x` must be a
+                ``dict[str, any]``, the parameters for `p_x_given_z`.
+            h_for_q_z (Module): :math:`h(x)`, the hidden network module for
+                :math:`q(z|h(x))`. The output of `h_for_q_z` must be a
+                ``dict[str, any]``, the parameters for `q_z_given_x`.
+            z_group_ndims (int or tf.Tensor): `group_ndims` for `z`. (default 1)
+            x_group_ndims (int or tf.Tensor): `group_ndims` for `x`. (default 1)
+            is_reparameterized (bool or None): Whether or not `z` should be
+                re-parameterized? (default :obj:`None`, following the settings
+                of z distributions.)
+            name (str): Optional name of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+
+        See Also:
+            :meth:`tfsnippet.distributions.Distribution.log_prob` for
+                contents about `group_ndims`.
+        """
         if not isinstance(p_z, Distribution):
             raise TypeError('`p_z` must be an instance of `Distribution`')
         p_x_given_z = validate_distribution_factory(p_x_given_z, 'p_x_given_z')
@@ -233,17 +232,15 @@ class VAE(Module):
 
         Args:
             x: The observation `x` for the variational net.
-
             z: If specified, observe `z` in the variational net.
-               (default :obj:`None`)
-
+                (default :obj:`None`)
             n_z: The number of `z` samples to take for each `x`, if `z`
-                 is not observed. (default :obj:`None`, one sample for
-                 each `x`, without dedicated sampling dimension)
+                is not observed. (default :obj:`None`, one sample for
+                each `x`, without dedicated sampling dimension)
 
-                 It is recommended to specify this argument even if `z`
-                 is observed, to make explicit how many samples are there
-                 in the observation.
+                It is recommended to specify this argument even if `z`
+                is observed, to make explicit how many samples are there
+                in the observation.
 
         Returns:
             BayesianNet: The variational net.
@@ -270,24 +267,21 @@ class VAE(Module):
 
         Args:
             z: If specified, observe `z` in the model net. (default :obj:`None`)
-
             x: If specified, observe `x` in the model net. (default :obj:`None`)
-
             n_z: The number of `z` samples to take for each `x`, if `z`
-                 is not observed. (default :obj:`None`, one `z` sample for
-                 each `x`, without dedicated sampling dimension)
+                is not observed. (default :obj:`None`, one `z` sample for
+                each `x`, without dedicated sampling dimension)
 
-                 It is recommended to specify this argument even if `z`
-                 is observed, to make explicit how many samples are there
-                 in the observation.
-
+                It is recommended to specify this argument even if `z`
+                is observed, to make explicit how many samples are there
+                in the observation.
             n_x: The number of `x` samples to take for each `z`, if `x`
-                 is not observed. (default :obj:`None`, one `x` sample for
-                 each `z`, without dedicated sampling dimension)
+                is not observed. (default :obj:`None`, one `x` sample for
+                each `z`, without dedicated sampling dimension)
 
-                 It is recommended to specify this argument even if `x`
-                 is observed, to make explicit how many samples are there
-                 in the observation.
+                It is recommended to specify this argument even if `x`
+                is observed, to make explicit how many samples are there
+                in the observation.
 
         Returns:
             BayesianNet: The variational net.
@@ -388,15 +382,14 @@ class VAE(Module):
 
         Args:
             x: The input observation `x`.
-            n_z (int or None):
-                Number of `z` samples to take.  Must be :obj:`None` or a
-                constant integer.  Dynamic tensors are not accepted, since
-                we cannot automatically choose a variational solver for
-                undeterministic `n_z`. (default :obj:`None`)
+            n_z (int or None): Number of `z` samples to take.  Must be
+                :obj:`None` or a constant integer.  Dynamic tensors are not
+                accepted, since we cannot automatically choose a variational
+                solver for undeterministic `n_z`. (default :obj:`None`)
 
         Returns:
-            tf.Tensor:
-                The training objective to be optimized by gradient descent.
+            tf.Tensor: The training objective to be optimized by gradient
+                descent.
 
         See Also:
             :class:`~tfsnippet.variational.VariationalChain`,
@@ -453,8 +446,8 @@ class VAE(Module):
         Args:
             inputs: The input `x`.
             n_z: Number of samples to taken for `z`. (default :obj:`None`)
-            \**kwargs: Capturing and ignoring all other parameters.
-                       This is the default behavior of a :class:`Module`.
+            \**kwargs: Capturing and ignoring all other parameters.  This is
+                the default behavior of a :class:`Module`.
 
         Returns:
             StochasticTensor: The `z` samples.

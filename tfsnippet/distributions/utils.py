@@ -16,8 +16,8 @@ def validate_group_ndims(group_ndims, name=None):
 
     Args:
         group_ndims: Object to be validated.
-        name: TensorFlow name scope of the graph nodes.
-              (default "validate_group_ndims")
+        name: TensorFlow name scope of the graph nodes. (default
+            "validate_group_ndims")
 
     Returns:
         tf.Tensor or int: The validated `group_ndims`.
@@ -55,22 +55,22 @@ def reduce_group_ndims(operation, tensor, group_ndims, name=None):
          prob = reduce_group_ndims(tf.reduce_prod, log_prob, group_ndims)
 
     Args:
-        operation: The operation for reducing the last `group_ndims` dimensions.
-                   It must receive `tensor` as the 1st argument, and `axis`
-                   as the 2nd argument.
+        operation: The operation for reducing the last `group_ndims`
+            dimensions. It must receive `tensor` as the 1st argument, and
+            `axis` as the 2nd argument.
         tensor: The tensor to be reduced.
         group_ndims: The number of dimensions at the end of `tensor` to be
-                     reduced.  If it is a constant integer and is zero, then
-                     no operation will take place.
-        name: TensorFlow name scope of the graph nodes.
-              (default "reduce_group_ndims")
+            reduced.  If it is a constant integer and is zero, then no
+            operation will take place.
+        name: TensorFlow name scope of the graph nodes. (default
+            "reduce_group_ndims")
 
     Returns:
         tf.Tensor: The reduced tensor.
 
     Raises:
         ValueError: If `group_ndims` cannot be validated by
-                    :meth:`validate_group_ndims`.
+            :meth:`validate_group_ndims`.
     """
     group_ndims = validate_group_ndims(group_ndims)
     with tf.name_scope(name, default_name='reduce_group_ndims'):

@@ -21,15 +21,13 @@ def auto_reuse_variables(name_or_scope, reopen_name_scope=False, **kwargs):
     the variable scope is opened again.
 
     Args:
-        name_or_scope (str or tf.VariableScope):
-            The name of the variable scope, or the variable scope to open.
-
-        reopen_name_scope (bool):
-            Whether or not to re-open the original name scope of
-            `name_or_scope`?  This option takes effect only if `name_or_scope`
-            is actually an instance of :class:`tf.VariableScope`.
-
-        **kwargs: Named arguments for opening the variable scope.
+        name_or_scope (str or tf.VariableScope): The name of the variable
+            scope, or the variable scope to open.
+        reopen_name_scope (bool): Whether or not to re-open the original name
+            scope of `name_or_scope`?  This option takes effect only if
+            `name_or_scope` is actually an instance of
+            :class:`tf.VariableScope`.
+        \**kwargs: Named arguments for opening the variable scope.
 
     Yields:
         tf.VariableScope: The opened variable scope.
@@ -140,13 +138,13 @@ def instance_reuse(method=None, scope=None):
 
     These two methods will return the same `bar` variable.
 
-    See Also:
-        :func:`tfsnippet.utils.instance_reuse`
-
     Args:
-        scope (str):  The name of the variable scope.
-                      If not set, will use the method name as scope name.
-                      This argument must be specified as named argument.
+        scope (str): The name of the variable scope. If not set, will use the
+            method name as scope name. This argument must be specified as named
+            argument.
+
+    See Also:
+        :func:`tfsnippet.utils.global_reuse`
     """
     if method is None:
         return functools.partial(instance_reuse, scope=scope)
@@ -237,13 +235,13 @@ def global_reuse(method=None, scope=None):
 
     These two functions will return the same `bar` variable.
 
+    Args:
+        scope (str): The name of the variable scope. If not set, will use the
+            function name as scope name. This argument must be specified as
+            named argument.
+
     See Also:
         :func:`tfsnippet.utils.instance_reuse`
-
-    Args:
-        scope (str): The name of the variable scope.
-                     If not set, will use the function name as scope name.
-                     This argument must be specified as named argument.
     """
     if method is None:
         return functools.partial(global_reuse, scope=scope)

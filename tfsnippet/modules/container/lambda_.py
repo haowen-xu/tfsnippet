@@ -26,17 +26,20 @@ class Lambda(Module):
                 activation_fn=tf.nn.relu
             )
         )
-
-    Args:
-        f ((inputs, \**kwargs) -> outputs): The function or lambda expression
-                                               which derives the outputs.
-        name (str): Optional name of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-        scope (str): Optional scope of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, f, name=None, scope=None):
+        """
+        Construct the :class:`Lambda`.
+
+        Args:
+            f ((inputs, \**kwargs) -> outputs): The function or lambda
+                expression which derives the outputs.
+            name (str): Optional name of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+        """
         super(Lambda, self).__init__(name=name, scope=scope)
         self._factory = f
 

@@ -43,24 +43,25 @@ class Sequential(Module):
         parameters of the second hidden layer (derived by an instance of
         :class:`tensorflow.keras.layers.Dense`) would be collected in its own
         variable scope.
-
-    Args:
-        components (list[(inputs, \**kwargs) -> outputs]):
-            Components of this sequential module, each should be a callable
-            object which consumes the outputs of previous component as inputs.
-
-            The first component should consume the `inputs` as well as the
-            named arguments (`\**kwargs`) given to the whole :class:`Sequential`
-            module.  The outputs of the last component will be the outputs of
-            the whole :class:`Sequential` module.
-
-        name (str): Optional name of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-        scope (str): Optional scope of this module
-                    (argument of :class:`~tfsnippet.utils.VarScopeObject`).
     """
 
     def __init__(self, components, name=None, scope=None):
+        """
+        Construct the :class:`Sequential`.
+
+        Args:
+            components (list[(inputs, \**kwargs) -> outputs]): Components of
+                this :class:`Sequential` module, each should be a callable
+                object which consumes the outputs of previous component as
+                inputs.  The first component should consume the `inputs` as
+                well as the named arguments (`\**kwargs`) given to the whole
+                :class:`Sequential` module.  The outputs of the last component
+                will be the outputs of the :class:`Sequential` module.
+            name (str): Optional name of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+            scope (str): Optional scope of this module
+                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
+        """
         components = tuple(components)
         if not components:
             raise ValueError('`components` must not be empty')

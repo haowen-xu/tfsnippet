@@ -257,7 +257,7 @@ def register_tensor_wrapper_class(cls):
     """
     Register a sub-class of :class:`TensorWrapper` into TensorFlow type system.
 
-    Args
+    Args:
         cls: The subclass of :class:`TensorWrapper` to be registered.
     """
     if not isinstance(cls, six.class_types) or \

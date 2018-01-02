@@ -15,9 +15,8 @@ def as_distribution(distribution):
 
     Args:
         distribution: A supported distribution instance. Supported types are:
-
-                      1.  :class:`Distribution`
-                      2.  :class:`zhusuan.distributions.Distribution`.
+            1. :class:`Distribution`,
+            2. :class:`zhusuan.distributions.Distribution`.
 
     Returns:
         Distribution: The wrapped distribution of :class:`Distribution` type.
@@ -38,19 +37,21 @@ class ZhuSuanDistribution(Distribution):
     Wrapping a :class:`zhusuan.distributions.Distribution` into
     :class:`~tfsnippet.distributions.Distribution`.
 
-    Args:
-        distribution (zhusuan.distributions.Distribution):
-            The distribution object from `ZhuSuan`_.
-            `group_ndims` attribute of `distribution` would be totally ignored.
-
-            Thread-safety is not guaranteed for using `distribution` outside
-            of this wrapper, since it may temporarily modify internal flags
-            of `distribution` within some methods.
-
     .. _`ZhuSuan`: https://github.com/thu-ml/zhusuan
     """
 
     def __init__(self, distribution):
+        """
+        Construct the :class:`ZhuSuanDistribution`.
+
+        Args:
+            distribution (zhusuan.distributions.Distribution): The distribution
+                from ZhuSuan. `group_ndims` attribute of `distribution` would
+                be totally ignored.  Thread-safety is not guaranteed for also
+                using `distribution` outside of :class:`ZhuSuanDistribution`,
+                since :class:`ZhuSuanDistribution` may temporarily modify
+                internal states of `distribution`.
+        """
         if not isinstance(distribution, zhusuan.distributions.Distribution):
             raise TypeError('`distribution` is not an instance of `zhusuan.'
                             'distributions.Distribution`')
