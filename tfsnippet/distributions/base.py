@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
+from tfsnippet.utils import DocInherit
+
 __all__ = ['Distribution']
 
 
+@DocInherit
 class Distribution(object):
     """
     Base class for probability distributions.

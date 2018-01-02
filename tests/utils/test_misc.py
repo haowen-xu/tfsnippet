@@ -2,7 +2,7 @@ import unittest
 
 from tfsnippet.utils import (humanize_duration, camel_to_underscore,
                              cached_property, clear_cached_property,
-                             NOT_SET, docstring_inherit)
+                             NOT_SET)
 
 
 class HumanizeDurationTestCase(unittest.TestCase):
@@ -52,29 +52,6 @@ class HumanizeDurationTestCase(unittest.TestCase):
                 msg='humanize_duraion({!r}) is expected to be {!r}, '
                     'but got {!r}.'.format(seconds, answer, result)
             )
-
-
-class DocStringInheritTestCase(unittest.TestCase):
-
-    def test_inherit_none(self):
-        def f():
-            pass
-
-        @docstring_inherit(f)
-        def g():
-            """docstring of g"""
-
-        self.assertEqual(g.__doc__, 'docstring of g')
-
-    def test_simple_inherit(self):
-        def f():
-            """docstring of f"""
-
-        @docstring_inherit(f)
-        def g():
-            """docstring of g"""
-
-        self.assertEqual(g.__doc__, 'docstring of f')
 
 
 class CamelToUnderscoreTestCase(unittest.TestCase):

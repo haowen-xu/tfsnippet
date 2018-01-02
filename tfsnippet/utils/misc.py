@@ -3,8 +3,8 @@ import re
 import numpy as np
 import six
 
-__all__ = ['humanize_duration', 'docstring_inherit', 'camel_to_underscore',
-           'NOT_SET', 'cached_property', 'clear_cached_property']
+__all__ = ['humanize_duration', 'camel_to_underscore', 'NOT_SET',
+           'cached_property', 'clear_cached_property']
 
 
 def humanize_duration(seconds):
@@ -41,23 +41,6 @@ def humanize_duration(seconds):
         pieces.append('0 sec')
 
     return ' '.join(pieces) + suffix
-
-
-def docstring_inherit(from_method):
-    """
-    Inherit docstrings from specified `from_method`.
-
-    Args:
-        from_method: The original method, where docstring comes from.
-
-    Returns:
-        Decorator for a method.
-    """
-    def wrapper(method):
-        if from_method.__doc__:
-            method.__doc__ = from_method.__doc__
-        return method
-    return wrapper
 
 
 def camel_to_underscore(name):

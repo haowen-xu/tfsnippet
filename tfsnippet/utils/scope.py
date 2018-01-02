@@ -4,6 +4,7 @@ import six
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as variable_scope_ops
 
+from .doc_inherit import DocInherit
 from .misc import camel_to_underscore
 
 __all__ = ['reopen_variable_scope', 'root_variable_scope', 'VarScopeObject']
@@ -28,7 +29,7 @@ def reopen_variable_scope(var_scope, **kwargs):
     with variable_scope_ops._pure_variable_scope(var_scope, **kwargs) as vs:
         name_scope = old_name_scope
         if name_scope and not name_scope.endswith('/'):
-            name_scope += '/'
+            name_scope += '/'  # pragma: no cover
 
         with tf.name_scope(name_scope):
             yield vs
@@ -58,6 +59,7 @@ def root_variable_scope(**kwargs):
         scope._name = old_name
 
 
+@DocInherit
 class VarScopeObject(object):
     """
     Base class for object that owns a variable scope.

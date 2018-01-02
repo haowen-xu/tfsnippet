@@ -3,7 +3,6 @@ import contextlib
 import tensorflow as tf
 import zhusuan
 
-from tfsnippet.utils import docstring_inherit
 from .base import Distribution
 from .utils import reduce_group_ndims
 
@@ -62,39 +61,31 @@ class ZhuSuanDistribution(Distribution):
         return 'Distribution({!r})'.format(self._distribution)
 
     @property
-    @docstring_inherit(Distribution.dtype)
     def dtype(self):
         return self._distribution.dtype
 
     @property
-    @docstring_inherit(Distribution.is_continuous)
     def is_continuous(self):
         return self._distribution.is_continuous
 
     @property
-    @docstring_inherit(Distribution.is_reparameterized)
     def is_reparameterized(self):
         return self._distribution.is_reparameterized
 
     @property
-    @docstring_inherit(Distribution.value_shape)
     def value_shape(self):
         return self._distribution.value_shape
 
-    @docstring_inherit(Distribution.get_value_shape)
     def get_value_shape(self):
         return self._distribution.get_value_shape()
 
     @property
-    @docstring_inherit(Distribution.batch_shape)
     def batch_shape(self):
         return self._distribution.batch_shape
 
-    @docstring_inherit(Distribution.get_batch_shape)
     def get_batch_shape(self):
         return self._distribution.get_batch_shape()
 
-    @docstring_inherit(Distribution.sample)
     def sample(self, n_samples=None, is_reparameterized=None, group_ndims=0,
                name=None):
         from tfsnippet.stochastic import StochasticTensor
@@ -125,14 +116,12 @@ class ZhuSuanDistribution(Distribution):
                     is_reparameterized=is_reparameterized,
                 )
 
-    @docstring_inherit(Distribution.log_prob)
     def log_prob(self, given, group_ndims=0, name=None):
         with tf.name_scope(name=name, default_name='log_prob'):
             given = self._distribution._check_input_shape(given)
             log_prob = self._distribution._log_prob(given)
             return reduce_group_ndims(tf.reduce_sum, log_prob, group_ndims)
 
-    @docstring_inherit(Distribution.prob)
     def prob(self, given, group_ndims=0, name=None):
         with tf.name_scope(name=name, default_name='prob'):
             given = self._distribution._check_input_shape(given)

@@ -155,7 +155,7 @@ def early_stopping(param_vars, initial_metric=None, checkpoint_dir=None,
                     try:
                         if os.path.exists(checkpoint_dir):
                             shutil.rmtree(checkpoint_dir)
-                    except Exception:
+                    except Exception:  # pragma: no cover
                         getLogger(__name__).error(
                             'Failed to cleanup validation save dir %r.',
                             checkpoint_dir, exc_info=True

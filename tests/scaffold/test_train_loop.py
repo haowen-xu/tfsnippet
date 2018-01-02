@@ -313,6 +313,8 @@ class TrainLoopTestCase(tf.test.TestCase):
         # test enable summary with `summary_dir`
         with TemporaryDirectory() as tempdir:
             with train_loop([], max_epoch=2, summary_dir=tempdir) as loop:
+                self.assertIsInstance(loop.summary_writer,
+                                      tf.summary.FileWriter)
                 self.assertIsNone(loop._early_stopping)
                 for epoch in loop.iter_epochs():
                     for _, loss in loop.iter_steps([0.7, 0.6, 0.8]):
@@ -342,6 +344,7 @@ class TrainLoopTestCase(tf.test.TestCase):
         with TemporaryDirectory() as tempdir:
             sw = tf.summary.FileWriter(tempdir)
             with train_loop([], max_epoch=2, summary_writer=sw) as loop:
+                self.assertIs(loop.summary_writer, sw)
                 self.assertIsNone(loop._early_stopping)
                 self.assertIs(loop._summary_writer, sw)
                 for epoch in loop.iter_epochs():

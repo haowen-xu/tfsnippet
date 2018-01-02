@@ -5,8 +5,10 @@ import numpy as np
 import six
 import tensorflow as tf
 
-from tfsnippet.utils import (humanize_duration, StatisticsCollector,
-                             docstring_inherit, get_default_session_or_error)
+from tfsnippet.utils import (humanize_duration,
+                             StatisticsCollector,
+                             get_default_session_or_error,
+                             DocInherit)
 
 __all__ = [
     'MetricFormatter',
@@ -16,6 +18,7 @@ __all__ = [
 ]
 
 
+@DocInherit
 class MetricFormatter(object):
     """
     Base class for a training metrics formatter.
@@ -71,7 +74,6 @@ class DefaultMetricFormatter(MetricFormatter):
     which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
-    @docstring_inherit(MetricFormatter.sort_metrics)
     def sort_metrics(self, names):
         def sort_key(name):
             if name.endswith('time') or name.endswith('timer'):
@@ -84,15 +86,11 @@ class DefaultMetricFormatter(MetricFormatter):
 
         return sorted(names, key=sort_key)
 
-    @docstring_inherit(MetricFormatter.format_metric)
     def format_metric(self, name, value):
         if name.endswith('time') or name.endswith('timer'):
             return humanize_duration(float(value))
         else:
             return '{:.6g}'.format(float(value))
-
-    def __repr__(self):
-        return 'DefaultMetricFormatter()'
 
 
 class MetricLogger(object):

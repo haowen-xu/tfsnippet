@@ -1,4 +1,3 @@
-from tfsnippet.utils import docstring_inherit
 from ..base import Module
 
 __all__ = ['Lambda']
@@ -41,6 +40,5 @@ class Lambda(Module):
         super(Lambda, self).__init__(name=name, scope=scope)
         self._factory = f
 
-    @docstring_inherit(Module._forward)
     def _forward(self, inputs, **kwargs):
         return self._factory(inputs, **kwargs)

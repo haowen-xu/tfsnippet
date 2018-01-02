@@ -270,7 +270,7 @@ def register_tensor_wrapper_class(cls):
             raise ValueError('Incompatible type conversion requested to type '
                              '{} for tensor of type {}'.
                              format(dtype.name, value.dtype.name))
-        if as_ref:
+        if as_ref:  # pragma: no cover
             raise ValueError('{!r}: Ref type not supported'.format(value))
         return value.tensor
 
