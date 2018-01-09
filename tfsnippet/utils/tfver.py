@@ -1,4 +1,4 @@
-from distutils.version import StrictVersion
+import semver
 
 import tensorflow as tf
 
@@ -15,4 +15,4 @@ def is_tensorflow_version_higher_or_equal(version):
     Returns:
         bool: True if higher or equal to, False if not.
     """
-    return StrictVersion(version) <= StrictVersion(tf.__version__)
+    return semver.compare(version, tf.__version__) <= 0
