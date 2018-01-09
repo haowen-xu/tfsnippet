@@ -3,5 +3,4 @@ frozendict >= 1.2.0
 numpy >= 1.12.1
 pathlib2 >= 2.3.0 ; python_version < '3.5'
 six >= 1.11.0
-tensorflow >= 1.3.0
 git+https://github.com/thu-ml/zhusuan.git
