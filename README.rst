@@ -14,7 +14,7 @@ TF Snippet is a set of utilities for writing and testing TensorFlow models.
 Dependencies
 ------------
 
-TensorFlow >= 1.3.0
+TensorFlow >= 1.2
 
 Installation
 ------------

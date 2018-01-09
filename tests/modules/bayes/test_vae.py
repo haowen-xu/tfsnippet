@@ -4,7 +4,10 @@ import numpy as np
 import tensorflow as tf
 import zhusuan as zs
 from mock import Mock
-from tensorflow import keras as K
+try:
+    from tensorflow import keras as K
+except ImportError:
+    from tensorflow.contrib import keras as K
 
 from tfsnippet.distributions import (Distribution, DistributionFactory, Normal,
                                      Bernoulli)
