@@ -1,42 +1,25 @@
-sudo: required
-dist: trusty
 language: python
-python:
-  - "2.7"
-  - "3.5"
-  - "3.6"
-
+sudo: required
+services:
+  - docker
 env:
   matrix:
-  - TENSORFLOW_VERSION=1.2.1
-  - TENSORFLOW_VERSION=1.3.0
-  - TENSORFLOW_VERSION=1.4.1
-
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.2
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.3
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.4
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.5
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.2
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.3
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.4
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.5
 install:
-  # We do this conditionally because it saves us some downloading if the
-  # version is the same.
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH=/home/travis/miniconda/bin:$PATH
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update --yes -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
-
-  # install python dependencies
-  - conda install --yes -q python=${TRAVIS_PYTHON_VERSION}
-  - python -m pip install -r requirements-dev.txt
-  - python -m pip install tensorflow==${TENSORFLOW_VERSION}
-  - python -m pip install --upgrade scipy numpy  # should upgrade to newest versions to avoid errors
-  - python -m pip install "coveralls>=1.1"
-
+  - docker pull "ipwx/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
 script:
-  - coverage run -m py.test
-
-after_success:
-  - coveralls
+  - docker run
+      -v "$(pwd)":"$(pwd)"
+      -w "$(pwd)"
+      -e TRAVIS="${TRAVIS}"
+      -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}"
+      -e TRAVIS_BRANCH="${TRAVIS_BRANCH}"
+      "ipwx/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
+      bash -c "pip install -r requirements-dev.txt && coverage run -m py.test && coveralls"
