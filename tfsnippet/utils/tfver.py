@@ -15,4 +15,8 @@ def is_tensorflow_version_higher_or_equal(version):
     Returns:
         bool: True if higher or equal to, False if not.
     """
-    return semver.compare(version, tf.__version__, loose=True) <= 0
+    try:
+        compare_result = semver.compare_loose(version, tf.__version__)
+    except AttributeError:
+        compare_result = semver.compare(version, tf.__version__)
+    return compare_result <= 0
