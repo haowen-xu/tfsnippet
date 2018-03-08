@@ -11,7 +11,7 @@ TFSnippet
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | TensorFlow | Python 2                                                                                        | Python 3                                                                                        |
 +============+=================================================================================================+=================================================================================================+
-| 1.3        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/1 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/2 |
+| 1.5        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/1 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/2 |
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | 1.6        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/3 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/4 |
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
@@ -21,7 +21,7 @@ TF Snippet is a set of utilities for writing and testing TensorFlow models.
 Dependencies
 ------------
 
-TensorFlow >= 1.3
+TensorFlow >= 1.5
 
 Installation
 ------------
