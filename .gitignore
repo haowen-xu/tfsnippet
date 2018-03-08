@@ -1,5 +1,6 @@
 .idea
 .cache
+.pytest_cache
 *.iml
 /config.py
 /debug.py

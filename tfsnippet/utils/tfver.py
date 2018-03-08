@@ -15,4 +15,4 @@ def is_tensorflow_version_higher_or_equal(version):
     Returns:
         bool: True if higher or equal to, False if not.
     """
-    return semver.compare(version, tf.__version__) <= 0
+    return semver.compare(version, tf.__version__, loose=True) <= 0

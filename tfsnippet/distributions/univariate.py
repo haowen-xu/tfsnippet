@@ -104,6 +104,8 @@ class Categorical(ZhuSuanDistribution):
             dtype: The value type of samples from the distribution.
                 (default ``tf.int32``)
         """
+        if dtype is None:
+            dtype = tf.int32
         super(Categorical, self).__init__(
             zd.Categorical(logits=logits, dtype=dtype))
 

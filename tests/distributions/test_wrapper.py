@@ -17,7 +17,7 @@ class AsDistributionTestCase(tf.test.TestCase):
         self.assertIs(distrib, d)
 
     def test_zs_distribution(self):
-        normal = zd.Normal(0., 1.)
+        normal = zd.Normal(mean=0., std=1.)
         distrib = as_distribution(normal)
         self.assertIsInstance(distrib, Distribution)
         self.assertIsInstance(distrib, ZhuSuanDistribution)

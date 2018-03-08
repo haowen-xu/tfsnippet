@@ -63,12 +63,12 @@ class CategoricalTestCase(tf.test.TestCase):
             np.testing.assert_allclose(categorical.logits.eval(), logits)
 
     def test_dtype(self):
-        categorical = Categorical(logits=[0., 1.])
+        categorical = Categorical(logits=tf.constant([0., 1.]))
         self.assertEqual(categorical.dtype, tf.int32)
         samples = categorical.sample()
         self.assertEqual(samples.dtype, tf.int32)
 
-        categorical = Categorical(logits=[0., 1.], dtype=tf.int64)
+        categorical = Categorical(logits=tf.constant([0., 1.]), dtype=tf.int64)
         self.assertEqual(categorical.dtype, tf.int64)
         samples = categorical.sample()
         self.assertEqual(samples.dtype, tf.int64)

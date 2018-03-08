@@ -11,13 +11,9 @@ TFSnippet
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | TensorFlow | Python 2                                                                                        | Python 3                                                                                        |
 +============+=================================================================================================+=================================================================================================+
-| 1.2        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/1 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/5 |
+| 1.2        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/1 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/2 |
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| 1.3        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/2 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/6 |
-+------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| 1.4        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/3 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/7 |
-+------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| 1.5        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/4 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/8 |
+| 1.6        | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/3 | .. image:: https://travis-matrix-badges.herokuapp.com/repos/korepwx/tfsnippet/branches/master/4 |
 +------------+-------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 
 TF Snippet is a set of utilities for writing and testing TensorFlow models.
