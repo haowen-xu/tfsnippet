@@ -35,7 +35,7 @@ Documentation
 Quick Tutorial
 --------------
 
-Use the flexible training loop context:
+Use the flexible training loop context, with nice logging and early-stopping:
 
 .. code-block:: python
 
