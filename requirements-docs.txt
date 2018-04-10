@@ -4,10 +4,11 @@ numpy >= 1.12.1
 pathlib2 >= 2.3.0 ; python_version < '3.5'
 semver >= 2.7.9
 six >= 1.11.0
-tensorflow >= 1.6.0
 git+https://github.com/thu-ml/zhusuan.git
 
 coverage >= 4.3.4
 mock >= 2.0.0
 pytest >= 3.0
 sphinx >= 1.6.3
+
+tensorflow == 1.5.0
