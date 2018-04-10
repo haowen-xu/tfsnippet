@@ -18,7 +18,9 @@ TFSnippet
 
 TFSnippet is a set of utilities for writing and testing TensorFlow models.
 
-The design philosophy of TFSnippet is `non-interfering`.  It aims to provide a set of useful utilities, possible to be used along with any other TensorFlow libraries and frameworks.
+The design philosophy of TFSnippet is `non-interfering`.  It aims to provide a
+set of useful utilities, possible to be used along with any other TensorFlow
+libraries and frameworks.
 
 Dependencies
 ------------
@@ -33,7 +35,12 @@ Installation
     pip install git+https://github.com/thu-ml/zhusuan.git
     pip install git+https://github.com/korepwx/tfsnippet.git
 
-Quick Examples
+Documentation
+-------------
+
+* `Tutorials and API docs <http://tfsnippet.readthedocs.io/>`_
+
+Quick Tutorial
 --------------
 
 Use the flexible training loop context:

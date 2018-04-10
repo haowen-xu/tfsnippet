@@ -6,14 +6,37 @@
 Welcome to TFSnippet
 ====================
 
+TFSnippet is a set of utilities for writing and testing TensorFlow models.
+
+The design philosophy of TFSnippet is `non-interfering`.  It aims to provide a
+set of useful utilities, possible to be used along with any other TensorFlow
+libraries and frameworks.
+
+Installation
+------------
+
+.. code-block:: bash
+
+    pip install git+https://github.com/thu-ml/zhusuan.git
+    pip install git+https://github.com/korepwx/tfsnippet.git
+
+
+API Docs
+--------
+
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
 
-
+   api/tfsnippet.bayes
+   api/tfsnippet.distributions
+   api/tfsnippet.modules
+   api/tfsnippet.scaffold
+   api/tfsnippet.stochastic
+   api/tfsnippet.utils
+   api/tfsnippet.variational
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
