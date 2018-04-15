@@ -15,7 +15,10 @@ class DataFlow(object):
     can be constructed by factory methods of this base class.  For example::
 
         # :class:`ArrayFlow` from arrays
-        DataFlow.from_array([x, y], batch_size=256, shuffle=True)
+        array_flow = DataFlow.from_array([x, y], batch_size=256, shuffle=True)
+
+        # :class:`MapperFlow` by adding the two arrays from `array_flow`
+        mapper_flow = array_flow.map(lambda arr: (arr[0] + arr[1],))
     """
 
     _is_iter_entered = False
@@ -61,7 +64,7 @@ class DataFlow(object):
     # -------- here starts the transforming methods --------
     def map(self, mapper):
         """
-        Construct a :class:`MapperFlow`, from this flow and the ``mapper``.
+        Construct a :class:`MapperFlow`, from this flow and the `mapper`.
 
         Args:
             mapper ((tuple[np.ndarray]) -> tuple[np.ndarray])): The mapper
@@ -69,7 +72,7 @@ class DataFlow(object):
                 another tuple of numpy arrays.
 
         Returns:
-            tfsnippet.dataflow.DataFlow: The data flow with ``mapper`` applied.
+            tfsnippet.dataflow.MapperFlow: The data flow with `mapper` applied.
         """
         from .mapper_flow import MapperFlow
         return MapperFlow(self, mapper)

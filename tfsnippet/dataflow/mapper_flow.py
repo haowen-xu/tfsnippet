@@ -10,8 +10,8 @@ class MapperFlow(DataFlow):
 
     Usage::
 
-        source_df = Data.from_arrays([x, y], batch_size=256)
-        df = source_df.map(lambda arr: (arr[0] + arr[1],))
+        source_flow = Data.from_arrays([x, y], batch_size=256)
+        mapper_flow = source_flow.map(lambda arr: (arr[0] + arr[1],))
     """
 
     def __init__(self, source, mapper):
