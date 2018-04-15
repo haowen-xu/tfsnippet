@@ -22,7 +22,7 @@ class _ContextB(OneTimeContext):
 
 class NoReentrantContextTestCase(unittest.TestCase):
 
-    def text_context(self):
+    def test_everything(self):
         ctx = _ContextA()
 
         self.assertFalse(ctx._is_entered)
@@ -71,7 +71,7 @@ class NoReentrantContextTestCase(unittest.TestCase):
 
 class OneTimeContextTestCase(unittest.TestCase):
 
-    def text_context(self):
+    def test_everything(self):
         ctx = _ContextB()
 
         self.assertFalse(ctx._is_entered)
