@@ -108,8 +108,9 @@ class MetricLogger(object):
 
         logger = MetricLogger(tf.summary.FileWriter(log_dir))
         global_step = 1
+
         for epoch in range(1, max_epoch+1):
-            for batch in minibatch_data_iterator(...):
+            for batch in DataFlow.from_arrays(...):
                 loss, _ = session.run([loss, train_op], ...)
                 logger.collect_metrics({'loss': loss}, global_step)
                 global_step += 1

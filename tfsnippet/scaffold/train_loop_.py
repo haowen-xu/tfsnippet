@@ -32,24 +32,25 @@ class TrainLoop(OneTimeContext):
 
     .. code-block:: python
 
+        from tfsnippet.dataflow import DataFlow
+        from tfsnippet.scaffold import TrainLoop
+
         with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
             loop.print_training_summary()
-                for epoch in loop.iter_epochs():
-                    data_iterator = zip(
-                        minibatch_iterator(data_x, batch_size),
-                        minibatch_iterator(data_y, batch_size),
+            train_flow = DataFlow.from_arrays([x, y], batch_size, shuffle=True)
+
+            for epoch in loop.iter_epochs():
+                for step, (x, y) in loop.iter_steps(train_flow):
+                    step_loss = session.run(
+                        [loss, train_op],
+                        feed_dict={input_x: x, input_y: y}
                     )
-                    for step, (x, y) in loop.iter_steps(data_iterator):
-                        step_loss = session.run(
-                            [loss, train_op],
-                            feed_dict={input_x: x, input_y: y}
-                        )
-                        loop.collect_metrics(loss=step_loss)
-                    with loop.timeit('valid_time'):
-                        valid_loss = session.run(
-                            loss, feed_dict={input_x: test_x, input_y: test_y})
-                        loop.collect_metrics(valid_loss=valid_loss)
-                    loop.print_logs()
+                    loop.collect_metrics(loss=step_loss)
+                with loop.timeit('valid_time'):
+                    valid_loss = session.run(
+                        loss, feed_dict={input_x: test_x, input_y: test_y})
+                    loop.collect_metrics(valid_loss=valid_loss)
+                loop.print_logs()
     """
 
     def __init__(self,
