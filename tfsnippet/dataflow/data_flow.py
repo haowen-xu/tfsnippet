@@ -8,12 +8,11 @@ class DataFlow(object):
     There are two major types of :class:`DataFlow` classes: data sources
     and data transformers.  Data sources, like the :class:`ArrayFlow`,
     produce mini-batches from underlying data sources.  Data transformers,
-    like :class:`DataMapper`, produce mini-batches by transforming data
-    from upstreams.
+    like :class:`MapperFlow`, produce mini-batches by transforming arrays
+    from the source.
 
-    All types of :class:`DataFlow` classes shipped by :mod:`tfsnippet.dataflow`
-    can be constructed by factory methods of this :class:`DataFlow` class.
-    For example::
+    All :class:`DataFlow` subclasses shipped by :mod:`tfsnippet.dataflow`
+    can be constructed by factory methods of this base class.  For example::
 
         # :class:`ArrayFlow` from arrays
         DataFlow.from_array([x, y], batch_size=256, shuffle=True)
@@ -59,6 +58,22 @@ class DataFlow(object):
         finally:
             self._is_iter_entered = False
 
+    # -------- here starts the transforming methods --------
+    def map(self, mapper):
+        """
+        Construct a :class:`MapperFlow`, from this flow and the ``mapper``.
+
+        Args:
+            mapper ((tuple[np.ndarray]) -> tuple[np.ndarray])): The mapper
+                function, which transforms a tuple of numpy arrays into
+                another tuple of numpy arrays.
+
+        Returns:
+            tfsnippet.dataflow.DataFlow: The data flow with ``mapper`` applied.
+        """
+        from .mapper_flow import MapperFlow
+        return MapperFlow(self, mapper)
+
     # -------- here starts the factory methods for data flows --------
     @staticmethod
     def from_arrays(arrays, batch_size, shuffle=False, skip_incomplete=False):
@@ -74,6 +89,9 @@ class DataFlow(object):
                 (default :obj:`False`)
             skip_incomplete (bool): Whether or not to exclude the last
                 mini-batch if it is incomplete? (default :obj:`False`)
+
+        Returns:
+            tfsnippet.dataflow.ArrayFlow: The data flow from arrays.
         """
         from .array_flow import ArrayFlow
         return ArrayFlow(arrays, batch_size=batch_size, shuffle=shuffle,

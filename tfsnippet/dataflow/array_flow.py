@@ -6,14 +6,20 @@ from .data_flow import DataFlow
 __all__ = ['ArrayFlow']
 
 
+def _make_readonly(arr):
+    arr = np.asarray(arr)
+    arr.setflags(write=False)
+    return arr
+
+
 class ArrayFlow(DataFlow):
     """
-    Data source flow, upon numpy-like arrays.
+    Data source flow from numpy-like arrays.
 
     Usage::
 
-        df = ArrayFlow([x, y], batch_size=256, shuffle=True,
-                       skip_incomplete=True)
+        df = DataFlow.from_arrays([x, y], batch_size=256, shuffle=True,
+                                  skip_incomplete=True)
         for batch_x, batch_y in df:
             ...
     """
@@ -68,10 +74,13 @@ class ArrayFlow(DataFlow):
             np.random.shuffle(self._indices_buffer)
 
             def get_slice(s):
-                return tuple(a[self._indices_buffer[s]] for a in self._arrays)
+                return tuple(
+                    _make_readonly(a[self._indices_buffer[s]])
+                    for a in self._arrays
+                )
         else:
             def get_slice(s):
-                return tuple(a[s] for a in self._arrays)
+                return tuple(_make_readonly(a[s]) for a in self._arrays)
 
         # now iterator through the mini-batches
         for batch_s in minibatch_slices_iterator(
