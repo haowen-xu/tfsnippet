@@ -1,74 +1,153 @@
 from __future__ import print_function
 
+import copy
 import os
 import time
+import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.utils import StatisticsCollector
+from tfsnippet.utils import StatisticsCollector, OpenCloseContext
+from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
-from .validation import (EarlyStoppingContext,
-                         early_stopping as open_early_stopping)
 
 __all__ = [
-    'train_loop', 'TrainLoopContext',
+    'train_loop', 'TrainLoop',
 ]
 
 EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
 
 
-class TrainLoopContext(object):
-    """Training loop context object."""
+class TrainLoop(OpenCloseContext):
+    """
+    Training loop object.
+
+    This class provides a set of convenient methods for writing training loop.
+    It is useful for maintaining epoch and step counters, logging training
+    metrics, memorizing best parameters for early-stopping, etc.  An
+    example of using the :class:`TrainLoop`:
+
+    .. code-block:: python
+
+        with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
+            loop.print_training_summary()
+                for epoch in loop.iter_epochs():
+                    data_iterator = zip(
+                        minibatch_iterator(data_x, batch_size),
+                        minibatch_iterator(data_y, batch_size),
+                    )
+                    for step, (x, y) in loop.iter_steps(data_iterator):
+                        step_loss = session.run(
+                            [loss, train_op],
+                            feed_dict={input_x: x, input_y: y}
+                        )
+                        loop.collect_metrics(loss=step_loss)
+                    with loop.timeit('valid_time'):
+                        valid_loss = session.run(
+                            loss, feed_dict={input_x: test_x, input_y: test_y})
+                        loop.collect_metrics(valid_loss=valid_loss)
+                    loop.print_logs()
+    """
 
     def __init__(self,
                  param_vars,
-                 print_func,
-                 summary_writer,
-                 metric_formatter,
-                 valid_metric_name,
-                 initial_valid_metric,
-                 valid_metric_smaller_is_better,
-                 early_stopping,
-                 initial_epoch,
-                 initial_step,
-                 max_epoch,
-                 max_step):
+                 print_func=print,
+                 summary_dir=None,
+                 summary_writer=None,
+                 metric_formatter=DefaultMetricFormatter(),
+                 valid_metric_name='valid_loss',
+                 initial_valid_metric=None,
+                 valid_metric_smaller_is_better=None,
+                 early_stopping=False,
+                 initial_epoch=0,
+                 initial_step=0,
+                 max_epoch=None,
+                 max_step=None):
         """
-        Construct the :class:`TrainLoopContext`.
+        Construct the :class:`TrainLoop`.
 
         Args:
             param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
                 dict of variables, optimized during training.
-            print_func ((str) -> None): Function for printing log messages.
-            summary_writer: TensorFlow summary writer for writing metrics onto
-                disk.
+            print_func ((str) -> None): Function for printing log messages
+                (calling ``print`` by default). An alternative of this argument
+                may be ``getLogger(__name__).info``, such that the log messages
+                will be printed via logging facilities.
+            summary_dir (str): Directory for writing TensorFlow summaries.
+                Ignored if `summary_writer` is specified.
+            summary_writer:
+                TensorFlow summary writer for writing metrics onto disk.
             metric_formatter (MetricFormatter): The training metrics formatter.
             valid_metric_name (str): Name of the validation metric.
-            initial_valid_metric (float): Initial value of the validation metric
-                for early-stopping.
+            initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
+                value of the validation metric for early-stopping.
             valid_metric_smaller_is_better (bool): Whether or not the smaller
-                value is better for validation metric?
-            early_stopping (EarlyStoppingContext): The early-stopping context.
-            initial_epoch (int): The initial epoch.
-            initial_step (int): The initial step.
-            max_epoch (int or None): The maximum epoch to run.
-            max_step (int or None): The maximum step to run.
+                value is better for validation metric? If not specified, it
+                will be inferred according to `valid_metric_name`: metric names
+                with ``acc`` or ``accuracy`` as suffix imply :obj:`True`, while
+                other names imply :obj:`False`.
+            early_stopping (bool): Whether or not to do early-stopping?
+                (default :obj:`False`)  If :obj:`True`, early-stopping will be
+                applied on `param_vars`, according to the validation metric.
+            initial_epoch (int or tf.Tensor or tf.Variable): The initial epoch
+                (default 0). Should be one less than the actual first epoch.
+            initial_step (int or tf.Tensor or tf.Variable): The initial step
+                (default 0). Should be one less than the actual first step.
+            max_epoch (int or tf.Tensor or tf.Variable):
+                The maximum epoch to run.
+            max_step (int or tf.Tensor or tf.Variable):
+                The maximum step to run.
         """
-        self._param_vars = param_vars
+        # regularize the parameters
+        if not isinstance(param_vars, (dict, OrderedDict)):
+            param_vars = list(param_vars)
+
+        if isinstance(initial_valid_metric, (tf.Variable, tf.Tensor)):
+            initial_valid_metric = initial_valid_metric.eval()
+        if isinstance(initial_epoch, (tf.Variable, tf.Tensor)):
+            initial_epoch = int(initial_epoch.eval())
+        if isinstance(initial_step, (tf.Variable, tf.Tensor)):
+            initial_step = int(initial_step.eval())
+        if isinstance(max_epoch, (tf.Variable, tf.Tensor)):
+            max_epoch = int(max_epoch.eval())
+        if isinstance(max_step, (tf.Variable, tf.Tensor)):
+            max_step = int(max_step.eval())
+
+        smaller_is_better = valid_metric_smaller_is_better
+        if smaller_is_better is None:
+            smaller_is_better = not (
+                    valid_metric_name.endswith('acc') or
+                    valid_metric_name.endswith('accuracy')
+            )
+
+        if summary_writer is not None:
+            summary_dir = None
+            own_summary_writer = False
+        elif summary_dir is not None:
+            summary_dir = os.path.abspath(summary_dir)
+            own_summary_writer = True
+        else:
+            own_summary_writer = False
+
+        # memorize the parameters
+        self._param_vars = copy.copy(param_vars)
         self._print_func = print_func
         self._metric_formatter = metric_formatter
-        self._early_stopping = early_stopping
+        self._use_early_stopping = early_stopping
         self._valid_metric_name = valid_metric_name
-        self._valid_metric_smaller_is_better = valid_metric_smaller_is_better
+        self._initial_valid_metric = initial_valid_metric
+        self._valid_metric_smaller_is_better = smaller_is_better
+        self._summary_dir = summary_dir
         self._summary_writer = summary_writer
+        self._own_summary_writer = own_summary_writer
 
-        # metric accumulators
-        self._step_metrics = MetricLogger(formatter=self._metric_formatter)
-        self._epoch_metrics = MetricLogger(summary_writer=self._summary_writer,
-                                           formatter=self._metric_formatter)
+        # train loop states
+        self._step_metrics = None  # type: MetricLogger
+        self._epoch_metrics = None  # type: MetricLogger
+        self._early_stopping = None  # type: EarlyStopping
 
         # flag to track the context
         self._within_epoch = False
@@ -85,6 +164,37 @@ class TrainLoopContext(object):
         self._is_best_valid_metric = False
         self._epoch_start_time = None
         self._step_start_time = None
+
+    def _open(self):
+        # open the summary writer if required
+        if self._summary_dir is not None:
+            self._summary_writer = tf.summary.FileWriter(self._summary_dir)
+
+        # create the metric accumulators
+        self._step_metrics = MetricLogger(formatter=self._metric_formatter)
+        self._epoch_metrics = MetricLogger(summary_writer=self._summary_writer,
+                                           formatter=self._metric_formatter)
+
+        # open the early-stopping if required
+        if self._use_early_stopping:
+            self._early_stopping = EarlyStopping(
+                self._param_vars,
+                initial_metric=self._initial_valid_metric,
+                smaller_is_better=self._valid_metric_smaller_is_better
+            )
+            self._early_stopping.open()
+
+    def _close(self, exc_info):
+        # close the summary writer
+        if self._own_summary_writer:
+            self._summary_writer.close()
+            self._summary_writer = None
+            self._own_summary_writer = False
+
+        # close the early-stopping context
+        if self._early_stopping is not None:
+            self._early_stopping.close(exc_info)
+            self._early_stopping = None
 
     def _commit_epoch_start_time(self):
         if self._epoch_start_time is not None:
@@ -160,6 +270,7 @@ class TrainLoopContext(object):
                 (self._max_step is None or self._step < self._max_step)
             )
 
+        self._require_alive()
         if self._within_epoch:
             raise RuntimeError('Another epoch loop has been opened')
         try:
@@ -196,6 +307,7 @@ class TrainLoopContext(object):
         def loop_condition():
             return self._max_step is None or self._step < self._max_step
 
+        self._require_alive()
         if not self._within_epoch:
             raise RuntimeError('Step loop must be opened within active epoch '
                                'loop')
@@ -232,6 +344,7 @@ class TrainLoopContext(object):
             self._step_start_time = None
 
     def _require_context(self):
+        self._require_alive()
         if not self._within_epoch and not self._within_step:
             raise RuntimeError('An epoch or a step loop is expected, but '
                                'neither has been opened')
@@ -328,6 +441,7 @@ class TrainLoopContext(object):
             summary (tf.summary.Summary or byes): TensorFlow summary object,
                 or serialized summary.
         """
+        self._require_alive()
         self._summary_writer.add_summary(summary, global_step=self.step)
 
     def println(self, message, with_tag=False):
@@ -339,6 +453,7 @@ class TrainLoopContext(object):
             with_tag (bool): Whether or not to add the epoch & step tag?
                 (default :obj:`False`)
         """
+        self._require_alive()
         if with_tag:
             def format_tag(v, max_v, name):
                 if max_v is not None:
@@ -368,6 +483,7 @@ class TrainLoopContext(object):
         1.   Execution environment.
         2.   Parameters to be optimized during training.
         """
+        self._require_alive()
         self.println(summarize_variables(variables=self._param_vars,
                                          title='Trainable Parameters'))
         self.println('')
@@ -387,6 +503,7 @@ class TrainLoopContext(object):
         Moreover, the epoch or step timer will be committed as metric
         immediately when this method is called, before printing the logs.
         """
+        self._require_alive()
         metrics = None
         if self._within_step:
             self._commit_step_start_time()
@@ -403,133 +520,8 @@ class TrainLoopContext(object):
         metrics.clear()
 
 
-@contextmanager
-def train_loop(param_vars,
-               print_func=print,
-               summary_dir=None,
-               summary_writer=None,
-               metric_formatter=DefaultMetricFormatter(),
-               valid_metric_name='valid_loss',
-               initial_valid_metric=None,
-               valid_metric_smaller_is_better=None,
-               early_stopping=False,
-               initial_epoch=0,
-               initial_step=0,
-               max_epoch=None,
-               max_step=None):
-    """
-    Open a training loop context.
-
-    This method should open a context for training loop, and provide an object
-    shipped with a set of convenient methods for common routines in training.
-    Basically, it should be useful for maintaining epoch and step counters,
-    logging training metrics, memorizing best parameters via early-stopping,
-    and many more.  An example of using the :func:`train_loop`:
-
-    .. code-block:: python
-
-        with train_loop(param_vars, max_epoch=10, early_stopping=True) as loop:
-            loop.print_training_summary()
-            for epoch in loop.iter_epochs():
-                data_iterator = zip(
-                    minibatch_iterator(data_x, batch_size),
-                    minibatch_iterator(data_y, batch_size),
-                )
-                for step, (x, y) in loop.iter_steps(data_iterator):
-                    step_loss = session.run(
-                        [loss, train_op],
-                        feed_dict={input_x: x, input_y: y}
-                    )
-                    loop.collect_metrics(loss=step_loss)
-                with loop.timeit('valid_time'):
-                    valid_loss = session.run(
-                        loss, feed_dict={input_x: test_x, input_y: test_y})
-                    loop.collect_metrics(valid_loss=valid_loss)
-                loop.print_logs()
-
-    Args:
-        param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or dict
-            of variables, optimized during training.
-        print_func ((str) -> None): Function for printing log messages
-            (calling ``print`` by default). An alternative of this argument may
-            be ``getLogger(__name__).info``, such that the log messages will be
-            printed via logging facilities.
-        summary_dir (str): Directory for writing TensorFlow summaries. Ignored
-            if `summary_writer` is specified.
-        summary_writer: TensorFlow summary writer for writing metrics onto disk.
-        metric_formatter (MetricFormatter): The training metrics formatter.
-        valid_metric_name (str): Name of the validation metric.
-        initial_valid_metric (float or tf.Tensor or tf.Variable): Initial value
-            of the validation metric for early-stopping.
-        valid_metric_smaller_is_better (bool): Whether or not the smaller value
-            is better for validation metric? If not specified, it will be
-            inferred according to `valid_metric_name`: metric names with ``acc``
-            or ``accuracy`` as suffix imply :obj:`True`, while other names imply
-            :obj:`False`.
-        early_stopping (bool): Whether or not to do early-stopping? (default
-            :obj:`False`)  If :obj:`True`, early-stopping will be applied on
-            `param_vars`, according to the validation metric.
-        initial_epoch (int or tf.Tensor or tf.Variable): The initial epoch
-            (default 0). Should be one less than the actual first epoch.
-        initial_step (int or tf.Tensor or tf.Variable): The initial step
-            (default 0). Should be one less than the actual first step.
-        max_epoch (int or tf.Tensor or tf.Variable): The maximum epoch to run.
-        max_step (int or tf.Tensor or tf.Variable): The maximum step to run.
-
-    Yields:
-        TrainLoopContext: The training loop context object.
-    """
-    if not isinstance(param_vars, (dict, OrderedDict)):
-        param_vars = list(param_vars)
-
-    if isinstance(initial_valid_metric, (tf.Variable, tf.Tensor)):
-        initial_valid_metric = initial_valid_metric.eval()
-    if isinstance(initial_epoch, (tf.Variable, tf.Tensor)):
-        initial_epoch = int(initial_epoch.eval())
-    if isinstance(initial_step, (tf.Variable, tf.Tensor)):
-        initial_step = int(initial_step.eval())
-    if isinstance(max_epoch, (tf.Variable, tf.Tensor)):
-        max_epoch = int(max_epoch.eval())
-    if isinstance(max_step, (tf.Variable, tf.Tensor)):
-        max_step = int(max_step.eval())
-
-    smaller_is_better = valid_metric_smaller_is_better
-    if smaller_is_better is None:
-        smaller_is_better = not (
-            valid_metric_name.endswith('acc') or
-            valid_metric_name.endswith('accuracy')
-        )
-
-    close_summary_writer = False
-    if summary_writer is None and summary_dir is not None:
-        summary_dir = os.path.abspath(summary_dir)
-        summary_writer = tf.summary.FileWriter(summary_dir)
-        close_summary_writer = True
-
-    def mkctx(es=None):
-        return TrainLoopContext(
-            param_vars=param_vars,
-            print_func=print_func,
-            metric_formatter=metric_formatter,
-            valid_metric_name=valid_metric_name,
-            initial_valid_metric=initial_valid_metric,
-            valid_metric_smaller_is_better=smaller_is_better,
-            early_stopping=es,
-            summary_writer=summary_writer,
-            initial_epoch=initial_epoch,
-            initial_step=initial_step,
-            max_epoch=max_epoch,
-            max_step=max_step,
-        )
-
-    try:
-        if early_stopping and len(param_vars) > 0:
-            with open_early_stopping(param_vars,
-                                     initial_metric=initial_valid_metric,
-                                     smaller_is_better=smaller_is_better) as es:
-                yield mkctx(es)
-        else:
-            yield mkctx(None)
-    finally:
-        if close_summary_writer:
-            summary_writer.close()
+def train_loop(*args, **kwargs):  # pragma: no cover
+    warnings.warn('`tfsnippet.scaffold.train_loop` is deprecated, '
+                  'use `tfsnippet.scaffold.TrainLoop` instead.',
+                  DeprecationWarning)
+    return TrainLoop(*args, **kwargs)

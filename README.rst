@@ -39,7 +39,7 @@ Use the flexible training loop context, with nice logging and early-stopping:
 
 .. code-block:: python
 
-    from tfsnippet.scaffold import train_loop
+    from tfsnippet.scaffold import TrainLoop
     from tfsnippet.utils import ensure_variables_initialized
 
     loss = ...  # build your own training loss here
@@ -55,7 +55,7 @@ Use the flexible training loop context, with nice logging and early-stopping:
     # Start a training loop, with early-stopping enabled on `params`.
     # By default, `params` w.r.t. best `valid_loss` will be restored when
     # exiting the `loop` context.
-    with train_loop(params, max_epoch=max_epoch, early_stopping=True) as loop:
+    with TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
         # print the summary of training, e.g., the `params` to be trained
         loop.print_training_summary()
 
@@ -97,9 +97,9 @@ Or use the early-stopping context directly, without emitting a training loop:
 
 .. code-block:: python
 
-    from tfsnippet.scaffold import early_stopping
+    from tfsnippet.scaffold import EarlyStopping
 
-    with early_stopping(params) as es:
+    with EarlyStopping(params) as es:
         ...
         es.update(loss)  # This will update the loss being monitored.
                          # It can be called for arbitrary times, and

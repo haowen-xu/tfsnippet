@@ -10,7 +10,7 @@ from tfsnippet.scaffold import summarize_variables, MetricLogger
 from tfsnippet.utils import TemporaryDirectory
 
 
-class LoggingUtilsTestCase(unittest.TestCase):
+class LoggingUtilsTestCase(tf.test.TestCase):
 
     def test_summarize_variables(self):
         # test variable summaries
