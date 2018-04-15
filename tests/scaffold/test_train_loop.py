@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.scaffold import train_loop
+from tfsnippet.scaffold import TrainLoop
 from tfsnippet.utils import (TemporaryDirectory,
                              ensure_variables_initialized,
                              get_default_session_or_error)
@@ -32,14 +32,14 @@ class TrainLoopTestCase(tf.test.TestCase):
         )
 
     def test_counter_attributes(self):
-        with train_loop([]) as loop:
+        with TrainLoop([]) as loop:
             self.assertEqual(loop.epoch, 0)
             self.assertEqual(loop.step, 0)
             self.assertIsNone(loop.max_epoch)
             self.assertIsNone(loop.max_step)
 
-        with train_loop([], initial_epoch=1, initial_step=3,
-                        max_epoch=2, max_step=10) as loop:
+        with TrainLoop([], initial_epoch=1, initial_step=3,
+                       max_epoch=2, max_step=10) as loop:
             self.assertEqual(loop.epoch, 1)
             self.assertEqual(loop.step, 3)
             self.assertEqual(loop.max_epoch, 2)
@@ -51,7 +51,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_counters(self):
         # test loop with configured `max_epoch`
-        with train_loop([], max_epoch=2) as loop:
+        with TrainLoop([], max_epoch=2) as loop:
             epoch_counter = 0
             step_counter = 0
             for epoch in loop.iter_epochs():
@@ -71,7 +71,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(step_counter, 8)
 
         # test loop with configured `max_step`
-        with train_loop([], max_step=10) as loop:
+        with TrainLoop([], max_step=10) as loop:
             epoch_counter = 0
             step_counter = 0
             for epoch in loop.iter_epochs():
@@ -84,7 +84,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(step_counter, 10)
 
         # test loop with configured `max_step` with payload
-        with train_loop([], max_step=10) as loop:
+        with TrainLoop([], max_step=10) as loop:
             epoch_counter = 0
             step_counter = 0
             for epoch in loop.iter_epochs():
@@ -101,7 +101,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test loop with configured `max_step` and `max_epoch`,
         # while `max_epoch` finishes first
-        with train_loop([], max_step=10, max_epoch=2) as loop:
+        with TrainLoop([], max_step=10, max_epoch=2) as loop:
             epoch_counter = 0
             step_counter = 0
             for epoch in loop.iter_epochs():
@@ -115,7 +115,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test loop with configured `max_step` and `max_epoch`,
         # while `max_step` finishes first
-        with train_loop([], max_step=10, max_epoch=3) as loop:
+        with TrainLoop([], max_step=10, max_epoch=3) as loop:
             epoch_counter = 0
             step_counter = 0
             for epoch in loop.iter_epochs():
@@ -129,7 +129,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_logs(self):
         logs = []
-        with train_loop([], max_step=6, print_func=logs.append) as loop:
+        with TrainLoop([], max_step=6, print_func=logs.append) as loop:
             for epoch in loop.iter_epochs():
                 for step, x in loop.iter_steps(np.arange(4)):
                     time.sleep(0.01)
@@ -156,7 +156,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_valid_metric_default_settings(self):
         logs = []
-        with train_loop([], print_func=logs.append) as loop:
+        with TrainLoop([], print_func=logs.append) as loop:
             self.assertEqual(loop._valid_metric_name, 'valid_loss')
             self.assertTrue(loop._valid_metric_smaller_is_better)
             for _ in loop.iter_epochs():
@@ -184,9 +184,9 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_valid_metric_with_custom_settings(self):
         logs = []
-        with train_loop([], print_func=logs.append,
-                        valid_metric_name='y',
-                        valid_metric_smaller_is_better=False) as loop:
+        with TrainLoop([], print_func=logs.append,
+                       valid_metric_name='y',
+                       valid_metric_smaller_is_better=False) as loop:
             self.assertEqual(loop._valid_metric_name, 'y')
             self.assertFalse(loop._valid_metric_smaller_is_better)
             for _ in loop.iter_epochs():
@@ -213,12 +213,12 @@ class TrainLoopTestCase(tf.test.TestCase):
         ))
 
     def test_valid_metric_with_valid_acc(self):
-        with train_loop([], valid_metric_name='valid_acc') as loop:
+        with TrainLoop([], valid_metric_name='valid_acc') as loop:
             self.assertEqual(loop._valid_metric_name, 'valid_acc')
             self.assertFalse(loop._valid_metric_smaller_is_better)
 
     def test_valid_metric_with_y_as_name(self):
-        with train_loop([], valid_metric_name='y') as loop:
+        with TrainLoop([], valid_metric_name='y') as loop:
             self.assertEqual(loop._valid_metric_name, 'y')
             self.assertTrue(loop._valid_metric_smaller_is_better)
 
@@ -228,7 +228,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test param variables in list
         logs = []
-        with train_loop([a, b], print_func=logs.append) as loop:
+        with TrainLoop([a, b], print_func=logs.append) as loop:
             self.assertEqual(loop.param_vars, [a, b])
             loop.print_training_summary()
         self.assertEqual('\n'.join(logs), (
@@ -240,8 +240,8 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test param variables in dict
         logs = []
-        with train_loop({'aa': a, 'bb': b},
-                        print_func=logs.append) as loop:
+        with TrainLoop({'aa': a, 'bb': b},
+                       print_func=logs.append) as loop:
             self.assertEqual(loop.param_vars, {'aa': a, 'bb': b})
             loop.print_training_summary()
         self.assertEqual('\n'.join(logs), (
@@ -253,7 +253,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_timeit(self):
         logs = []
-        with train_loop([], max_epoch=1, print_func=logs.append) as loop:
+        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
             for _ in loop.iter_epochs():
                 with loop.timeit('x_timer'):
                     time.sleep(0.01)
@@ -269,7 +269,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_metric_collector(self):
         logs = []
-        with train_loop([], max_epoch=1, print_func=logs.append) as loop:
+        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
             for _ in loop.iter_epochs():
                 with loop.metric_collector('x') as acc:
                     acc.collect(2)
@@ -312,7 +312,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test enable summary with `summary_dir`
         with TemporaryDirectory() as tempdir:
-            with train_loop([], max_epoch=2, summary_dir=tempdir) as loop:
+            with TrainLoop([], max_epoch=2, summary_dir=tempdir) as loop:
                 self.assertIsInstance(loop.summary_writer,
                                       tf.summary.FileWriter)
                 self.assertIsNone(loop._early_stopping)
@@ -343,7 +343,7 @@ class TrainLoopTestCase(tf.test.TestCase):
         # test enable summary with `summary_writer`
         with TemporaryDirectory() as tempdir:
             sw = tf.summary.FileWriter(tempdir)
-            with train_loop([], max_epoch=2, summary_writer=sw) as loop:
+            with TrainLoop([], max_epoch=2, summary_writer=sw) as loop:
                 self.assertIs(loop.summary_writer, sw)
                 self.assertIsNone(loop._early_stopping)
                 self.assertIs(loop._summary_writer, sw)
@@ -359,7 +359,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         with TemporaryDirectory() as tempdir:
             sw = tf.summary.FileWriter(tempdir)
-            with train_loop([], max_epoch=2, summary_writer=sw) as loop:
+            with TrainLoop([], max_epoch=2, summary_writer=sw) as loop:
                 self.assertIsNone(loop._early_stopping)
                 self.assertIs(loop._summary_writer, sw)
                 for epoch in loop.iter_epochs():
@@ -380,14 +380,14 @@ class TrainLoopTestCase(tf.test.TestCase):
             # test early-stopping with no valid metric committed
             set_variable_values([a, b], [1, 2])
             self.assertEqual(get_variable_values([a, b]), [1, 2])
-            with train_loop([a], early_stopping=True):
+            with TrainLoop([a], early_stopping=True):
                 set_variable_values([a, b], [10, 20])
             self.assertEqual(get_variable_values([a, b]), [10, 20])
 
             # test early-stopping with smaller-better metric
             set_variable_values([a, b], [1, 2])
             self.assertEqual(get_variable_values([a, b]), [1, 2])
-            with train_loop([a], max_epoch=1, early_stopping=True) as loop:
+            with TrainLoop([a], max_epoch=1, early_stopping=True) as loop:
                 for _ in loop.iter_epochs():
                     for step, valid_loss in loop.iter_steps([0.7, 0.6, 0.8]):
                         set_variable_values([a, b], [10 + step, 20 + step])
@@ -398,11 +398,11 @@ class TrainLoopTestCase(tf.test.TestCase):
             # test early-stopping with larger-better metric
             set_variable_values([a, b], [1, 2])
             self.assertEqual(get_variable_values([a, b]), [1, 2])
-            with train_loop([a],
-                            max_epoch=1,
-                            valid_metric_name='y',
-                            valid_metric_smaller_is_better=False,
-                            early_stopping=True) as loop:
+            with TrainLoop([a],
+                           max_epoch=1,
+                           valid_metric_name='y',
+                           valid_metric_smaller_is_better=False,
+                           early_stopping=True) as loop:
                 for _ in loop.iter_epochs():
                     for step, y in loop.iter_steps([0.7, 0.6, 0.8]):
                         set_variable_values([a, b], [10 + step, 20 + step])
@@ -414,13 +414,13 @@ class TrainLoopTestCase(tf.test.TestCase):
         with self.test_session():
             a = tf.get_variable('a', initializer=0, dtype=tf.int32)
             ensure_variables_initialized()
-            with train_loop([a],
-                            early_stopping=True,
-                            initial_valid_metric=tf.constant(1.23),
-                            initial_epoch=tf.constant(4),
-                            initial_step=tf.constant(5),
-                            max_epoch=tf.constant(6),
-                            max_step=tf.constant(7)) as loop:
+            with TrainLoop([a],
+                           early_stopping=True,
+                           initial_valid_metric=tf.constant(1.23),
+                           initial_epoch=tf.constant(4),
+                           initial_step=tf.constant(5),
+                           max_epoch=tf.constant(6),
+                           max_step=tf.constant(7)) as loop:
                 self.assertAlmostEqual(loop._early_stopping._best_metric, 1.23)
                 self.assertEqual(loop.epoch, 4)
                 self.assertEqual(loop.step, 5)
@@ -430,7 +430,7 @@ class TrainLoopTestCase(tf.test.TestCase):
     def test_errors(self):
         with pytest.raises(
                 RuntimeError, match='Another epoch loop has been opened'):
-            with train_loop([], max_epoch=10) as loop:
+            with TrainLoop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_epochs():
                         pass
@@ -438,13 +438,13 @@ class TrainLoopTestCase(tf.test.TestCase):
         with pytest.raises(
                 RuntimeError, match='Step loop must be opened within active '
                                     'epoch loop'):
-            with train_loop([], max_step=10) as loop:
+            with TrainLoop([], max_step=10) as loop:
                 for _ in loop.iter_steps():
                     pass
 
         with pytest.raises(
                 RuntimeError, match='Another step loop has been opened'):
-            with train_loop([], max_epoch=10, max_step=10) as loop:
+            with TrainLoop([], max_epoch=10, max_step=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_steps():
                         for _ in loop.iter_steps():
@@ -456,38 +456,38 @@ class TrainLoopTestCase(tf.test.TestCase):
                                     'but neither has been opened')
 
         with require_context():
-            with train_loop([]) as loop:
+            with TrainLoop([]) as loop:
                 with loop.timeit('timer'):
                     pass
 
         with require_context():
-            with train_loop([]) as loop:
+            with TrainLoop([]) as loop:
                 with loop.metric_collector('metric'):
                     pass
 
         with require_context():
-            with train_loop([]) as loop:
+            with TrainLoop([]) as loop:
                 loop.collect_metrics(loss=1.)
 
         with require_context():
-            with train_loop([]) as loop:
+            with TrainLoop([]) as loop:
                 loop.println('', with_tag=True)
 
         with require_context():
-            with train_loop([]) as loop:
+            with TrainLoop([]) as loop:
                 loop.print_logs()
 
         with pytest.raises(
                 RuntimeError, match='`data_generator` is required when '
                                     '`max_step` is not configured, so as to '
                                     'prevent an unstoppable step loop'):
-            with train_loop([], max_epoch=10) as loop:
+            with TrainLoop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     for _ in loop.iter_steps():
                         pass
 
         with pytest.raises(
                 TypeError, match='`metrics` should be a dict'):
-            with train_loop([], max_epoch=10) as loop:
+            with TrainLoop([], max_epoch=10) as loop:
                 for _ in loop.iter_epochs():
                     loop.collect_metrics(())

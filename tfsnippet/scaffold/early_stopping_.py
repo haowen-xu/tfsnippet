@@ -162,5 +162,8 @@ class EarlyStopping(OpenCloseContext):
         return self._ever_updated
 
 
-early_stopping = EarlyStopping
-
+def early_stopping(*args, **kwargs):  # pragma: no cover
+    warnings.warn('`tfsnippet.scaffold.early_stopping` is deprecated, '
+                  'use `tfsnippet.scaffold.EarlyStopping` instead.',
+                  DeprecationWarning)
+    return EarlyStopping(*args, **kwargs)

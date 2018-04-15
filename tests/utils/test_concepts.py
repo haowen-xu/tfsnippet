@@ -1,7 +1,7 @@
 import unittest
 
 import pytest
-from mock import Mock, MagicMock
+from mock import MagicMock
 
 from tfsnippet.utils import OpenCloseContext
 

@@ -3,14 +3,15 @@ from __future__ import print_function
 import copy
 import os
 import time
+import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
 
 import tensorflow as tf
 
 from tfsnippet.utils import StatisticsCollector, OpenCloseContext
+from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
-from .validation import EarlyStopping
 
 __all__ = [
     'train_loop', 'TrainLoop',
@@ -519,4 +520,8 @@ class TrainLoop(OpenCloseContext):
         metrics.clear()
 
 
-train_loop = TrainLoop
+def train_loop(*args, **kwargs):  # pragma: no cover
+    warnings.warn('`tfsnippet.scaffold.train_loop` is deprecated, '
+                  'use `tfsnippet.scaffold.TrainLoop` instead.',
+                  DeprecationWarning)
+    return TrainLoop(*args, **kwargs)
