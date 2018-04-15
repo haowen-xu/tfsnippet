@@ -1,63 +1,69 @@
-__all__ = ['OpenCloseContext']
+__all__ = [
+    'NoReentrantContext',
+    'OneTimeContext',
+]
 
 
-class OpenCloseContext(object):
+class NoReentrantContext(object):
     """
-    Abstract context object with ``open`` and ``close`` methods.
-
-    This class provides a base for all context objects exposing a pair of
-    ``open`` and ``close`` methods.  These methods can only be called once
-    each.  Also, entering an instance of the context object will automatically
-    call the ``open`` method, while exiting it will call ``close``.
+    Base class for contexts which are not reentrant (i.e., if there is
+    a context opened by ``__enter__``, and it has not called ``__exit__``,
+    the ``__enter__`` cannot be called again).
     """
 
-    _has_opened = False  # indicating whether the class has been opened
-    _has_closed = False  # indicating whether the class has been closed
+    _is_entered = False
 
-    def _open(self):
+    def _enter(self):
+        """
+        Enter the context.  Subclasses should override this instead of
+        the true ``__enter__`` method.
+        """
         raise NotImplementedError()
 
-    def _close(self, exc_info):
+    def _exit(self, exc_type, exc_val, exc_tb):
+        """
+        Exit the context.  Subclasses should override this instead of
+        the true ``__exit__`` method.
+        """
         raise NotImplementedError()
 
-    def _require_alive(self):
-        """Require the context object to be opened, and not closed."""
-        if not self._has_opened:
+    def _require_entered(self):
+        """
+        Require the context to be entered.
+
+        Raises:
+            RuntimeError: If the context is not entered.
+        """
+        if not self._is_entered:
             raise RuntimeError(
-                'The {} has not been opened'.format(self.__class__.__name__))
-        if self._has_closed:
-            raise RuntimeError(
-                'The {} has been closed'.format(self.__class__.__name__))
-
-    def open(self):
-        """
-        Open the context object.
-        """
-        if self._has_opened:
-            raise RuntimeError(
-                'The {} has been opened'.format(self.__class__.__name__))
-
-        self._open()
-        self._has_opened = True
-
-    def close(self, exc_info=None):
-        """
-        Close the context object.
-
-        Args:
-            exc_info: The tuple of (exc_type, exc_val, exc_tb), if available.
-        """
-        if self._has_opened and not self._has_closed:
-            self._close(exc_info)
-            self._has_closed = True
+                '{} is not currently entered.'.format(self.__class__.__name__))
 
     def __enter__(self):
-        self.open()
-        return self
+        if self._is_entered:
+            raise RuntimeError(
+                '{} is not reentrant.'.format(self.__class__.__name__))
+        ret = self._enter()
+        self._is_entered = True
+        return ret
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None or exc_val is not None or exc_tb is not None:
-            exc_info = (exc_type, exc_val, exc_tb)
-        else:
-            exc_info = None
-        self.close(exc_info)
+        if self._is_entered:
+            self._is_entered = False
+            return self._exit(exc_type, exc_val, exc_tb)
+
+
+class OneTimeContext(NoReentrantContext):
+    """
+    Base class for contexts which can only be entered once.
+    """
+
+    _has_entered = False
+
+    def __enter__(self):
+        if self._has_entered:
+            raise RuntimeError(
+                'The one-time context {} has already been entered, thus cannot '
+                'be entered again.'.format(self.__class__.__name__))
+        ret = super(OneTimeContext, self).__enter__()
+        self._has_entered = True
+        return ret

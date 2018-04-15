@@ -3,74 +3,109 @@ import unittest
 import pytest
 from mock import MagicMock
 
-from tfsnippet.utils import OpenCloseContext
+from tfsnippet.utils import NoReentrantContext, OneTimeContext
 
 
-class MyContext(OpenCloseContext):
+class _ContextA(NoReentrantContext):
 
     def __init__(self):
-        self._open = MagicMock()
-        self._close = MagicMock()
+        self._enter = MagicMock(return_value=123)
+        self._exit = MagicMock()
 
 
-class OpenCloseContextTestCase(unittest.TestCase):
+class _ContextB(OneTimeContext):
 
-    def test_open(self):
-        ctx = MyContext()
-        self.assertFalse(ctx._has_opened)
-        self.assertEquals(0, ctx._open.call_count)
+    def __init__(self):
+        self._enter = MagicMock(return_value=456)
+        self._exit = MagicMock()
 
-        ctx.open()
-        self.assertTrue(ctx._has_opened)
-        self.assertEquals(1, ctx._open.call_count)
+
+class NoReentrantContextTestCase(unittest.TestCase):
+
+    def test_everything(self):
+        ctx = _ContextA()
+
+        self.assertFalse(ctx._is_entered)
+        self.assertEquals(0, ctx._enter.call_count)
+        self.assertEquals(0, ctx._exit.call_count)
+        with pytest.raises(
+                RuntimeError, match='_ContextA is not currently entered'):
+            ctx._require_entered()
+
+        with ctx as x:
+            self.assertEqual(123, x)
+            self.assertTrue(ctx._is_entered)
+            self.assertEquals(1, ctx._enter.call_count)
+            self.assertEquals(0, ctx._exit.call_count)
+            _ = ctx._require_entered()
+
+            with pytest.raises(
+                    RuntimeError, match='_ContextA is not reentrant'):
+                with ctx:
+                    pass
+            self.assertTrue(ctx._is_entered)
+            self.assertEquals(1, ctx._enter.call_count)
+            self.assertEquals(0, ctx._exit.call_count)
+
+        self.assertFalse(ctx._is_entered)
+        self.assertEquals(1, ctx._enter.call_count)
+        self.assertEquals(1, ctx._exit.call_count)
+        with pytest.raises(
+                RuntimeError, match='_ContextA is not currently entered'):
+            ctx._require_entered()
+
+        with ctx as x:
+            self.assertEqual(123, x)
+            self.assertTrue(ctx._is_entered)
+            self.assertEquals(2, ctx._enter.call_count)
+            self.assertEquals(1, ctx._exit.call_count)
+            _ = ctx._require_entered()
+
+        self.assertFalse(ctx._is_entered)
+        self.assertEquals(2, ctx._enter.call_count)
+        self.assertEquals(2, ctx._exit.call_count)
+        with pytest.raises(
+                RuntimeError, match='_ContextA is not currently entered'):
+            ctx._require_entered()
+
+
+class OneTimeContextTestCase(unittest.TestCase):
+
+    def test_everything(self):
+        ctx = _ContextB()
+
+        self.assertFalse(ctx._is_entered)
+        self.assertEquals(0, ctx._enter.call_count)
+        self.assertEquals(0, ctx._exit.call_count)
+        with pytest.raises(
+                RuntimeError, match='_ContextB is not currently entered'):
+            ctx._require_entered()
+
+        with ctx as x:
+            _ = ctx._require_entered()
+            self.assertEqual(123, x)
+            self.assertTrue(ctx._is_entered)
+            self.assertEquals(1, ctx._enter.call_count)
+            self.assertEquals(0, ctx._exit.call_count)
+
+            with pytest.raises(
+                    RuntimeError, match='_ContextB is not reentrant'):
+                with ctx:
+                    pass
+            self.assertTrue(ctx._is_entered)
+            self.assertEquals(1, ctx._enter.call_count)
+            self.assertEquals(0, ctx._exit.call_count)
+
+        self.assertFalse(ctx._is_entered)
+        self.assertEquals(1, ctx._enter.call_count)
+        self.assertEquals(1, ctx._exit.call_count)
+        with pytest.raises(
+                RuntimeError, match='_ContextB is not currently entered'):
+            ctx._require_entered()
 
         with pytest.raises(
-                RuntimeError, match='The MyContext has been opened'):
-            ctx.open()
-
-    def test_close(self):
-        ctx = MyContext()
-        self.assertFalse(ctx._has_closed)
-        self.assertEquals(0, ctx._close.call_count)
-
-        ctx.close()  # should have no side-effect
-        self.assertFalse(ctx._has_closed)
-        self.assertEquals(0, ctx._close.call_count)
-
-        ctx.open()
-        ctx.close()
-        self.assertTrue(ctx._has_closed)
-        self.assertEquals(1, ctx._close.call_count)
-
-        ctx.close()  # should have no side-effect
-        self.assertEquals(1, ctx._close.call_count)
-
-    def test_require_alive(self):
-        ctx = MyContext()
-        with pytest.raises(
-                RuntimeError, match='The MyContext has not been opened'):
-            ctx._require_alive()
-        ctx.open()
-        ctx._require_alive()
-        ctx.close()
-        with pytest.raises(
-                RuntimeError, match='The MyContext has been closed'):
-            ctx._require_alive()
-
-    def test_enter_exit(self):
-        ctx = MyContext()
-        self.assertFalse(ctx._has_opened)
-        self.assertFalse(ctx._has_closed)
-        self.assertEquals(0, ctx._open.call_count)
-        self.assertEquals(0, ctx._close.call_count)
-
-        with ctx:
-            self.assertTrue(ctx._has_opened)
-            self.assertFalse(ctx._has_closed)
-            self.assertEquals(1, ctx._open.call_count)
-            self.assertEquals(0, ctx._close.call_count)
-
-        self.assertTrue(ctx._has_opened)
-        self.assertTrue(ctx._has_closed)
-        self.assertEquals(1, ctx._open.call_count)
-        self.assertEquals(1, ctx._close.call_count)
+                RuntimeError, match='The one-time context _ContextB has '
+                                    'already been entered, thus cannot be '
+                                    'entered again'):
+            with ctx:
+                pass

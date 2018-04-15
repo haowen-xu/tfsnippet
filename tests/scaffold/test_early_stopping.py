@@ -117,6 +117,17 @@ class EarlyStoppingTestCase(tf.test.TestCase):
             self.assertAlmostEqual(es.best_metric, 1.)
             self.assertEqual(get_variable_values([a, b, c]), [1, 2, 3])
 
+    def test_restore_on_keyboard_interrupt(self):
+        with self.test_session():
+            a, b, c = _populate_variables()
+            with pytest.raises(KeyboardInterrupt):
+                with EarlyStopping([a, b]) as es:
+                    self.assertTrue(es.update(1.))
+                    set_variable_values([a, b], [10, 20])
+                    raise KeyboardInterrupt()
+            self.assertAlmostEqual(es.best_metric, 1.)
+            self.assertEqual(get_variable_values([a, b, c]), [1, 2, 3])
+
     def test_bigger_is_better(self):
         with self.test_session():
             a, b, c = _populate_variables()

@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.utils import StatisticsCollector, OpenCloseContext
+from tfsnippet.utils import StatisticsCollector, OneTimeContext
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -21,7 +21,7 @@ EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
 
 
-class TrainLoop(OpenCloseContext):
+class TrainLoop(OneTimeContext):
     """
     Training loop object.
 
@@ -32,24 +32,25 @@ class TrainLoop(OpenCloseContext):
 
     .. code-block:: python
 
+        from tfsnippet.dataflow import DataFlow
+        from tfsnippet.scaffold import TrainLoop
+
         with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
             loop.print_training_summary()
-                for epoch in loop.iter_epochs():
-                    data_iterator = zip(
-                        minibatch_iterator(data_x, batch_size),
-                        minibatch_iterator(data_y, batch_size),
+            train_flow = DataFlow.from_arrays([x, y], batch_size, shuffle=True)
+
+            for epoch in loop.iter_epochs():
+                for step, (x, y) in loop.iter_steps(train_flow):
+                    step_loss = session.run(
+                        [loss, train_op],
+                        feed_dict={input_x: x, input_y: y}
                     )
-                    for step, (x, y) in loop.iter_steps(data_iterator):
-                        step_loss = session.run(
-                            [loss, train_op],
-                            feed_dict={input_x: x, input_y: y}
-                        )
-                        loop.collect_metrics(loss=step_loss)
-                    with loop.timeit('valid_time'):
-                        valid_loss = session.run(
-                            loss, feed_dict={input_x: test_x, input_y: test_y})
-                        loop.collect_metrics(valid_loss=valid_loss)
-                    loop.print_logs()
+                    loop.collect_metrics(loss=step_loss)
+                with loop.timeit('valid_time'):
+                    valid_loss = session.run(
+                        loss, feed_dict={input_x: test_x, input_y: test_y})
+                    loop.collect_metrics(valid_loss=valid_loss)
+                loop.print_logs()
     """
 
     def __init__(self,
@@ -165,7 +166,7 @@ class TrainLoop(OpenCloseContext):
         self._epoch_start_time = None
         self._step_start_time = None
 
-    def _open(self):
+    def _enter(self):
         # open the summary writer if required
         if self._summary_dir is not None:
             self._summary_writer = tf.summary.FileWriter(self._summary_dir)
@@ -182,9 +183,12 @@ class TrainLoop(OpenCloseContext):
                 initial_metric=self._initial_valid_metric,
                 smaller_is_better=self._valid_metric_smaller_is_better
             )
-            self._early_stopping.open()
+            self._early_stopping.__enter__()
 
-    def _close(self, exc_info):
+        # return self as the context object
+        return self
+
+    def _exit(self, exc_type, exc_val, exc_tb):
         # close the summary writer
         if self._own_summary_writer:
             self._summary_writer.close()
@@ -193,7 +197,7 @@ class TrainLoop(OpenCloseContext):
 
         # close the early-stopping context
         if self._early_stopping is not None:
-            self._early_stopping.close(exc_info)
+            self._early_stopping.__exit__(exc_type, exc_val, exc_tb)
             self._early_stopping = None
 
     def _commit_epoch_start_time(self):
@@ -270,7 +274,7 @@ class TrainLoop(OpenCloseContext):
                 (self._max_step is None or self._step < self._max_step)
             )
 
-        self._require_alive()
+        self._require_entered()
         if self._within_epoch:
             raise RuntimeError('Another epoch loop has been opened')
         try:
@@ -307,7 +311,7 @@ class TrainLoop(OpenCloseContext):
         def loop_condition():
             return self._max_step is None or self._step < self._max_step
 
-        self._require_alive()
+        self._require_entered()
         if not self._within_epoch:
             raise RuntimeError('Step loop must be opened within active epoch '
                                'loop')
@@ -344,7 +348,7 @@ class TrainLoop(OpenCloseContext):
             self._step_start_time = None
 
     def _require_context(self):
-        self._require_alive()
+        self._require_entered()
         if not self._within_epoch and not self._within_step:
             raise RuntimeError('An epoch or a step loop is expected, but '
                                'neither has been opened')
@@ -441,7 +445,7 @@ class TrainLoop(OpenCloseContext):
             summary (tf.summary.Summary or byes): TensorFlow summary object,
                 or serialized summary.
         """
-        self._require_alive()
+        self._require_entered()
         self._summary_writer.add_summary(summary, global_step=self.step)
 
     def println(self, message, with_tag=False):
@@ -453,7 +457,7 @@ class TrainLoop(OpenCloseContext):
             with_tag (bool): Whether or not to add the epoch & step tag?
                 (default :obj:`False`)
         """
-        self._require_alive()
+        self._require_entered()
         if with_tag:
             def format_tag(v, max_v, name):
                 if max_v is not None:
@@ -483,7 +487,7 @@ class TrainLoop(OpenCloseContext):
         1.   Execution environment.
         2.   Parameters to be optimized during training.
         """
-        self._require_alive()
+        self._require_entered()
         self.println(summarize_variables(variables=self._param_vars,
                                          title='Trainable Parameters'))
         self.println('')
@@ -503,7 +507,7 @@ class TrainLoop(OpenCloseContext):
         Moreover, the epoch or step timer will be committed as metric
         immediately when this method is called, before printing the logs.
         """
-        self._require_alive()
+        self._require_entered()
         metrics = None
         if self._within_step:
             self._commit_step_start_time()

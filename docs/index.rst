@@ -28,6 +28,7 @@ API Docs
    :maxdepth: 1
 
    api/tfsnippet.bayes
+   api/tfsnippet.dataflow
    api/tfsnippet.distributions
    api/tfsnippet.modules
    api/tfsnippet.scaffold

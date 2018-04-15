@@ -6,13 +6,13 @@ from logging import getLogger
 
 import tensorflow as tf
 
-from tfsnippet.utils import (OpenCloseContext, TemporaryDirectory, makedirs,
+from tfsnippet.utils import (OneTimeContext, TemporaryDirectory, makedirs,
                              VariableSaver)
 
 __all__ = ['EarlyStopping', 'early_stopping']
 
 
-class EarlyStopping(OpenCloseContext):
+class EarlyStopping(OneTimeContext):
     """
     Early-stopping context object.
 
@@ -85,7 +85,7 @@ class EarlyStopping(OpenCloseContext):
         self._temp_dir_ctx = None
         self._saver = None  # type: VariableSaver
 
-    def _open(self):
+    def _enter(self):
         # open a temporary directory if the checkpoint dir is not specified
         if self._checkpoint_dir is None:
             self._temp_dir_ctx = TemporaryDirectory()
@@ -96,11 +96,14 @@ class EarlyStopping(OpenCloseContext):
         # create the variable saver
         self._saver = VariableSaver(self._param_vars, self._checkpoint_dir)
 
-    def _close(self, exc_info):
+        # return self as the context object
+        return self
+
+    def _exit(self, exc_type, exc_val, exc_tb):
         try:
             # restore the variables
             # exc_info = (exc_type, exc_val, exc_tb)
-            if exc_info is None or exc_info[1] is KeyboardInterrupt or \
+            if exc_type is None or exc_type is KeyboardInterrupt or \
                     self._restore_on_error:
                 self._saver.restore(ignore_non_exist=True)
 
@@ -108,11 +111,7 @@ class EarlyStopping(OpenCloseContext):
             # cleanup the checkpoint directory
             try:
                 if self._temp_dir_ctx is not None:
-                    if exc_info is None:
-                        exc_info_tuple = (None, None, None)
-                    else:
-                        exc_info_tuple = exc_info
-                    self._temp_dir_ctx.__exit__(*exc_info_tuple)
+                    self._temp_dir_ctx.__exit__(exc_type, exc_val, exc_tb)
                 elif self._cleanup:
                     if os.path.exists(self._checkpoint_dir):
                         shutil.rmtree(self._checkpoint_dir)
@@ -141,7 +140,7 @@ class EarlyStopping(OpenCloseContext):
         Returns:
             bool: Whether or not the best loss has been updated?
         """
-        self._require_alive()
+        self._require_entered()
         self._ever_updated = True
         if self._best_metric is None or \
                 (self._smaller_is_better and metric < self._best_metric) or \
