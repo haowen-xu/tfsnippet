@@ -327,8 +327,8 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             obj = read_summary(tempdir)
             self.assertEqual(
-                sorted(obj[0]),
-                ['epoch_time', 'loss', 'step_time', 'valid_loss', 'x']
+                ['epoch_time', 'loss', 'step_time', 'valid_loss', 'x'],
+                sorted(obj[0])
             )
             np.testing.assert_equal(obj[1], [1, 2, 3, 4, 5, 6])
             np.testing.assert_almost_equal(

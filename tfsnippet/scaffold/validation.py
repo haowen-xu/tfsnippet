@@ -1,34 +1,134 @@
+import copy
 import os
 import shutil
 import warnings
-from contextlib import contextmanager
 from logging import getLogger
 
 import tensorflow as tf
 
-from tfsnippet.utils import TemporaryDirectory, makedirs, VariableSaver
+from tfsnippet.utils import (OpenCloseContext, TemporaryDirectory, makedirs,
+                             VariableSaver)
 
-__all__ = ['EarlyStoppingContext', 'early_stopping']
+__all__ = ['EarlyStopping', 'early_stopping']
 
 
-class EarlyStoppingContext(object):
-    """Class to hold the best loss within an early-stopping context."""
+class EarlyStopping(OpenCloseContext):
+    """
+    Early-stopping context object.
 
-    def __init__(self, saver, best_metric=None, smaller_is_better=True):
+    This class provides a object for memorizing the parameters for best
+    metric, in an early-stopping context.  An example of using this context:
+
+    .. code-block:: python
+
+        with EarlyStopping(param_vars) as es:
+            ...
+            es.update(loss, global_step)
+            ...
+
+    Where ``es.update(loss, global_step)`` should cause the parameters to
+    be saved on disk if `loss` is better than the current best metric.
+    One may also get the current best metric via ``es.best_metric``.
+
+    Notes:
+        If no loss is given via ``es.update``, then the variables
+        would keep their latest values when closing an early-stopping object.
+    """
+
+    def __init__(self, param_vars, initial_metric=None, checkpoint_dir=None,
+                 smaller_is_better=True, restore_on_error=False,
+                 cleanup=True, name=None):
         """
-        Construct the :class:`EarlyStoppingContext`.
+        Construct the :class:`EarlyStopping`.
 
         Args:
-            saver (VariableSaver): The :class:`VariableSaver` for saving
-                variables during early-stopping.
-            best_metric (float): The initial best metric (default :obj:`None`).
+            param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
+                dict of variables to be memorized. If a dict is specified, the
+                keys of the dict would be used as the serializations keys via
+                :class:`VariableSaver`.
+            initial_metric (float or tf.Tensor or tf.Variable): The initial best
+                metric (for recovering from previous session).
+            checkpoint_dir (str): The directory where to save the checkpoint
+                files.  If not specified, will use a temporary directory.
             smaller_is_better (bool): Whether or not it is better to have
                 smaller metric values? (default :obj:`True`)
+            restore_on_error (bool): Whether or not to restore the memorized
+                parameters even on error? (default :obj:`False`)
+            cleanup (bool): Whether or not to cleanup the checkpoint directory
+                on exit? This argument will be ignored if `checkpoint_dir` is
+                :obj:`None`, where the temporary directory will always be
+                deleted on exit.
+            name (str): Name scope of all TensorFlow operations. (default
+                "early_stopping").
         """
-        self._saver = saver
-        self._best_metric = best_metric
+        # regularize the parameters
+        if not param_vars:
+            raise ValueError('`param_vars` must not be empty')
+
+        if isinstance(initial_metric, (tf.Tensor, tf.Variable)):
+            initial_metric = initial_metric.eval()
+
+        if checkpoint_dir is not None:
+            checkpoint_dir = os.path.abspath(checkpoint_dir)
+
+        # memorize the parameters
+        self._param_vars = copy.copy(param_vars)
+        self._checkpoint_dir = checkpoint_dir
         self._smaller_is_better = smaller_is_better
+        self._restore_on_error = restore_on_error
+        self._cleanup = cleanup
+        self._name = name
+
+        # internal states of the object
+        self._best_metric = initial_metric
         self._ever_updated = False
+        self._temp_dir_ctx = None
+        self._saver = None  # type: VariableSaver
+
+    def _open(self):
+        # open a temporary directory if the checkpoint dir is not specified
+        if self._checkpoint_dir is None:
+            self._temp_dir_ctx = TemporaryDirectory()
+            self._checkpoint_dir = self._temp_dir_ctx.__enter__()
+        else:
+            makedirs(self._checkpoint_dir, exist_ok=True)
+
+        # create the variable saver
+        self._saver = VariableSaver(self._param_vars, self._checkpoint_dir)
+
+    def _close(self, exc_info):
+        try:
+            # restore the variables
+            # exc_info = (exc_type, exc_val, exc_tb)
+            if exc_info is None or exc_info[1] is KeyboardInterrupt or \
+                    self._restore_on_error:
+                self._saver.restore(ignore_non_exist=True)
+
+        finally:
+            # cleanup the checkpoint directory
+            try:
+                if self._temp_dir_ctx is not None:
+                    if exc_info is None:
+                        exc_info_tuple = (None, None, None)
+                    else:
+                        exc_info_tuple = exc_info
+                    self._temp_dir_ctx.__exit__(*exc_info_tuple)
+                elif self._cleanup:
+                    if os.path.exists(self._checkpoint_dir):
+                        shutil.rmtree(self._checkpoint_dir)
+            except Exception:  # pragma: no cover
+                getLogger(__name__).error(
+                    'Failed to cleanup validation save dir %r.',
+                    self._checkpoint_dir, exc_info=True
+                )
+
+            # warning if metric never updated
+            if not self._ever_updated:
+                warnings.warn(
+                    'Early-stopping metric has never been updated. '
+                    'The variables will keep their latest values. '
+                    'Did you forget to add corresponding metric?'
+                )
 
     def update(self, metric, global_step=None):
         """
@@ -41,6 +141,7 @@ class EarlyStoppingContext(object):
         Returns:
             bool: Whether or not the best loss has been updated?
         """
+        self._require_alive()
         self._ever_updated = True
         if self._best_metric is None or \
                 (self._smaller_is_better and metric < self._best_metric) or \
@@ -61,100 +162,5 @@ class EarlyStoppingContext(object):
         return self._ever_updated
 
 
-@contextmanager
-def early_stopping(param_vars, initial_metric=None, checkpoint_dir=None,
-                   smaller_is_better=True, restore_on_error=False,
-                   cleanup=True, name=None):
-    """
-    Open a context to memorize the values of parameters at best metric.
+early_stopping = EarlyStopping
 
-    This method will open a context with an object to memorize the best
-    metric for early-stopping.  An example of using this early-stopping
-    context is:
-
-    .. code-block:: python
-
-        with early_stopping(param_vars) as es:
-            ...
-            es.update(loss, global_step)
-            ...
-
-    Where ``es.update(loss, global_step)`` should cause the parameters to
-    be saved on disk if `loss` is better than the current best metric.
-    One may also get the best metric via ``es.best_metric``.
-
-    Note that if no loss is given via ``es.update``, then the variables
-    would keep their latest values when exiting the early-stopping context.
-
-    Args:
-        param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
-            dict of variables to be memorized. If a dict is specified, the
-            keys of the dict would be used as the serializations keys via
-            :class:`VariableSaver`.
-        initial_metric (float or tf.Tensor or tf.Variable): The initial best
-            metric (for recovering from previous session).
-        checkpoint_dir (str): The directory where to save the checkpoint files.
-            If not specified, will use a temporary directory.
-        smaller_is_better (bool): Whether or not it is better to have smaller
-            metric values? (default :obj:`True`)
-        restore_on_error (bool): Whether or not to restore the memorized
-            parameters even on error? (default :obj:`False`)
-        cleanup (bool): Whether or not to cleanup the checkpoint directory
-            on exit? This argument will be ignored if `checkpoint_dir` is
-            :obj:`None`, where the temporary directory will always be deleted
-            on exit.
-        name (str): Name scope of all TensorFlow operations. (default
-            "early_stopping").
-
-    Yields:
-        EarlyStoppingContext: The early-stopping context object.
-    """
-    if not param_vars:
-        raise ValueError('`param_vars` must not be empty')
-
-    if checkpoint_dir is None:
-        with TemporaryDirectory() as tempdir:
-            with early_stopping(param_vars, initial_metric=initial_metric,
-                                checkpoint_dir=tempdir, cleanup=False,
-                                smaller_is_better=smaller_is_better,
-                                restore_on_error=restore_on_error,
-                                name=name) as es:
-                yield es
-
-    else:
-        if isinstance(initial_metric, (tf.Tensor, tf.Variable)):
-            initial_metric = initial_metric.eval()
-
-        with tf.name_scope(name, default_name='early_stopping'):
-            saver = VariableSaver(param_vars, checkpoint_dir)
-            checkpoint_dir = os.path.abspath(checkpoint_dir)
-            makedirs(checkpoint_dir, exist_ok=True)
-
-            es = EarlyStoppingContext(saver,
-                                      best_metric=initial_metric,
-                                      smaller_is_better=smaller_is_better)
-
-            try:
-                yield es
-            except Exception as ex:
-                if isinstance(ex, KeyboardInterrupt) or restore_on_error:
-                    saver.restore(ignore_non_exist=True)
-                raise
-            else:
-                saver.restore(ignore_non_exist=True)
-            finally:
-                if cleanup:
-                    try:
-                        if os.path.exists(checkpoint_dir):
-                            shutil.rmtree(checkpoint_dir)
-                    except Exception:  # pragma: no cover
-                        getLogger(__name__).error(
-                            'Failed to cleanup validation save dir %r.',
-                            checkpoint_dir, exc_info=True
-                        )
-                if not es.ever_updated:
-                    warnings.warn(
-                        'Early-stopping metric has never been updated. '
-                        'The variables will keep their latest values. '
-                        'Did you forget to add corresponding metric?'
-                    )

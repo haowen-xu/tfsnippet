@@ -44,8 +44,9 @@ class EarlyStoppingTestCase(tf.test.TestCase):
     def test_early_stopping_context_without_updating_loss(self):
         with self.test_session():
             a, b, c = _populate_variables()
-            with early_stopping([a, b]):
+            with early_stopping([a, b]) as es:
                 set_variable_values([a], [10])
+            self.assertFalse(es.ever_updated)
             self.assertEqual(get_variable_values([a, b, c]), [10, 2, 3])
 
     def test_the_first_loss_will_always_cause_saving(self):
@@ -55,6 +56,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
                 set_variable_values([a], [10])
                 self.assertTrue(es.update(1.))
                 set_variable_values([a, b], [100, 20])
+            self.assertTrue(es.ever_updated)
             self.assertAlmostEqual(es.best_metric, 1.)
             self.assertEqual(get_variable_values([a, b, c]), [10, 2, 3])
 
@@ -71,6 +73,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
                 set_variable_values([a, b, c], [1000, 200, 30])
                 self.assertFalse(es.update(.8))
                 self.assertAlmostEqual(es.best_metric, .5)
+            self.assertTrue(es.ever_updated)
             self.assertAlmostEqual(es.best_metric, .5)
             self.assertEqual(get_variable_values([a, b, c]), [100, 20, 30])
 
