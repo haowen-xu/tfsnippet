@@ -1,12 +1,11 @@
 import numpy as np
 
-from tfsnippet.utils import minibatch_slices_iterator
-from .base import ExtraInfoDataFlow
+from .array_flow import ArrayFlow
 
 __all__ = ['SeqFlow']
 
 
-class SeqFlow(ExtraInfoDataFlow):
+class SeqFlow(ArrayFlow):
     """
     Using number sequence as data source flow.
 
@@ -42,19 +41,13 @@ class SeqFlow(ExtraInfoDataFlow):
         if batch_size is None:
             raise ValueError('`batch_size` is required.')
 
-        # generate the numbers
-        numbers = np.arange(start, stop, step, dtype=dtype)
-
         # memorize the parameters
         super(SeqFlow, self).__init__(
-            array_count=1,
-            data_length=len(numbers),
-            data_shapes=((),),
+            arrays=[np.arange(start, stop, step, dtype=dtype)],
             batch_size=batch_size,
-            skip_incomplete=skip_incomplete,
-            is_shuffled=shuffle
+            shuffle=shuffle,
+            skip_incomplete=skip_incomplete
         )
-        self._numbers = numbers
         self._start = start
         self._stop = stop
         self._step = step
@@ -73,13 +66,3 @@ class SeqFlow(ExtraInfoDataFlow):
     def step(self):
         """Get the step of the sequence."""
         return self._step
-
-    def _minibatch_iterator(self):
-        if self.is_shuffled:
-            np.random.shuffle(self._numbers)
-
-        for batch_s in minibatch_slices_iterator(
-                length=self.data_length,
-                batch_size=self.batch_size,
-                skip_incomplete=self.skip_incomplete):
-            yield (self._numbers[batch_s],)

@@ -37,7 +37,7 @@ class TrainLoop(OneTimeContext):
 
         with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
             loop.print_training_summary()
-            train_flow = DataFlow.from_arrays([x, y], batch_size, shuffle=True)
+            train_flow = DataFlow.arrays([x, y], batch_size, shuffle=True)
 
             for epoch in loop.iter_epochs():
                 for step, (x, y) in loop.iter_steps(train_flow):

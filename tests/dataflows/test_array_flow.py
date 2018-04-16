@@ -8,9 +8,9 @@ from tfsnippet.dataflow import ArrayFlow, DataFlow
 
 class ArrayFlowTestCase(unittest.TestCase):
 
-    def test_from_arrays(self):
+    def test_arrays(self):
         arrays = [np.arange(5), np.arange(10).reshape([5, 2])]
-        df = DataFlow.from_arrays(
+        df = DataFlow.arrays(
             arrays, 4, shuffle=False, skip_incomplete=False)
         self.assertIsInstance(df, ArrayFlow)
         for i, arr in enumerate(arrays):
