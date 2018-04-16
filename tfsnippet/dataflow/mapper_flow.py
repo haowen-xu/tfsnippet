@@ -1,4 +1,4 @@
-from .data_flow import DataFlow
+from .base import DataFlow
 
 __all__ = ['MapperFlow']
 
@@ -11,7 +11,7 @@ class MapperFlow(DataFlow):
     Usage::
 
         source_flow = Data.from_arrays([x, y], batch_size=256)
-        mapper_flow = source_flow.map(lambda arr: (arr[0] + arr[1],))
+        mapper_flow = source_flow.map(lambda x, y: (x + y,))
     """
 
     def __init__(self, source, mapper):
@@ -20,13 +20,13 @@ class MapperFlow(DataFlow):
 
         Args:
             source (DataFlow): The source data flow.
-            mapper ((tuple[np.ndarray]) -> tuple[np.ndarray])): The mapper
-                function, which transforms a tuple of numpy arrays into
-                another tuple of numpy arrays.
+            mapper ((*np.ndarray) -> tuple[np.ndarray])): The mapper
+                function, which transforms numpy arrays into a tuple
+                of other numpy arrays.
         """
         self._source = source
         self._mapper = mapper
 
     def _minibatch_iterator(self):
         for b in self._source:
-            yield self._mapper(tuple(b))
+            yield self._mapper(*b)

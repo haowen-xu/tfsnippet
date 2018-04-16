@@ -9,11 +9,12 @@ from tfsnippet.dataflow import ArrayFlow, DataFlow
 class ArrayFlowTestCase(unittest.TestCase):
 
     def test_from_arrays(self):
+        arrays = [np.arange(5), np.arange(10).reshape([5, 2])]
         df = DataFlow.from_arrays(
-            [np.arange(5), np.arange(10).reshape([5, 2])],
-            4, shuffle=False, skip_incomplete=False
-        )
+            arrays, 4, shuffle=False, skip_incomplete=False)
         self.assertIsInstance(df, ArrayFlow)
+        for i, arr in enumerate(arrays):
+            self.assertIs(arr, df.arrays[i])
         self.assertEquals(2, df.array_count)
         self.assertEquals(5, df.data_length)
         self.assertEquals(((), (2,)), df.data_shapes)
@@ -53,7 +54,7 @@ class ArrayFlowTestCase(unittest.TestCase):
                 ValueError, match='`arrays` must have the same data length'):
             _ = ArrayFlow([np.arange(3), np.arange(4)], 3)
 
-    def test_get_iterator(self):
+    def test_iterator(self):
         # test single array, without shuffle, no ignore
         b = [a[0] for a in ArrayFlow([np.arange(12)], 5)]
         self.assertEquals(3, len(b))

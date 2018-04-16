@@ -10,7 +10,7 @@ class MapperFlowTestCase(unittest.TestCase):
     def test_map(self):
         df = DataFlow.from_arrays([np.arange(5), np.arange(5, 10)],
                                   batch_size=4)
-        df = df.map(lambda arr: (arr[0] + arr[1],))
+        df = df.map(lambda x, y: (x + y,))
 
         b = list(df)
         self.assertEquals(2, len(b))
