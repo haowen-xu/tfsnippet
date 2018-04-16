@@ -17,7 +17,7 @@ class DataFlow(object):
     can be constructed by factory methods of this base class.  For example::
 
         # :class:`ArrayFlow` from arrays
-        array_flow = DataFlow.from_array([x, y], batch_size=256, shuffle=True)
+        array_flow = DataFlow.arrays([x, y], batch_size=256, shuffle=True)
 
         # :class:`MapperFlow` by adding the two arrays from `array_flow`
         mapper_flow = array_flow.map(lambda x, y: (x + y,))
@@ -66,7 +66,7 @@ class DataFlow(object):
     # -------- here starts the transforming methods --------
     def map(self, mapper):
         """
-        Construct a :class:`MapperFlow`, from this flow and the `mapper`.
+        Construct a :class:`~tfsnippet.dataflow.MapperFlow`.
 
         Args:
             mapper ((*np.ndarray) -> tuple[np.ndarray])): The mapper
@@ -79,11 +79,52 @@ class DataFlow(object):
         from .mapper_flow import MapperFlow
         return MapperFlow(self, mapper)
 
+    def threaded(self, prefetch):
+        """
+        Construct a :class:`ThreadingFlow` from this flow.
+
+        Args:
+            prefetch (int): Number of mini-batches to prefetch ahead.
+                It should be at least 1.
+
+        Returns:
+            tfsnippet.dataflow.ThreadingFlow: The background threaded
+                data flow to prefetch mini-batches from this flow.
+        """
+        from .threading_flow import ThreadingFlow
+        return ThreadingFlow(self, prefetch=prefetch)
+
     # -------- here starts the factory methods for data flows --------
     @staticmethod
-    def from_arrays(arrays, batch_size, shuffle=False, skip_incomplete=False):
+    def seq(start, stop, step=1, batch_size=None, shuffle=False,
+            skip_incomplete=False, dtype=np.int32):
         """
-        Construct an :class:`ArrayFlow`.
+        Construct a :class:`~tfsnippet.dataflow.SeqFlow`.
+
+        Args:
+            start: The starting number of the sequence.
+            stop: The ending number of the sequence.
+            step: The step of the sequence. (default ``1``)
+            batch_size: Batch size of the data flow. Required.
+            shuffle (bool): Whether or not to shuffle the numbers before
+                iterating? (default :obj:`False`)
+            skip_incomplete (bool): Whether or not to exclude the last
+                mini-batch if it is incomplete? (default :obj:`False`)
+            dtype: Data type of the numbers. (default ``np.int32``)
+
+        Returns:
+            tfsnippet.dataflow.SeqFlow: The data flow from number sequence.
+        """
+        from .seq_flow import SeqFlow
+        return SeqFlow(
+            start=start, stop=stop, step=step, batch_size=batch_size,
+            shuffle=shuffle, skip_incomplete=skip_incomplete, dtype=dtype
+        )
+
+    @staticmethod
+    def arrays(arrays, batch_size, shuffle=False, skip_incomplete=False):
+        """
+        Construct an :class:`~tfsnippet.dataflow.ArrayFlow`.
 
         Args:
             arrays: List of numpy-like arrays, to be iterated through
@@ -105,30 +146,19 @@ class DataFlow(object):
         )
 
     @staticmethod
-    def seq(start, stop, step=1, batch_size=None, shuffle=False,
-            skip_incomplete=False, dtype=np.int32):
+    def iterator_factory(factory):
         """
-        Construct a :class:`SeqFlow`.
+        Construct a :class:`~tfsnippet.dataflow.IteratorFactoryFlow`.
 
         Args:
-            start: The starting number of the sequence.
-            stop: The ending number of the sequence.
-            step: The step of the sequence. (default ``1``)
-            batch_size: Batch size of the data flow. Required.
-            shuffle (bool): Whether or not to shuffle the numbers before
-                iterating? (default :obj:`False`)
-            skip_incomplete (bool): Whether or not to exclude the last
-                mini-batch if it is incomplete? (default :obj:`False`)
-            dtype: Data type of the numbers. (default ``np.int32``)
+            factory (() -> Iterator or Iterable): A factory method for
+                constructing the mini-batch iterators for each epoch.
 
         Returns:
-            tfsnippet.dataflow.SeqFlow: The data flow from number sequence.
+            tfsnippet.dataflow.IteratorFactoryFlow: The data flow.
         """
-        from .seq_flow import SeqFlow
-        return SeqFlow(
-            start=start, stop=stop, step=step, batch_size=batch_size,
-            shuffle=shuffle, skip_incomplete=skip_incomplete, dtype=dtype
-        )
+        from .iterator_flow import IteratorFactoryFlow
+        return IteratorFactoryFlow(factory)
 
 
 class ExtraInfoDataFlow(DataFlow):

@@ -110,7 +110,7 @@ class MetricLogger(object):
         global_step = 1
 
         for epoch in range(1, max_epoch+1):
-            for batch in DataFlow.from_arrays(...):
+            for batch in DataFlow.arrays(...):
                 loss, _ = session.run([loss, train_op], ...)
                 logger.collect_metrics({'loss': loss}, global_step)
                 global_step += 1

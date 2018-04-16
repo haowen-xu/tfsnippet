@@ -18,7 +18,7 @@ class ArrayFlow(ExtraInfoDataFlow):
 
     Usage::
 
-        array_flow = DataFlow.from_arrays([x, y], batch_size=256, shuffle=True,
+        array_flow = DataFlow.arrays([x, y], batch_size=256, shuffle=True,
                                           skip_incomplete=True)
         for batch_x, batch_y in array_flow:
             ...
