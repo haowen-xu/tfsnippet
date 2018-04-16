@@ -101,7 +101,8 @@ class ThreadingFlow(DataFlow, NoReentrantContext):
         self._worker_ready_sem = Semaphore(value=0)
 
         # create and start the worker
-        self._worker = Thread(target=self._worker_func, daemon=True)
+        self._worker = Thread(target=self._worker_func)
+        self._worker.daemon = True
         self._worker.start()
 
         # wait for the thread to show up
