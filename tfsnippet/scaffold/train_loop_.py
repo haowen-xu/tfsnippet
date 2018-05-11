@@ -14,7 +14,7 @@ from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
 __all__ = [
-    'train_loop', 'TrainLoop',
+    'TrainLoop', 'TrainLoopContext', 'train_loop',
 ]
 
 EPOCH_TIME_METRIC = 'epoch_time'
@@ -522,6 +522,9 @@ class TrainLoop(OneTimeContext):
         self.println(metrics.format_logs() + best_mark, with_tag=True)
         self._is_best_valid_metric = False
         metrics.clear()
+
+
+TrainLoopContext = TrainLoop  # legacy alias for TrainLoop
 
 
 def train_loop(*args, **kwargs):  # pragma: no cover

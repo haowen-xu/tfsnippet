@@ -1,28 +1,18 @@
+[run]
+branch = True
+source = tfsnippet
+
 [report]
-# Regexes for lines to exclude from consideration
 exclude_lines =
-    # Have to re-enable the standard pragma
     pragma: no cover
-
-    # Don't complain about missing debug-only code:
     if self\.debug
-
-    # Don't complain if tests don't hit defensive assertion code:
     raise AssertionError
     raise NotImplementedError
-
-    # Don't complain if non-runnable code isn't run:
     if 0:
     if __name__ == .__main__.:
-
-
-[run]
+ignore_errors = True
 omit =
-    # test code need not coverage statistics
     tests/*
-
-    # maintenance scripts need not coverage statistics
     scripts/*
-
-    # imported functions are just thin wrappers around libraries, skip tests
     tfsnippet/utils/imported.py
+    setup.py

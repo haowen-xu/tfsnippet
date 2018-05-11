@@ -9,7 +9,7 @@ import tensorflow as tf
 from tfsnippet.utils import (OneTimeContext, TemporaryDirectory, makedirs,
                              VariableSaver)
 
-__all__ = ['EarlyStopping', 'early_stopping']
+__all__ = ['EarlyStopping', 'EarlyStoppingContext', 'early_stopping']
 
 
 class EarlyStopping(OneTimeContext):
@@ -159,6 +159,9 @@ class EarlyStopping(OneTimeContext):
     def ever_updated(self):
         """Check whether or not `update` method has ever been called."""
         return self._ever_updated
+
+
+EarlyStoppingContext = EarlyStopping  # legacy alias for EarlyStopping
 
 
 def early_stopping(*args, **kwargs):  # pragma: no cover
