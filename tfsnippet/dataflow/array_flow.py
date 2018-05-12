@@ -68,7 +68,7 @@ class ArrayFlow(ExtraInfoDataFlow):
         self._indices_buffer = None
 
     @property
-    def arrays(self):
+    def the_arrays(self):
         """Get the tuple of arrays accessed by this :class:`ArrayFlow`."""
         return self._arrays
 
@@ -83,11 +83,11 @@ class ArrayFlow(ExtraInfoDataFlow):
             def get_slice(s):
                 return tuple(
                     _make_readonly(a[self._indices_buffer[s]])
-                    for a in self.arrays
+                    for a in self.the_arrays
                 )
         else:
             def get_slice(s):
-                return tuple(_make_readonly(a[s]) for a in self.arrays)
+                return tuple(_make_readonly(a[s]) for a in self.the_arrays)
 
         # now iterator through the mini-batches
         for batch_s in minibatch_slices_iterator(

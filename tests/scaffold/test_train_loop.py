@@ -157,8 +157,9 @@ class TrainLoopTestCase(tf.test.TestCase):
     def test_valid_metric_default_settings(self):
         logs = []
         with TrainLoop([], print_func=logs.append) as loop:
-            self.assertEqual(loop._valid_metric_name, 'valid_loss')
-            self.assertTrue(loop._valid_metric_smaller_is_better)
+            self.assertEqual(loop.valid_metric_name, 'valid_loss')
+            self.assertTrue(loop.valid_metric_smaller_is_better)
+            self.assertFalse(loop.use_early_stopping)
             for _ in loop.iter_epochs():
                 best_metric = 1.
                 for _, valid_loss in loop.iter_steps([0.8, 0.6, 0.7]):
@@ -184,11 +185,12 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_valid_metric_with_custom_settings(self):
         logs = []
-        with TrainLoop([], print_func=logs.append,
+        v = tf.get_variable('a', shape=[1], dtype=tf.int32)
+        with TrainLoop([v], print_func=logs.append,
                        valid_metric_name='y',
                        valid_metric_smaller_is_better=False) as loop:
-            self.assertEqual(loop._valid_metric_name, 'y')
-            self.assertFalse(loop._valid_metric_smaller_is_better)
+            self.assertEqual(loop.valid_metric_name, 'y')
+            self.assertFalse(loop.valid_metric_smaller_is_better)
             for _ in loop.iter_epochs():
                 best_metric = 0.
                 for _, y in loop.iter_steps([0.7, 0.6, 0.8]):
@@ -214,13 +216,13 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_valid_metric_with_valid_acc(self):
         with TrainLoop([], valid_metric_name='valid_acc') as loop:
-            self.assertEqual(loop._valid_metric_name, 'valid_acc')
-            self.assertFalse(loop._valid_metric_smaller_is_better)
+            self.assertEqual(loop.valid_metric_name, 'valid_acc')
+            self.assertFalse(loop.valid_metric_smaller_is_better)
 
     def test_valid_metric_with_y_as_name(self):
         with TrainLoop([], valid_metric_name='y') as loop:
-            self.assertEqual(loop._valid_metric_name, 'y')
-            self.assertTrue(loop._valid_metric_smaller_is_better)
+            self.assertEqual(loop.valid_metric_name, 'y')
+            self.assertTrue(loop.valid_metric_smaller_is_better)
 
     def test_training_summary(self):
         a = tf.get_variable('a', dtype=tf.float32, shape=(2, 3))
@@ -380,7 +382,8 @@ class TrainLoopTestCase(tf.test.TestCase):
             # test early-stopping with no valid metric committed
             set_variable_values([a, b], [1, 2])
             self.assertEqual(get_variable_values([a, b]), [1, 2])
-            with TrainLoop([a], early_stopping=True):
+            with TrainLoop([a], early_stopping=True) as loop:
+                self.assertTrue(loop.use_early_stopping)
                 set_variable_values([a, b], [10, 20])
             self.assertEqual(get_variable_values([a, b]), [10, 20])
 
