@@ -389,8 +389,9 @@ class VAE(Module):
                 solver for undeterministic `n_z`. (default :obj:`None`)
 
         Returns:
-            tf.Tensor: The training objective to be optimized by gradient
-                descent.
+            tf.Tensor: A 1-d tensor, the training objective of each data
+                item in the mini-batch.  To do gradient descent, you should
+                apply ``tf.reduce_mean`` on the returned tensor.
 
         See Also:
             :class:`~tfsnippet.variational.VariationalChain`,
