@@ -14,7 +14,7 @@ class ArrayFlowTestCase(unittest.TestCase):
             arrays, 4, shuffle=False, skip_incomplete=False)
         self.assertIsInstance(df, ArrayFlow)
         for i, arr in enumerate(arrays):
-            self.assertIs(arr, df.arrays[i])
+            self.assertIs(arr, df.the_arrays[i])
         self.assertEquals(2, df.array_count)
         self.assertEquals(5, df.data_length)
         self.assertEquals(((), (2,)), df.data_shapes)

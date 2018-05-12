@@ -14,7 +14,7 @@ from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
 __all__ = [
-    'train_loop', 'TrainLoop',
+    'TrainLoop', 'TrainLoopContext', 'train_loop',
 ]
 
 EPOCH_TIME_METRIC = 'epoch_time'
@@ -177,7 +177,7 @@ class TrainLoop(OneTimeContext):
                                            formatter=self._metric_formatter)
 
         # open the early-stopping if required
-        if self._use_early_stopping:
+        if self.use_early_stopping:
             self._early_stopping = EarlyStopping(
                 self._param_vars,
                 initial_metric=self._initial_valid_metric,
@@ -211,6 +211,21 @@ class TrainLoop(OneTimeContext):
             duration = time.time() - self._step_start_time
             self.collect_metrics(metrics={STEP_TIME_METRIC: duration})
             self._step_start_time = None
+
+    @property
+    def use_early_stopping(self):
+        """Whether or not to adopt early-stopping?"""
+        return self._use_early_stopping
+
+    @property
+    def valid_metric_name(self):
+        """Get the name of the validation metric."""
+        return self._valid_metric_name
+
+    @property
+    def valid_metric_smaller_is_better(self):
+        """Whether or not the smaller value is better for validation metric?"""
+        return self._valid_metric_smaller_is_better
 
     @property
     def summary_writer(self):
@@ -420,7 +435,7 @@ class TrainLoop(OneTimeContext):
             self._step_metrics.collect_metrics(metrics, global_step=self.step)
 
         def update_valid_metric(d):
-            v = d.get(self._valid_metric_name)
+            v = d.get(self.valid_metric_name)
             if v is not None:
                 if self._best_valid_metric is None or \
                         (self._valid_metric_smaller_is_better and
@@ -433,7 +448,7 @@ class TrainLoop(OneTimeContext):
                     self._is_best_valid_metric = False
                 if self._early_stopping:
                      self._early_stopping.update(v, self.step)
-        if self._valid_metric_name:
+        if self.valid_metric_name:
             if metrics:
                 update_valid_metric(metrics)
 
@@ -522,6 +537,9 @@ class TrainLoop(OneTimeContext):
         self.println(metrics.format_logs() + best_mark, with_tag=True)
         self._is_best_valid_metric = False
         metrics.clear()
+
+
+TrainLoopContext = TrainLoop  # legacy alias for TrainLoop
 
 
 def train_loop(*args, **kwargs):  # pragma: no cover

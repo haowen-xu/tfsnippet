@@ -33,8 +33,9 @@ class VAE(Module):
 
     .. code-block:: python
 
-        from tfsnippet import keras as K
+        from tensorflow import keras as K
         from tfsnippet.modules import VAE, DictMapper, Sequential
+        from tfsnippet.distributions import Normal
 
         batch_size = 128
         x_dims, z_dims = 100, 10

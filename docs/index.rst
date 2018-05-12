@@ -33,6 +33,7 @@ API Docs
    api/tfsnippet.modules
    api/tfsnippet.scaffold
    api/tfsnippet.stochastic
+   api/tfsnippet.trainer
    api/tfsnippet.utils
    api/tfsnippet.variational
 
