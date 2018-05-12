@@ -19,12 +19,15 @@ class LossTrainer(BaseTrainer):
         # build the model
         input_x = tf.placeholder(...)
         input_y = tf.placeholder(...)
-        learning_rate = tf.placeholder(...)  # for learning rate annealing
+        learning_rate = tf.placeholder(...)  # learning rate annealing
 
         # prepare for the data and
-        train_data = DataFlow.arrays([train_x, train_y], batch_size=128,
-                                     shuffle=True, skip_incomplete=True)
-        valid_data = DataFlow.arrays([valid_x, valid_y], batch_size=512)
+        train_data = DataFlow.arrays(
+            [train_x, train_y], batch_size=128, shuffle=True,
+            skip_incomplete=True
+        )
+        valid_data = DataFlow.arrays(
+            [valid_x, valid_y], batch_size=512)
         ...
 
         # derive the training operation
@@ -34,17 +37,20 @@ class LossTrainer(BaseTrainer):
         # run the trainer
         learning_rate_var = AnnealingDynamicValue(0.001, ratio=0.75)
 
-        with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
+        with TrainLoop(param_vars,
+                       max_epoch=10,
+                       early_stopping=True) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x, input_y], train_data,
                 feed_dict={learning_rate: learning_rate_var}
             )
-            validator = Validator(loop, loss, [input_x, input_y], valid_data)
+            validator = Validator(
+                loop, loss, [input_x, input_y], valid_data)
 
             # validate after every epoch
             trainer.validate_after_epochs(validator, freq=1)
 
-            # log after every epoch (and after validation, because
+            # log after every epoch (and after validation, since
             # ``HookPriority.VALIDATION < HookPriority.LOGGING``)
             trainer.log_after_epochs(freq=1)
 
