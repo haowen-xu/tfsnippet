@@ -83,8 +83,8 @@ def main():
         )
 
         # train the network
-        train(tf.reduce_mean(vae.get_training_objective(x_binarized)),
-              input_x, train_x, max_epoch, batch_size, valid_portion)
+        train(vae.get_training_loss(x_binarized), input_x, train_x,
+              max_epoch, batch_size, valid_portion)
 
         # plot the latent space
         q_net = vae.variational(x_binarized)

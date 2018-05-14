@@ -1,3 +1,5 @@
+import warnings
+
 import tensorflow as tf
 
 from tfsnippet.bayes import BayesianNet
@@ -60,19 +62,22 @@ class VAE(Module):
 
     .. code-block:: python
 
-        # Automatically derive a single-sample objective.
+        # Automatically derive a single-sample loss.
         # Depending on ``z.is_reparameterized``, it might be derived by
         # `sgvb` (is_reparameterized == True) or `reinforce` (otherwise).
-        loss = vae.get_training_objective(x)
+        loss = vae.get_training_loss(x)
 
-        # Automatically derive a multi-sample objective.
+        # Automatically derive a multi-sample loss.
         # Depending on ``z.is_reparameterized``, it might be derived by
         # `iwae` (is_reparameterized == True) or `vimco` (otherwise).
-        loss = vae.get_training_objective(x, n_z=10)
+        loss = vae.get_training_loss(x, n_z=10)
 
-        # Or manually derive a reweighted wake-sleep training objective.
+        # Or manually derive a reweighted wake-sleep training loss.
+        # Note the `VariationalTrainingObjectives` produce per-data
+        # training objectives, instead of a 0-d scalar loss as the
+        # `VAE.get_training_loss` does.
         chain = vae.chain(x, n_z=10)
-        loss = chain.vi.training.rws_wake()
+        loss = tf.reduce_mean(chain.vi.training.rws_wake())
 
     To map from `x` to `z`:
 
@@ -309,7 +314,7 @@ class VAE(Module):
 
         This method chains the variational net :math:`q(z|h(x))` and the
         model net :math:`p(x,z|h(x))` together, with specified observation
-        `x`.  It is typically used to derive the training objective of VAE.
+        `x`.  It is typically used to derive the training objectives of VAE.
         It can also be used to calculate the `reconstruction probability`
         ("Variational Autoencoder based Anomaly Detection using Reconstruction
         Probability", An, J. and Cho, S. 2015) of `x`.
@@ -358,9 +363,21 @@ class VAE(Module):
             )
         return chain
 
-    def get_training_objective(self, x, n_z=None):
+    def get_training_objective(self, *args, **kwargs):  # pragma: no cover
+        warnings.warn('`get_training_objective` is deprecated, use '
+                      '`get_training_loss` instead.  We introduced this '
+                      'change, because `VariationalTrainingObjectives` '
+                      'should produce per-data training objectives, while '
+                      '`vae.get_training_loss` is expected to produce an '
+                      'overall 0-d training loss in most situations.  If '
+                      'you do need the per-data training objectives, derive '
+                      'them by ``vae.chain(x).vi.training`` instead.',
+                      DeprecationWarning)
+        return self.get_training_loss(*args, **kwargs)
+
+    def get_training_loss(self, x, n_z=None):
         """
-        Get the training objective for this VAE.
+        Get the training loss for this VAE.
 
         The variational solver is automatically chosen according to
         `z.is_reparameterized`, and the argument `n_z`, by the following rules:
@@ -377,9 +394,9 @@ class VAE(Module):
 
         Dynamic `n_z` is not supported by this method.  Also, Reweighted
         Wake-Sleep algorithm is not a choice of this method.  To derive
-        the training objective for either situation, use :meth:`chain`
+        the training loss for either situation, use :meth:`chain`
         to obtain a :class:`~tfsnippet.variational.VariationalChain`,
-        and further obtain the objective by `chain.vi.training.[algorithm]`.
+        and further obtain the loss by `chain.vi.training.[algorithm]`.
 
         Args:
             x: The input observation `x`.
@@ -389,15 +406,14 @@ class VAE(Module):
                 solver for undeterministic `n_z`. (default :obj:`None`)
 
         Returns:
-            tf.Tensor: A 1-d tensor, the training objective of each data
-                item in the mini-batch.  To do gradient descent, you should
-                apply ``tf.reduce_mean`` on the returned tensor.
+            tf.Tensor: A 0-d tensor, the training loss which can be optimized
+                by gradient descent.
 
         See Also:
             :class:`~tfsnippet.variational.VariationalChain`,
             :class:`~tfsnippet.variational.VariationalTrainingObjectives`
         """
-        with tf.name_scope('VAE.get_training_objective'):
+        with tf.name_scope('VAE.get_training_loss'):
             if n_z is not None:
                 if is_tensor_object(n_z):
                     raise TypeError('Cannot choose the variational solver '
@@ -408,7 +424,7 @@ class VAE(Module):
             chain = self.chain(x, n_z)
             z = chain.variational['z']
 
-            # auto choose a variational solver for training objective
+            # auto choose a variational solver for training loss
             if n_z is not None and n_z > 1:
                 if z.is_reparameterized:
                     solver = chain.vi.training.iwae
@@ -420,8 +436,8 @@ class VAE(Module):
                 else:
                     solver = chain.vi.training.reinforce
 
-            # derive the training objective
-            return solver()
+            # derive the training loss
+            return tf.reduce_mean(solver())
 
     def reconstruct(self, x, n_z=None, n_x=None):
         """
