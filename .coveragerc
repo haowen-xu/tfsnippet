@@ -15,4 +15,5 @@ omit =
     tests/*
     scripts/*
     tfsnippet/utils/imported.py
+    tfsnippet/examples/*
     setup.py

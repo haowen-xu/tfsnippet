@@ -101,7 +101,7 @@ class VariationalInference(object):
 
         Returns:
             zhusuan.variational.VariationalObjective: The constructed
-                variational objective.
+                per-data variational objective.
         """
         return func(
             log_joint=lambda observed: self._log_joint,
@@ -119,7 +119,7 @@ class VariationalInference(object):
 
         Returns:
             zhusuan.variational.EvidenceLowerBoundObjective: The constructed
-                ELBO objective.
+                per-data ELBO objective.
         """
         return self.zs_objective(zs.variational.elbo)
 
@@ -130,7 +130,7 @@ class VariationalInference(object):
 
         Returns:
             zhusuan.variational.ImportanceWeightedObjective: The constructed
-                importance weighted objective.
+                per-data importance weighted objective.
         """
         return self.zs_objective(zs.variational.importance_weighted_objective)
 
@@ -141,7 +141,7 @@ class VariationalInference(object):
 
         Returns:
             zhusuan.variational.InclusiveKLObjective: The constructed
-                inclusive KL objective.
+                per-data inclusive KL objective.
         """
         return self.zs_objective(zs.variational.klpq)
 
@@ -198,7 +198,7 @@ class VariationalLowerBounds(object):
                 (default "importance_weighted_objective")
 
         Returns:
-            tf.Tensor: The importance weighted lower-bound.
+            tf.Tensor: The per-data importance weighted lower-bound.
 
         See Also:
             :class:`zhusuan.variational.ImportanceWeightedObjective`
@@ -223,7 +223,7 @@ class VariationalTrainingObjectives(object):
                 (default "sgvb")
 
         Returns:
-            tf.Tensor: The SGVB training objective.
+            tf.Tensor: The per-data SGVB training objective.
 
         See Also:
             :meth:`zhusuan.variational.EvidenceLowerBoundObjective.sgvb`
@@ -245,7 +245,7 @@ class VariationalTrainingObjectives(object):
                 (default "reinforce")
 
         Returns:
-            tf.Tensor: The REINFORCE training objective.
+            tf.Tensor: The per-data REINFORCE training objective.
 
         See Also:
             :meth:`zhusuan.variational.EvidenceLowerBoundObjective.reinforce`
@@ -268,8 +268,8 @@ class VariationalTrainingObjectives(object):
                 (default "iwae")
 
         Returns:
-            tf.Tensor: The SGVB training objective for importance weighted
-                objective.
+            tf.Tensor: The per-data SGVB training objective for importance
+                weighted objective.
 
         See Also:
             :meth:`zhusuan.variational.ImportanceWeightedObjective.sgvb`
@@ -287,7 +287,7 @@ class VariationalTrainingObjectives(object):
                 (default "vimco")
 
         Returns:
-            tf.Tensor: The VIMCO training objective.
+            tf.Tensor: The per-data VIMCO training objective.
 
         See Also:
             :meth:`zhusuan.variational.ImportanceWeightedObjective.vimco`
@@ -305,7 +305,7 @@ class VariationalTrainingObjectives(object):
                 (default "rws_wake")
 
         Returns:
-            tf.Tensor: The wake-phase RWS training objective.
+            tf.Tensor: The per-data wake-phase RWS training objective.
 
         See Also:
             :meth:`zhusuan.variational.InclusiveKLObjective.rws`

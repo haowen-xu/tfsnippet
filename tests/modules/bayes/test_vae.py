@@ -369,7 +369,7 @@ class VAETestCase(tf.test.TestCase):
                 zs_importance_weighted_objective
             ]))
 
-    def test_training_objective(self):
+    def test_training_loss(self):
         class Capture(object):
 
             def __init__(self, vae):
@@ -398,6 +398,7 @@ class VAETestCase(tf.test.TestCase):
 
         helper = Helper()
         x, x2, x3, z, z2 = helper.get_xz_variables()
+        M = tf.reduce_mean
 
         with self.test_session() as sess:
             ensure_variables_initialized()
@@ -407,12 +408,12 @@ class VAETestCase(tf.test.TestCase):
             with pytest.raises(
                     TypeError, match='Cannot choose the variational solver '
                                      'automatically for dynamic `n_z`'):
-                vae.get_training_objective(x, n_z=tf.constant(1))
+                vae.get_training_loss(x, n_z=tf.constant(1))
 
             # test sgvb
             vae = helper.vae()
             capture = Capture(vae)
-            loss = vae.get_training_objective(x)
+            loss = vae.get_training_loss(x)
             self.assertEqual(capture.called_solver, 'sgvb')
 
             zs_obj = helper.zs_objective(
@@ -420,12 +421,12 @@ class VAETestCase(tf.test.TestCase):
                 observed={'x': x},
                 latent={'z': capture.q_net.query(['z'])[0]}
             )
-            np.testing.assert_allclose(*sess.run([loss, zs_obj.sgvb()]))
+            np.testing.assert_allclose(*sess.run([loss, M(zs_obj.sgvb())]))
 
             # test sgvb with explicit n_z
             vae = helper.vae()
             capture = Capture(vae)
-            loss = vae.get_training_objective(x, n_z=1)
+            loss = vae.get_training_loss(x, n_z=1)
             self.assertEqual(capture.called_solver, 'sgvb')
 
             zs_obj = helper.zs_objective(
@@ -434,12 +435,12 @@ class VAETestCase(tf.test.TestCase):
                 latent={'z': capture.q_net.query(['z'])[0]},
                 axis=0,
             )
-            np.testing.assert_allclose(*sess.run([loss, zs_obj.sgvb()]))
+            np.testing.assert_allclose(*sess.run([loss, M(zs_obj.sgvb())]))
 
             # test iwae
             vae = helper.vae()
             capture = Capture(vae)
-            loss = vae.get_training_objective(x, n_z=N_Z)
+            loss = vae.get_training_loss(x, n_z=N_Z)
             self.assertEqual(capture.called_solver, 'iwae')
 
             zs_obj = helper.zs_objective(
@@ -448,12 +449,12 @@ class VAETestCase(tf.test.TestCase):
                 latent={'z': capture.q_net.query(['z'])[0]},
                 axis=0,
             )
-            np.testing.assert_allclose(*sess.run([loss, zs_obj.sgvb()]))
+            np.testing.assert_allclose(*sess.run([loss, M(zs_obj.sgvb())]))
 
             # test reinforce
             vae = helper.vae(is_reparameterized=False)
             capture = Capture(vae)
-            loss = vae.get_training_objective(x)
+            loss = vae.get_training_loss(x)
             self.assertEqual(capture.called_solver, 'reinforce')
 
             # TODO: The output of reinforce mismatches on some platform
@@ -475,7 +476,7 @@ class VAETestCase(tf.test.TestCase):
             # test reinforce with explicit n_z
             vae = helper.vae(is_reparameterized=False)
             capture = Capture(vae)
-            loss = vae.get_training_objective(x, n_z=1)
+            loss = vae.get_training_loss(x, n_z=1)
             self.assertEqual(capture.called_solver, 'reinforce')
 
             # TODO: The output of reinforce mismatches on some platform
@@ -494,7 +495,7 @@ class VAETestCase(tf.test.TestCase):
             # test vimco
             vae = helper.vae(is_reparameterized=False)
             capture = Capture(vae)
-            loss = vae.get_training_objective(x, n_z=N_Z)
+            loss = vae.get_training_loss(x, n_z=N_Z)
             self.assertEqual(capture.called_solver, 'vimco')
 
             zs_obj = helper.zs_objective(
@@ -503,7 +504,7 @@ class VAETestCase(tf.test.TestCase):
                 latent={'z': capture.q_net.query(['z'])[0]},
                 axis=0,
             )
-            np.testing.assert_allclose(*sess.run([loss, zs_obj.vimco()]))
+            np.testing.assert_allclose(*sess.run([loss, M(zs_obj.vimco())]))
 
     def test_reconstruct(self):
         class Capture(object):
