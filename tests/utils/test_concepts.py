@@ -29,7 +29,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(0, ctx._enter.call_count)
         self.assertEquals(0, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='_ContextA is not currently entered'):
+                RuntimeError, match='The context _ContextA is not currently '
+                                    'entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -40,7 +41,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
             _ = ctx._require_entered()
 
             with pytest.raises(
-                    RuntimeError, match='_ContextA is not reentrant'):
+                    RuntimeError, match='The context _ContextA is not '
+                                        'reentrant'):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
@@ -51,7 +53,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(1, ctx._enter.call_count)
         self.assertEquals(1, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='_ContextA is not currently entered'):
+                RuntimeError, match='The context _ContextA is not currently '
+                                    'entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -65,7 +68,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(2, ctx._enter.call_count)
         self.assertEquals(2, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='_ContextA is not currently entered'):
+                RuntimeError, match='The context _ContextA is not currently '
+                                    'entered'):
             ctx._require_entered()
 
 
@@ -78,7 +82,8 @@ class OneTimeContextTestCase(unittest.TestCase):
         self.assertEquals(0, ctx._enter.call_count)
         self.assertEquals(0, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='_ContextB is not currently entered'):
+                RuntimeError, match='The context _ContextB is not currently '
+                                    'entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -89,7 +94,8 @@ class OneTimeContextTestCase(unittest.TestCase):
             self.assertEquals(0, ctx._exit.call_count)
 
             with pytest.raises(
-                    RuntimeError, match='_ContextB is not reentrant'):
+                    RuntimeError, match='The context _ContextB is not '
+                                        'reentrant'):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
@@ -100,7 +106,8 @@ class OneTimeContextTestCase(unittest.TestCase):
         self.assertEquals(1, ctx._enter.call_count)
         self.assertEquals(1, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='_ContextB is not currently entered'):
+                RuntimeError, match='The context _ContextB is not currently '
+                                    'entered'):
             ctx._require_entered()
 
         with pytest.raises(

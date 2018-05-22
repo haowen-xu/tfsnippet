@@ -35,13 +35,13 @@ class NoReentrantContext(object):
             RuntimeError: If the context is not entered.
         """
         if not self._is_entered:
-            raise RuntimeError(
-                '{} is not currently entered.'.format(self.__class__.__name__))
+            raise RuntimeError('The context {} is not currently entered.'.
+                               format(self.__class__.__name__))
 
     def __enter__(self):
         if self._is_entered:
-            raise RuntimeError(
-                '{} is not reentrant.'.format(self.__class__.__name__))
+            raise RuntimeError('The context {} is not reentrant.'.
+                               format(self.__class__.__name__))
         ret = self._enter()
         self._is_entered = True
         return ret
