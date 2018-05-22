@@ -1,10 +1,10 @@
 TFSnippet
 =========
 
-.. image:: https://travis-ci.org/korepwx/tfsnippet.svg?branch=master
-    :target: https://travis-ci.org/korepwx/tfsnippet
-.. image:: https://coveralls.io/repos/github/korepwx/tfsnippet/badge.svg?branch=master
-    :target: https://coveralls.io/github/korepwx/tfsnippet?branch=master
+.. image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=master
+    :target: https://travis-ci.org/haowen-xu/tfsnippet
+.. image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=master
+    :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=master
 .. image:: https://readthedocs.org/projects/tfsnippet/badge/?version=latest
     :target: http://tfsnippet.readthedocs.io/en/latest/?badge=latest
 
@@ -25,7 +25,7 @@ Installation
 .. code-block:: bash
 
     pip install git+https://github.com/thu-ml/zhusuan.git
-    pip install git+https://github.com/korepwx/tfsnippet.git
+    pip install git+https://github.com/haowen-xu/tfsnippet.git
 
 Documentation
 -------------

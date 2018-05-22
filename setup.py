@@ -41,10 +41,10 @@ install_requires = [s for s in requirements_list if not s.startswith('git+')]
 setup(
     name='TFSnippet',
     version=version,
-    url='https://github.com/korepwx/tfsnippet/',
+    url='https://github.com/haowen-xu/tfsnippet/',
     license='MIT',
     author='Haowen Xu',
-    author_email='public@korepwx.com',
+    author_email='haowen.xu@outlook.com',
     description='A set of utilities for writing and testing TensorFlow models.',
     long_description=__doc__,
     packages=find_packages('.', include=['tfsnippet', 'tfsnippet.*']),
