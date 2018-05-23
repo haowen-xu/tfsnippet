@@ -35,8 +35,10 @@ class MapperFlow(DataFlow):
     def _minibatch_iterator(self):
         for b in self._source:
             mapped_b = self._mapper(*b)
-            if not isinstance(mapped_b, tuple):
+            if isinstance(mapped_b, list):
+                mapped_b = tuple(mapped_b)
+            elif not isinstance(mapped_b, tuple):
                 raise TypeError('The output of the ``mapper`` is expected to '
-                                'be a tuple, but got a {}.'.
+                                'be a tuple or a list, but got a {}.'.
                                 format(mapped_b.__class__.__name__))
             yield mapped_b

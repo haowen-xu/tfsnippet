@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.utils import StatisticsCollector, OneTimeContext
+from tfsnippet.utils import StatisticsCollector, DisposableContext
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -21,7 +21,7 @@ EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
 
 
-class TrainLoop(OneTimeContext):
+class TrainLoop(DisposableContext):
     """
     Training loop object.
 

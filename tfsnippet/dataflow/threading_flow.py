@@ -3,7 +3,7 @@ from threading import Thread, Semaphore
 import six
 from logging import getLogger
 
-from tfsnippet.utils import NoReentrantContext
+from tfsnippet.utils import LazyInitAndDestroyable
 from .base import DataFlow
 
 if six.PY2:
@@ -14,7 +14,7 @@ else:
 __all__ = ['ThreadingFlow']
 
 
-class ThreadingFlow(DataFlow, NoReentrantContext):
+class ThreadingFlow(DataFlow, LazyInitAndDestroyable):
     """
     Data flow to prefetch from the source data flow in a background thread.
 
@@ -93,7 +93,7 @@ class ThreadingFlow(DataFlow, NoReentrantContext):
         finally:
             self._worker_alive = False
 
-    def _enter(self):
+    def _init(self):
         # prepare for the worker states
         self._batch_queue = Queue(self.prefetch_num)
         self._epoch_counter = 0
@@ -108,23 +108,30 @@ class ThreadingFlow(DataFlow, NoReentrantContext):
         # wait for the thread to show up
         self._worker_ready_sem.acquire()
 
+    def _destroy(self):
+        try:
+            # prevent the worker thread from further work
+            self._stopping = True
+            # exhaust all remaining queue items to notify the background worker
+            while not self._batch_queue.empty():
+                self._batch_queue.get()
+            # wait until the worker exit
+            self._worker.join()
+        finally:
+            self._worker = None
+            self._batch_queue = None
+            self._worker_ready_sem = None
+            self._initialized = False
+
+    def __enter__(self):
+        self.ensure_init()
         return self
 
-    def _exit(self, exc_type, exc_val, exc_tb):
-        # set the stopping flag, to prevent the worker thread from further work
-        self._stopping = True
-        # exhaust all remaining queue items to notify the background worker
-        while not self._batch_queue.empty():
-            self._batch_queue.get()
-        # wait until the worker exit
-        self._worker.join()
-        # cleanup everything
-        self._worker = None
-        self._batch_queue = None
-        self._worker_ready_sem = None
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.destroy()
 
     def _minibatch_iterator(self):
-        self._require_entered()
+        self.ensure_init()
 
         try:
             # iterate through one epoch

@@ -1,7 +1,66 @@
 __all__ = [
+    'LazyInit',
+    'LazyInitAndDestroyable',
+    'Disposable',
     'NoReentrantContext',
-    'OneTimeContext',
+    'DisposableContext',
 ]
+
+
+class LazyInit(object):
+    """
+    Classes with lazy initialized internal states.
+    """
+
+    _initialized = False
+
+    def _init(self):
+        """Override this method to initialize the internal states."""
+        raise NotImplementedError()
+
+    def ensure_init(self):
+        """Ensure the internal states are initialized."""
+        if not self._initialized:
+            self._init()
+            self._initialized = True
+
+
+class LazyInitAndDestroyable(LazyInit):
+    """
+    Classes with lazy initialized internal states, which are also destroyable
+    by calling :meth:`destroy()`.  A destroyed object may be initialized again,
+    depending on the implementation of specific class.
+    """
+
+    def _destroy(self):
+        """Override this method to destroy the internal states."""
+        raise NotImplementedError()
+
+    def destroy(self):
+        """Destroy the internal states."""
+        if self._initialized:
+            try:
+                self._destroy()
+            finally:
+                self._initialized = False
+
+
+class Disposable(object):
+    """
+    Classes which can only be used once.
+    """
+
+    _already_used = False
+
+    def _check_usage_and_set_used(self):
+        """
+        Check whether the usage flag, ensure the object has not been used,
+        and then set it to be used.
+        """
+        if self._already_used:
+            raise RuntimeError('Disposable object cannot be used twice: {!r}.'.
+                               format(self))
+        self._already_used = True
 
 
 class NoReentrantContext(object):
@@ -35,13 +94,13 @@ class NoReentrantContext(object):
             RuntimeError: If the context is not entered.
         """
         if not self._is_entered:
-            raise RuntimeError('The context {} is not currently entered.'.
-                               format(self.__class__.__name__))
+            raise RuntimeError('Context is required be entered: {!r}.'.
+                               format(self))
 
     def __enter__(self):
         if self._is_entered:
-            raise RuntimeError('The context {} is not reentrant.'.
-                               format(self.__class__.__name__))
+            raise RuntimeError('Context is not reentrant: {!r}.'.
+                               format(self))
         ret = self._enter()
         self._is_entered = True
         return ret
@@ -52,7 +111,7 @@ class NoReentrantContext(object):
             return self._exit(exc_type, exc_val, exc_tb)
 
 
-class OneTimeContext(NoReentrantContext):
+class DisposableContext(NoReentrantContext):
     """
     Base class for contexts which can only be entered once.
     """
@@ -62,8 +121,8 @@ class OneTimeContext(NoReentrantContext):
     def __enter__(self):
         if self._has_entered:
             raise RuntimeError(
-                'The one-time context {} has already been entered, thus cannot '
-                'be entered again.'.format(self.__class__.__name__))
-        ret = super(OneTimeContext, self).__enter__()
+                'A disposable context cannot be entered twice: {!r}.'.
+                format(self))
+        ret = super(DisposableContext, self).__enter__()
         self._has_entered = True
         return ret

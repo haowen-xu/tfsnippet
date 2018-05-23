@@ -1,9 +1,62 @@
 import unittest
 
 import pytest
-from mock import MagicMock
+from mock import MagicMock, Mock
 
-from tfsnippet.utils import NoReentrantContext, OneTimeContext
+from tfsnippet.utils import (LazyInit, LazyInitAndDestroyable, Disposable,
+                             NoReentrantContext, DisposableContext)
+
+
+class LazyInitTestCase(unittest.TestCase):
+
+    def test_everything(self):
+        lazy_init = LazyInit()
+        lazy_init._init = Mock()
+        self.assertEqual(0, lazy_init._init.call_count)
+        lazy_init.ensure_init()
+        self.assertEqual(1, lazy_init._init.call_count)
+        lazy_init.ensure_init()
+        self.assertEqual(1, lazy_init._init.call_count)
+
+
+class LazyInitAndDestroyableTestCase(unittest.TestCase):
+
+    def test_everything(self):
+        lazy_init = LazyInitAndDestroyable()
+        lazy_init._init = Mock()
+        lazy_init._destroy = Mock()
+        self.assertEqual(0, lazy_init._init.call_count)
+        self.assertEqual(0, lazy_init._destroy.call_count)
+
+        lazy_init.ensure_init()
+        self.assertEqual(1, lazy_init._init.call_count)
+        self.assertEqual(0, lazy_init._destroy.call_count)
+
+        lazy_init.ensure_init()
+        self.assertEqual(1, lazy_init._init.call_count)
+        self.assertEqual(0, lazy_init._destroy.call_count)
+
+        lazy_init.destroy()
+        self.assertEqual(1, lazy_init._init.call_count)
+        self.assertEqual(1, lazy_init._destroy.call_count)
+
+        lazy_init.destroy()
+        self.assertEqual(1, lazy_init._init.call_count)
+        self.assertEqual(1, lazy_init._destroy.call_count)
+
+        lazy_init.ensure_init()
+        self.assertEqual(2, lazy_init._init.call_count)
+        self.assertEqual(1, lazy_init._destroy.call_count)
+
+
+class DisposableTestCase(unittest.TestCase):
+
+    def test_everything(self):
+        disposable = Disposable()
+        disposable._check_usage_and_set_used()
+        with pytest.raises(
+                RuntimeError, match='Disposable object cannot be used twice'):
+            disposable._check_usage_and_set_used()
 
 
 class _ContextA(NoReentrantContext):
@@ -13,7 +66,7 @@ class _ContextA(NoReentrantContext):
         self._exit = MagicMock()
 
 
-class _ContextB(OneTimeContext):
+class _ContextB(DisposableContext):
 
     def __init__(self):
         self._enter = MagicMock(return_value=456)
@@ -29,8 +82,7 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(0, ctx._enter.call_count)
         self.assertEquals(0, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='The context _ContextA is not currently '
-                                    'entered'):
+                RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -41,8 +93,7 @@ class NoReentrantContextTestCase(unittest.TestCase):
             _ = ctx._require_entered()
 
             with pytest.raises(
-                    RuntimeError, match='The context _ContextA is not '
-                                        'reentrant'):
+                    RuntimeError, match='Context is not reentrant'):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
@@ -53,8 +104,7 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(1, ctx._enter.call_count)
         self.assertEquals(1, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='The context _ContextA is not currently '
-                                    'entered'):
+                RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -68,12 +118,11 @@ class NoReentrantContextTestCase(unittest.TestCase):
         self.assertEquals(2, ctx._enter.call_count)
         self.assertEquals(2, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='The context _ContextA is not currently '
-                                    'entered'):
+                RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
 
 
-class OneTimeContextTestCase(unittest.TestCase):
+class DisposableContextTestCase(unittest.TestCase):
 
     def test_everything(self):
         ctx = _ContextB()
@@ -82,8 +131,7 @@ class OneTimeContextTestCase(unittest.TestCase):
         self.assertEquals(0, ctx._enter.call_count)
         self.assertEquals(0, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='The context _ContextB is not currently '
-                                    'entered'):
+                RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
 
         with ctx as x:
@@ -94,8 +142,7 @@ class OneTimeContextTestCase(unittest.TestCase):
             self.assertEquals(0, ctx._exit.call_count)
 
             with pytest.raises(
-                    RuntimeError, match='The context _ContextB is not '
-                                        'reentrant'):
+                    RuntimeError, match='Context is not reentrant'):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
@@ -106,13 +153,11 @@ class OneTimeContextTestCase(unittest.TestCase):
         self.assertEquals(1, ctx._enter.call_count)
         self.assertEquals(1, ctx._exit.call_count)
         with pytest.raises(
-                RuntimeError, match='The context _ContextB is not currently '
-                                    'entered'):
+                RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
 
         with pytest.raises(
-                RuntimeError, match='The one-time context _ContextB has '
-                                    'already been entered, thus cannot be '
-                                    'entered again'):
+                RuntimeError,
+                match='A disposable context cannot be entered twice'):
             with ctx:
                 pass

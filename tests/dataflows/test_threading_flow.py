@@ -91,6 +91,35 @@ class ThreadingFlowTestCase(unittest.TestCase):
                 self.assertTrue((560 + i * 2 == a[0]) or (660 + i * 2 == a[0]))
                 self.assertTrue((561 + i * 2 == a[1]) or (661 + i * 2 == a[1]))
 
+    def test_auto_init(self):
+        epoch_counter = [0]
+
+        seq_flow = DataFlow.seq(0, 10, batch_size=2)
+        map_flow = seq_flow.map(
+            lambda x: (x + epoch_counter[0] * 10,))
+
+        def make_iterator():
+            epoch_counter[0] += 1
+            return map_flow
+
+        it_flow = DataFlow.iterator_factory(make_iterator)
+        flow = it_flow.threaded(3)
+
+        batches = [b[0] for b in flow]
+        np.testing.assert_array_equal(
+            [[10, 11], [12, 13], [14, 15], [16, 17], [18, 19]], batches)
+
+        batches = [b[0] for b in flow]
+        np.testing.assert_array_equal(
+            [[20, 21], [22, 23], [24, 25], [26, 27], [28, 29]], batches)
+
+        flow.destroy()
+        batches = [b[0] for b in flow]
+        np.testing.assert_array_equal(
+            [[40, 41], [42, 43], [44, 45], [46, 47], [48, 49]], batches)
+
+        flow.destroy()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,13 +6,13 @@ from logging import getLogger
 
 import tensorflow as tf
 
-from tfsnippet.utils import (OneTimeContext, TemporaryDirectory, makedirs,
+from tfsnippet.utils import (DisposableContext, TemporaryDirectory, makedirs,
                              VariableSaver)
 
 __all__ = ['EarlyStopping', 'EarlyStoppingContext', 'early_stopping']
 
 
-class EarlyStopping(OneTimeContext):
+class EarlyStopping(DisposableContext):
     """
     Early-stopping context object.
 
