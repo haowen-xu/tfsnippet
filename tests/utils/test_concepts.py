@@ -13,9 +13,9 @@ class LazyInitTestCase(unittest.TestCase):
         lazy_init = LazyInit()
         lazy_init._init = Mock()
         self.assertEqual(0, lazy_init._init.call_count)
-        lazy_init.ensure_init()
+        lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
-        lazy_init.ensure_init()
+        lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
 
 
@@ -28,11 +28,11 @@ class LazyInitAndDestroyableTestCase(unittest.TestCase):
         self.assertEqual(0, lazy_init._init.call_count)
         self.assertEqual(0, lazy_init._destroy.call_count)
 
-        lazy_init.ensure_init()
+        lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
         self.assertEqual(0, lazy_init._destroy.call_count)
 
-        lazy_init.ensure_init()
+        lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
         self.assertEqual(0, lazy_init._destroy.call_count)
 
@@ -44,7 +44,7 @@ class LazyInitAndDestroyableTestCase(unittest.TestCase):
         self.assertEqual(1, lazy_init._init.call_count)
         self.assertEqual(1, lazy_init._destroy.call_count)
 
-        lazy_init.ensure_init()
+        lazy_init.init()
         self.assertEqual(2, lazy_init._init.call_count)
         self.assertEqual(1, lazy_init._destroy.call_count)
 

@@ -124,14 +124,14 @@ class ThreadingFlow(DataFlow, LazyInitAndDestroyable):
             self._initialized = False
 
     def __enter__(self):
-        self.ensure_init()
+        self.init()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.destroy()
 
     def _minibatch_iterator(self):
-        self.ensure_init()
+        self.init()
 
         try:
             # iterate through one epoch

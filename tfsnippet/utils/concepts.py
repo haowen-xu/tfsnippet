@@ -18,7 +18,7 @@ class LazyInit(object):
         """Override this method to initialize the internal states."""
         raise NotImplementedError()
 
-    def ensure_init(self):
+    def init(self):
         """Ensure the internal states are initialized."""
         if not self._initialized:
             self._init()
@@ -37,7 +37,7 @@ class LazyInitAndDestroyable(LazyInit):
         raise NotImplementedError()
 
     def destroy(self):
-        """Destroy the internal states."""
+        """Ensure the internal states are destroyed."""
         if self._initialized:
             try:
                 self._destroy()
