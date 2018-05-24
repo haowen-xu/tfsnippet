@@ -1,15 +1,19 @@
 __all__ = [
-    'LazyInit',
-    'LazyInitAndDestroyable',
+    'InitDestroyable',
     'Disposable',
     'NoReentrantContext',
     'DisposableContext',
 ]
 
 
-class LazyInit(object):
+class InitDestroyable(object):
     """
-    Classes with lazy initialized internal states.
+    Classes with :meth:`init()` to initialize its internal states, and also
+    :meth:`destroy()` to destroy these states.  After the states are destroyed,
+    they may be initialized again, depending on the implementation.
+    Also, it implements the function of a context manager: :meth:`init()` is 
+    called when entering the context, while :meth:`destroy()` is called when
+    exiting the context.
     """
 
     _initialized = False
@@ -24,13 +28,10 @@ class LazyInit(object):
             self._init()
             self._initialized = True
 
-
-class LazyInitAndDestroyable(LazyInit):
-    """
-    Classes with lazy initialized internal states, which are also destroyable
-    by calling :meth:`destroy()`.  A destroyed object may be initialized again,
-    depending on the implementation of specific class.
-    """
+    def __enter__(self):
+        """Calls :meth:`init()`, and returns self."""
+        self.init()
+        return self
 
     def _destroy(self):
         """Override this method to destroy the internal states."""
@@ -43,6 +44,10 @@ class LazyInitAndDestroyable(LazyInit):
                 self._destroy()
             finally:
                 self._initialized = False
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Calls :meth:`destroy()`."""
+        self.destroy()
 
 
 class Disposable(object):

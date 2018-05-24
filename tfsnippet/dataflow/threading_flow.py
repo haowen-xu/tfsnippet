@@ -3,7 +3,7 @@ from threading import Thread, Semaphore
 import six
 from logging import getLogger
 
-from tfsnippet.utils import LazyInitAndDestroyable
+from tfsnippet.utils import InitDestroyable
 from .base import DataFlow
 
 if six.PY2:
@@ -14,7 +14,7 @@ else:
 __all__ = ['ThreadingFlow']
 
 
-class ThreadingFlow(DataFlow, LazyInitAndDestroyable):
+class ThreadingFlow(DataFlow, InitDestroyable):
     """
     Data flow to prefetch from the source data flow in a background thread.
 
@@ -122,13 +122,6 @@ class ThreadingFlow(DataFlow, LazyInitAndDestroyable):
             self._batch_queue = None
             self._worker_ready_sem = None
             self._initialized = False
-
-    def __enter__(self):
-        self.init()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.destroy()
 
     def _minibatch_iterator(self):
         self.init()
