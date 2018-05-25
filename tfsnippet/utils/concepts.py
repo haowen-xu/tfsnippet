@@ -1,18 +1,21 @@
 __all__ = [
-    'InitDestroyable',
+    'AutoInitAndCloseable',
     'Disposable',
     'NoReentrantContext',
     'DisposableContext',
 ]
 
 
-class InitDestroyable(object):
+class AutoInitAndCloseable(object):
     """
     Classes with :meth:`init()` to initialize its internal states, and also
-    :meth:`destroy()` to destroy these states.  After the states are destroyed,
-    they may be initialized again, depending on the implementation.
-    Also, it implements the function of a context manager: :meth:`init()` is 
-    called when entering the context, while :meth:`destroy()` is called when
+    :meth:`close()` to destroy these states.  The :meth:`init()` method can
+    be repeatedly called, which will cause initialization only at the first
+    call.  Thus other methods may always call :meth:`init()` at beginning,
+    which can bring auto-initialization to the class.
+
+    A context manager is implemented: :meth:`init()` is explicitly called
+    when entering the context, while :meth:`destroy()` is called when
     exiting the context.
     """
 
@@ -29,25 +32,25 @@ class InitDestroyable(object):
             self._initialized = True
 
     def __enter__(self):
-        """Calls :meth:`init()`, and returns self."""
+        """Ensure the internal states are initialized."""
         self.init()
         return self
 
-    def _destroy(self):
+    def _close(self):
         """Override this method to destroy the internal states."""
         raise NotImplementedError()
 
-    def destroy(self):
+    def close(self):
         """Ensure the internal states are destroyed."""
         if self._initialized:
             try:
-                self._destroy()
+                self._close()
             finally:
                 self._initialized = False
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Calls :meth:`destroy()`."""
-        self.destroy()
+        """Cleanup the internal states."""
+        self.close()
 
 
 class Disposable(object):

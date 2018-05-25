@@ -3,7 +3,7 @@ from threading import Thread, Semaphore
 import six
 from logging import getLogger
 
-from tfsnippet.utils import InitDestroyable
+from tfsnippet.utils import AutoInitAndCloseable
 from .base import DataFlow
 
 if six.PY2:
@@ -14,7 +14,7 @@ else:
 __all__ = ['ThreadingFlow']
 
 
-class ThreadingFlow(DataFlow, InitDestroyable):
+class ThreadingFlow(DataFlow, AutoInitAndCloseable):
     """
     Data flow to prefetch from the source data flow in a background thread.
 
@@ -108,7 +108,7 @@ class ThreadingFlow(DataFlow, InitDestroyable):
         # wait for the thread to show up
         self._worker_ready_sem.acquire()
 
-    def _destroy(self):
+    def _close(self):
         try:
             # prevent the worker thread from further work
             self._stopping = True

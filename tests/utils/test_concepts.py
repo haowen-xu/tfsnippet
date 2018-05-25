@@ -3,62 +3,62 @@ import unittest
 import pytest
 from mock import MagicMock, Mock
 
-from tfsnippet.utils import (InitDestroyable, Disposable,
+from tfsnippet.utils import (AutoInitAndCloseable, Disposable,
                              NoReentrantContext, DisposableContext)
 
 
-class InitDestroyableTestCase(unittest.TestCase):
+class AutoInitAndCloseableTestCase(unittest.TestCase):
 
-    def test_init_destroy(self):
-        lazy_init = InitDestroyable()
+    def test_init_close(self):
+        lazy_init = AutoInitAndCloseable()
         lazy_init._init = Mock()
-        lazy_init._destroy = Mock()
+        lazy_init._close = Mock()
         self.assertEqual(0, lazy_init._init.call_count)
-        self.assertEqual(0, lazy_init._destroy.call_count)
+        self.assertEqual(0, lazy_init._close.call_count)
 
         lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
-        self.assertEqual(0, lazy_init._destroy.call_count)
+        self.assertEqual(0, lazy_init._close.call_count)
 
         lazy_init.init()
         self.assertEqual(1, lazy_init._init.call_count)
-        self.assertEqual(0, lazy_init._destroy.call_count)
+        self.assertEqual(0, lazy_init._close.call_count)
 
-        lazy_init.destroy()
+        lazy_init.close()
         self.assertEqual(1, lazy_init._init.call_count)
-        self.assertEqual(1, lazy_init._destroy.call_count)
+        self.assertEqual(1, lazy_init._close.call_count)
 
-        lazy_init.destroy()
+        lazy_init.close()
         self.assertEqual(1, lazy_init._init.call_count)
-        self.assertEqual(1, lazy_init._destroy.call_count)
+        self.assertEqual(1, lazy_init._close.call_count)
 
         lazy_init.init()
         self.assertEqual(2, lazy_init._init.call_count)
-        self.assertEqual(1, lazy_init._destroy.call_count)
+        self.assertEqual(1, lazy_init._close.call_count)
 
     def test_context(self):
-        lazy_init = InitDestroyable()
+        lazy_init = AutoInitAndCloseable()
         lazy_init._init = Mock()
-        lazy_init._destroy = Mock()
+        lazy_init._close = Mock()
         self.assertEqual(0, lazy_init._init.call_count)
-        self.assertEqual(0, lazy_init._destroy.call_count)
+        self.assertEqual(0, lazy_init._close.call_count)
 
         with lazy_init:
             self.assertEqual(1, lazy_init._init.call_count)
-            self.assertEqual(0, lazy_init._destroy.call_count)
+            self.assertEqual(0, lazy_init._close.call_count)
             with lazy_init:
                 self.assertEqual(1, lazy_init._init.call_count)
-                self.assertEqual(0, lazy_init._destroy.call_count)
+                self.assertEqual(0, lazy_init._close.call_count)
             self.assertEqual(1, lazy_init._init.call_count)
-            self.assertEqual(1, lazy_init._destroy.call_count)
+            self.assertEqual(1, lazy_init._close.call_count)
         self.assertEqual(1, lazy_init._init.call_count)
-        self.assertEqual(1, lazy_init._destroy.call_count)
+        self.assertEqual(1, lazy_init._close.call_count)
 
         with lazy_init:
             self.assertEqual(2, lazy_init._init.call_count)
-            self.assertEqual(1, lazy_init._destroy.call_count)
+            self.assertEqual(1, lazy_init._close.call_count)
         self.assertEqual(2, lazy_init._init.call_count)
-        self.assertEqual(2, lazy_init._destroy.call_count)
+        self.assertEqual(2, lazy_init._close.call_count)
 
 
 class DisposableTestCase(unittest.TestCase):

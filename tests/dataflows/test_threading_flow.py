@@ -113,12 +113,12 @@ class ThreadingFlowTestCase(unittest.TestCase):
         np.testing.assert_array_equal(
             [[20, 21], [22, 23], [24, 25], [26, 27], [28, 29]], batches)
 
-        flow.destroy()
+        flow.close()
         batches = [b[0] for b in flow]
         np.testing.assert_array_equal(
             [[40, 41], [42, 43], [44, 45], [46, 47], [48, 49]], batches)
 
-        flow.destroy()
+        flow.close()
 
 
 if __name__ == '__main__':
