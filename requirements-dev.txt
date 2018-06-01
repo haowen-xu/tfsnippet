@@ -4,3 +4,6 @@ coverage >= 4.3.4
 mock >= 2.0.0
 pytest >= 3.0
 sphinx >= 1.6.3
+
+# !!! DO NOT INCLUDE TENSORFLOW IN THIS FILE !!!
+# Installing tensorflow (no `-gpu`) will cause the gpu version not to work.
