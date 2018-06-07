@@ -38,9 +38,9 @@ Quick Tutorial
 Distributions
 ~~~~~~~~~~~~~
 
-If you use :mod:`tfsnippet.distributions` to obtain random samples, you
+If you use ``tfsnippet.distributions`` to obtain random samples, you
 shall get enhanced tensor objects, from which you may compute the
-log-likelihood by simply calling :meth:`log_prob()`.
+log-likelihood by simply calling ``log_prob()``.
 
 .. code-block:: python
 
@@ -56,7 +56,7 @@ log-likelihood by simply calling :meth:`log_prob()`.
     distribution = samples.distribution
 
 The distributions from `ZhuSuan <https://github.com/thu-ml/zhusuan.git>`_ can
-be casted into a :class:`tfsnippet.distributions.Distribution`, in case we
+be casted into a ``tfsnippet.distributions.Distribution``, in case we
 haven't provided a wrapper for a certain ZhuSuan distribution:
 
 .. code-block:: python
@@ -71,7 +71,7 @@ Data Flows
 ~~~~~~~~~~
 
 It is a common procedure to iterate through a dataset by mini-batches.
-The :mod:`tfsnippet.dataflow` provides a unified interface for assembling
+The ``tfsnippet.dataflow`` provides a unified interface for assembling
 the mini-batch iterators, for typical deep learning training and testing.
 
 .. code-block:: python
@@ -110,8 +110,8 @@ Training
 ~~~~~~~~
 
 After you've build the model and obtained the training operation, you may
-quickly run a training-loop by using utilities from :mod:`tfsnippet.scaffold`
-and :mod:`tfsnippet.trainer`.
+quickly run a training-loop by using utilities from ``tfsnippet.scaffold``
+and ``tfsnippet.trainer``.
 
 .. code-block:: python
 
