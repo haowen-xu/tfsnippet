@@ -70,9 +70,9 @@ haven't provided a wrapper for a certain ZhuSuan distribution:
 Data Flows
 ~~~~~~~~~~
 
-It is a common procedure to iterate through a dataset by mini-batches.
+It is a common practice to iterate through a dataset by mini-batches.
 The ``tfsnippet.dataflow`` provides a unified interface for assembling
-the mini-batch iterators, for typical deep learning training and testing.
+the mini-batch iterators.
 
 .. code-block:: python
 
@@ -95,7 +95,7 @@ the mini-batch iterators, for typical deep learning training and testing.
     # If you use `MLToolkit <https://github.com/haowen-xu/mltoolkit>`_,
     # you can even load data from a MongoDB via data flow.  Suppose you
     # have stored all images from ImageNet into a GridFS (of MongoDB),
-    # along with the labels stored as ``metadata.y`` of the MongoDB record.
+    # along with the labels stored as ``metadata.y``.
     # You may iterate through the ImageNet in batches by:
     from mltoolkit.datafs import MongoFS
 
