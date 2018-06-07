@@ -16,7 +16,7 @@ class BaseTrainer(object):
     """
     Base class for all trainers.
 
-    All the trainers provided in :mod:`tfsnippet.trainers` are not
+    All the trainers provided in :mod:`tfsnippet.trainer` are not
     designed to take control of the training totally, which is often
     assumed in other libraries such as Keras.  Instead, it just takes
     responsibility of assembling different steps of a training process
@@ -24,7 +24,7 @@ class BaseTrainer(object):
     responsibility to derive his training operation from a certain TensorFlow
     optimizer, and pass it to a proper trainer.
 
-    You may see an example of usage in :class:`~tfsnippet.trainers.LossTrainer`.
+    You may see an example of usage in :class:`~tfsnippet.trainer.LossTrainer`.
     """
 
     def __init__(self, loop, inputs, data_flow, feed_dict=None):

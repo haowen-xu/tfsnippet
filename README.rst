@@ -35,74 +35,123 @@ Documentation
 Quick Tutorial
 --------------
 
-Use the flexible training loop context, with nice logging and early-stopping:
+Distributions
+~~~~~~~~~~~~~
+
+If you use :mod:`tfsnippet.distributions` to obtain random samples, you
+shall get enhanced tensor objects, from which you may compute the
+log-likelihood by simply calling :meth:`log_prob()`.
 
 .. code-block:: python
 
+    from tfsnippet.distributions import Normal
+
+    normal = Normal(0., 1.)
+    # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
+    samples = normal.sample(n_samples=100)
+    # You may obtain the log-likelhood of `samples` under `normal` by:
+    log_prob = samples.log_prob()
+    # You may also obtain the distribution instance back from the samples,
+    # such that you may fire-and-forget the distribution instance!
+    distribution = samples.distribution
+
+The distributions from `ZhuSuan <https://github.com/thu-ml/zhusuan.git>`_ can
+be casted into a :class:`tfsnippet.distributions.Distribution`, in case we
+haven't provided a wrapper for a certain ZhuSuan distribution:
+
+.. code-block:: python
+
+    from tfsnippet.distributions import as_distribution
+
+    uniform = as_distribution(zhusuan.distributions.Uniform())
+    # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
+    samples = uniform.sample(n_samples=100)
+
+Data Flows
+~~~~~~~~~~
+
+It is a common procedure to iterate through a dataset by mini-batches.
+The :mod:`tfsnippet.dataflow` provides a unified interface for assembling
+the mini-batch iterators, for typical deep learning training and testing.
+
+.. code-block:: python
+
+    from tfsnippet.dataflow import DataFlow
+
+    # Obtain a shuffled, two-array data flow, with batch-size 64.
+    # Any batch with samples fewer than 64 would be discarded.
+    flow = DataFlow.arrays(
+        [x, y], batch_size=64, shuffle=True, skip_incomplete=True)
+    for batch_x, batch_y in flow:
+        ...  # Do something with batch_x and batch_y
+
+    # You may use a threaded data flow to prefetch the mini-batches
+    # in a background thread.  The threaded flow is a context object,
+    # where exiting the context would destroy the background thread.
+    with flow.threaded(prefetch=5) as threaded_flow:
+        for batch_x, batch_y in threaded_flow:
+            ...  # Do something with batch_x and batch_y
+
+    # If you use `MLToolkit <https://github.com/haowen-xu/mltoolkit>`_,
+    # you can even load data from a MongoDB via data flow.  Suppose you
+    # have stored all images from ImageNet into a GridFS (of MongoDB),
+    # along with the labels stored as ``metadata.y`` of the MongoDB record.
+    # You may iterate through the ImageNet in batches by:
+    from mltoolkit.datafs import MongoFS
+
+    fs = MongoFS('mongodb://localhost', 'imagenet', 'train')
+    with fs.as_flow(batch_size=64, with_names=False, meta_keys=['y'],
+                    shuffle=True, skip_incomplete=True) as flow:
+        for batch_x, batch_y in flow:
+            ...  # Do something with batch_x and batch_y.  batch_x is the
+                 # raw content of images you stored into the GridFS.
+
+Training
+~~~~~~~~
+
+After you've build the model and obtained the training operation, you may
+quickly run a training-loop by using utilities from :mod:`tfsnippet.scaffold`
+and :mod:`tfsnippet.trainer`.
+
+.. code-block:: python
+
+    from tfsnippet.dataflow import DataFlow
     from tfsnippet.scaffold import TrainLoop
-    from tfsnippet.utils import ensure_variables_initialized
+    from tfsnippet.trainer import LossTrainer, Validator, AnnealingDynamicValue
 
-    loss = ...  # build your own training loss here
-    params = tf.trainable_variables()
-    optimizer = tf.train.AdamOptimizer()
-    global_step = tf.get_variable('global_step', dtype=tf.int32, initializer=0)
-    grads = optimizer.compute_gradients(loss, var_list=params)
-    train_op = optimizer.apply_gradients(grads, global_step=global_step)
+    input_x = ...  # the input placeholder
+    loss = ...  # the training loss
+    params = tf.trainable_variables()  # the trainable parameters
 
-    # Initialize all un-initialized TensorFlow variables
-    ensure_variables_initialized()
+    # We shall adopt learning-rate annealing, the initial learning rate is
+    # 0.001, and we would anneal it by a factor of 0.99995 after every step.
+    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
+    learning_rate_var = AnnealingDynamicValue(0.001, 0.99995)
 
-    # Start a training loop, with early-stopping enabled on `params`.
-    # By default, `params` w.r.t. best `valid_loss` will be restored when
-    # exiting the `loop` context.
+    # Build the training operation by AdamOptimizer
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+    train_op = optimizer.minimize(loss, var_list=params)
+
+    # Build the training data-flow
+    train_flow = DataFlow.arrays(
+        [train_x, train_y], batch_size=64, shuffle=True, skip_incomplete=True)
+    # Build the validation data-flow
+    valid_flow = DataFlow.arrays([valid_x, valid_y], batch_size=256)
+
     with TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
-        # print the summary of training, e.g., the `params` to be trained
-        loop.print_training_summary()
-
-        for epoch in loop.iter_epochs():  # `epoch` is the epoch counter
-            # build your own training mini-batches iterator here
-            train_iterator = ...
-
-            # run mini-batches of current `epoch`
-            for step, (batch_x, batch_y) in loop.iter_steps(train_iterator):
-                step_loss, _ = session.run(
-                    [loss, train_op],
-                    feed_dict={
-                        input_x: batch_x,
-                        input_y: batch_y,
-                    }
-                )
-                loop.collect_metrics(loss=step_loss)
-
-            # build your own validation mini-batches iterator here
-            valid_iterator = ...
-
-            # run validation of current `epoch`
-            with loop.timeit('valid_time'), \
-                    loop.metric_collector('valid_loss') as collector:
-                for batch_x, batch_y in valid_iterator:
-                    valid_loss = session.run(
-                        loss,
-                        feed_dict={
-                            input_x: batch_x,
-                            input_y: batch_y,
-                        }
-                    )
-                    collector.collect(valid_loss=valid_loss, weight=len(batch_x))
-
-            # print the logs at the end of every epoch
-            loop.print_logs()
-
-Or use the early-stopping context directly, without emitting a training loop:
-
-.. code-block:: python
-
-    from tfsnippet.scaffold import EarlyStopping
-
-    with EarlyStopping(params) as es:
-        ...
-        es.update(loss)  # This will update the loss being monitored.
-                         # It can be called for arbitrary times, and
-                         # `param` will be restored w.r.t. the best loss
-                         # when exiting the `es` context.
-        ...
+        trainer = LossTrainer(loop, loss, train_op, [])
+        # Anneal the learning-rate after every step by 0.99995.
+        trainer.anneal_after_steps(learning_rate_var, freq=1)
+        # Do validation and apply early-stopping after every epoch.
+        trainer.validate_after_epochs(
+            Validator(loop, loss, [input_x], valid_flow), freq=1)
+        # You may log the learning-rate after every epoch by adding a callback
+        # hook.  Surely you may also add any other callbacks.
+        trainer.after_epochs.add_hook(
+            lambda: trainer.loop.collect_metrics(lr=learning_rate_var),
+            freq=1
+        )
+        # Print training metrics after every epoch.
+        trainer.log_after_epochs(freq=1)
+        # Run all the training epochs and steps.
+        trainer.run({learning_rate: learning_rate_var})

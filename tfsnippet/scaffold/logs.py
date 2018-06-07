@@ -153,19 +153,23 @@ class MetricLogger(object):
         Collect the statistics of metrics.
 
         Args:
-            metrics (dict[str, float or np.ndarray]): Dict from metrics names
-                to their values.  For :meth:`format_logs`, there is no
-                difference between calling :meth:`collect_metrics` only once,
-                with an array of metric values; or calling
-                :meth:`collect_metrics` multiple times, with one value at
-                each time.  However, for the TensorFlow summary writer, only
-                the mean of the metric values would be recorded, if calling
+            metrics (dict[str, float or np.ndarray or DynamicValue]):
+                Dict from metrics names to their values.
+                For :meth:`format_logs`, there is no difference between
+                calling :meth:`collect_metrics` only once, with an array
+                of metric values; or calling :meth:`collect_metrics` multiple
+                times, with one value at each time.
+                However, for the TensorFlow summary writer, only the mean of
+                the metric values would be recorded, if calling
                 :meth:`collect_metrics` with an array.
             global_step (int or tf.Variable or tf.Tensor): The global step
                 counter. (optional)
         """
+        from tfsnippet.trainer import DynamicValue
         tf_summary_values = []
         for k, v in six.iteritems(metrics):
+            if isinstance(v, DynamicValue):
+                v = v.get()
             v = np.asarray(v)
             self._metrics[k].collect(v)
 

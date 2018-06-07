@@ -8,7 +8,7 @@ from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli
 from tfsnippet.modules import Sequential, DictMapper, VAE
 from tfsnippet.scaffold import TrainLoop
-from tfsnippet.trainer import LossTrainer, Validator
+from tfsnippet.trainer import LossTrainer, Validator, AnnealingDynamicValue
 from tfsnippet.utils import split_numpy_array
 from tfsnippet.examples import datasets
 
@@ -27,17 +27,24 @@ def train(loss, input_x, x_data, max_epoch, batch_size, valid_portion):
     valid_flow = DataFlow.arrays([valid_x], batch_size=batch_size)
 
     # derive the optimizer
+    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
+    learning_rate_var = AnnealingDynamicValue(0.001, 0.99995)
     params = tf.trainable_variables()
-    optimizer = tf.train.AdamOptimizer()
+    optimizer = tf.train.AdamOptimizer(learning_rate)
     train_op = optimizer.minimize(loss, var_list=params)
 
     # run the training loop
     with TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
         trainer = LossTrainer(loop, loss, train_op, [input_x], train_flow)
+        trainer.anneal_after_steps(learning_rate_var, freq=1)
         trainer.validate_after_epochs(
             Validator(loop, loss, [input_x], valid_flow), freq=1)
+        trainer.after_epochs.add_hook(
+            lambda: trainer.loop.collect_metrics(lr=learning_rate_var),
+            freq=1
+        )
         trainer.log_after_epochs(freq=1)
-        trainer.run()
+        trainer.run({learning_rate: learning_rate_var})
 
 
 def main():
