@@ -44,7 +44,7 @@ def train(loss, input_x, x_data, max_epoch, batch_size, valid_portion):
             freq=1
         )
         trainer.log_after_epochs(freq=1)
-        trainer.run({learning_rate: learning_rate_var})
+        trainer.run(feed_dict={learning_rate: learning_rate_var})
 
 
 def main():

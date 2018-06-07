@@ -119,7 +119,8 @@ and ``tfsnippet.trainer``.
     from tfsnippet.scaffold import TrainLoop
     from tfsnippet.trainer import LossTrainer, Validator, AnnealingDynamicValue
 
-    input_x = ...  # the input placeholder
+    input_x = ...  # the input x placeholder
+    input_y = ...  # the input y placeholder
     loss = ...  # the training loss
     params = tf.trainable_variables()  # the trainable parameters
 
@@ -139,12 +140,15 @@ and ``tfsnippet.trainer``.
     valid_flow = DataFlow.arrays([valid_x, valid_y], batch_size=256)
 
     with TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
-        trainer = LossTrainer(loop, loss, train_op, [input_x], train_flow)
+        trainer = LossTrainer(
+            loop, loss, train_op, [input_x, input_y], train_flow)
         # Anneal the learning-rate after every step by 0.99995.
         trainer.anneal_after_steps(learning_rate_var, freq=1)
         # Do validation and apply early-stopping after every epoch.
         trainer.validate_after_epochs(
-            Validator(loop, loss, [input_x], valid_flow), freq=1)
+            Validator(loop, loss, [input_x, input_y], valid_flow),
+            freq=1
+        )
         # You may log the learning-rate after every epoch by adding a callback
         # hook.  Surely you may also add any other callbacks.
         trainer.after_epochs.add_hook(
@@ -154,4 +158,4 @@ and ``tfsnippet.trainer``.
         # Print training metrics after every epoch.
         trainer.log_after_epochs(freq=1)
         # Run all the training epochs and steps.
-        trainer.run({learning_rate: learning_rate_var})
+        trainer.run(feed_dict={learning_rate: learning_rate_var})
