@@ -139,7 +139,7 @@ and ``tfsnippet.trainer``.
     valid_flow = DataFlow.arrays([valid_x, valid_y], batch_size=256)
 
     with TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
-        trainer = LossTrainer(loop, loss, train_op, [])
+        trainer = LossTrainer(loop, loss, train_op, [input_x], train_flow)
         # Anneal the learning-rate after every step by 0.99995.
         trainer.anneal_after_steps(learning_rate_var, freq=1)
         # Do validation and apply early-stopping after every epoch.
