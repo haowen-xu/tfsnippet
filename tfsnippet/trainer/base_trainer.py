@@ -16,7 +16,7 @@ class BaseTrainer(object):
     """
     Base class for all trainers.
 
-    All the trainers provided in :package:`tfsnippet.trainers` are not
+    All the trainers provided in :mod:`tfsnippet.trainers` are not
     designed to take control of the training totally, which is often
     assumed in other libraries such as Keras.  Instead, it just takes
     responsibility of assembling different steps of a training process
@@ -197,8 +197,8 @@ class BaseTrainer(object):
         Get all the hook lists.
 
         Returns:
-            tuple[HookList]: The tuple ``(self.before_epochs, self.before_steps,
-                self.after_steps, self.after_epochs)``.
+            tuple[HookList]: The tuple (self.before_epochs, self.before_steps,
+                self.after_steps, self.after_epochs).
         """
         return self._hook_lists
 

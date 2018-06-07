@@ -6,9 +6,7 @@ import tensorflow as tf
 import zhusuan as zs
 
 from tfsnippet.utils import ensure_variables_initialized
-from tfsnippet.variational import VariationalInference
-from tfsnippet.variational.inference import (VariationalTrainingObjectives,
-                                             VariationalLowerBounds)
+from tfsnippet.variational import *
 
 
 class VariationalInferenceTestCase(tf.test.TestCase):
@@ -19,6 +17,7 @@ class VariationalInferenceTestCase(tf.test.TestCase):
         self.assertIsNone(vi.axis)
         self.assertIsInstance(vi.training, VariationalTrainingObjectives)
         self.assertIsInstance(vi.lower_bound, VariationalLowerBounds)
+        self.assertIsInstance(vi.evaluation, VariationalEvaluation)
 
         with self.test_session():
             np.testing.assert_equal(vi.log_joint.eval(), 1.)
@@ -222,3 +221,20 @@ class VariationalInferenceTestCase(tf.test.TestCase):
             # test :meth:`VariationalTrainingObjectives.rws_wake`
             np.testing.assert_allclose(
                 *sess.run([zs_obj.rws(), vi.training.rws_wake()]))
+
+    def test_is_loglikelihood(self):
+        # test no sampling axis should cause errors
+        vi = VariationalInference(tf.constant(0.), [tf.constant(0.)],
+                                  axis=None)
+        with pytest.raises(
+                ValueError, match='importance sampling log-likelihood '
+                                  'requires multi-samples'):
+            _ = vi.evaluation.importance_sampling_log_likelihood()
+
+        # test with sampling axis
+        with self.test_session() as sess:
+            prepared = self.prepare_model(
+                zs.evaluation.is_loglikelihood, axis=0, n_z=7)
+            zs_output = prepared.zs_obj
+            output = prepared.vi.evaluation.importance_sampling_log_likelihood()
+            np.testing.assert_allclose(*sess.run([zs_output, output]))

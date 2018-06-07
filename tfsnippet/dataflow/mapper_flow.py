@@ -20,7 +20,7 @@ class MapperFlow(DataFlow):
 
         Args:
             source (DataFlow): The source data flow.
-            mapper ((*np.ndarray) -> tuple[np.ndarray])): The mapper
+            mapper ((\*np.ndarray) -> tuple[np.ndarray])): The mapper
                 function, which transforms numpy arrays into a tuple
                 of other numpy arrays.
         """

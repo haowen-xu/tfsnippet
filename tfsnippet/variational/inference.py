@@ -1,9 +1,12 @@
 import tensorflow as tf
 import zhusuan as zs
 
-__all__ = ['VariationalInference',
-           'VariationalLowerBounds',
-           'VariationalTrainingObjectives']
+__all__ = [
+    'VariationalInference',
+    'VariationalLowerBounds',
+    'VariationalTrainingObjectives',
+    'VariationalEvaluation'
+]
 
 
 def _require_multi_samples(vi, name):
@@ -58,6 +61,7 @@ class VariationalInference(object):
         self._axis = axis
         self._lower_bound = VariationalLowerBounds(self)
         self._training = VariationalTrainingObjectives(self)
+        self._evaluation = VariationalEvaluation(self)
 
     @property
     def log_joint(self):
@@ -165,11 +169,27 @@ class VariationalInference(object):
         """
         return self._training
 
+    @property
+    def evaluation(self):
+        """
+        Get the factory for evaluation outputs.
+
+        Returns:
+            VariationalEvaluation: The factory for evaluation outputs.
+        """
+        return self._evaluation
+
 
 class VariationalLowerBounds(object):
     """Factory for variational lower-bounds."""
 
     def __init__(self, vi):
+        """
+        Construct a new :class:`VariationalEvaluation`.
+
+        Args:
+            vi (VariationalInference): The variational inference object.
+        """
         self._vi = vi
 
     def elbo(self, name=None):
@@ -212,6 +232,12 @@ class VariationalTrainingObjectives(object):
     """Factory for variational training objectives."""
 
     def __init__(self, vi):
+        """
+        Construct a new :class:`VariationalEvaluation`.
+
+        Args:
+            vi (VariationalInference): The variational inference object.
+        """
         self._vi = vi
 
     def sgvb(self, name=None):
@@ -314,3 +340,39 @@ class VariationalTrainingObjectives(object):
             self._vi, 'reweighted wake-sleep training objective')
         with tf.name_scope(name, default_name='rws_wake'):
             return self._vi.zs_klpq().rws()
+
+
+class VariationalEvaluation(object):
+    """Factory for variational evaluation outputs."""
+
+    def __init__(self, vi):
+        """
+        Construct a new :class:`VariationalEvaluation`.
+
+        Args:
+            vi (VariationalInference): The variational inference object.
+        """
+        self._vi = vi
+
+    def importance_sampling_log_likelihood(self, name=None):
+        """
+        Compute :math:`log p(x)` by importance sampling.
+
+        Args:
+            name (str): Name of this operation in TensorFlow graph.
+                (default "sgvb")
+
+        Returns:
+            tf.Tensor: The per-data :math:`log p(x)`.
+
+        See Also:
+            :meth:`zhusuan.evaluation.is_loglikelihood`
+        """
+        _require_multi_samples(
+            self._vi, 'importance sampling log-likelihood')
+        with tf.name_scope(
+                name, default_name='importance_sampling_log_likelihood'):
+            return self._vi.zs_objective(zs.evaluation.is_loglikelihood)
+
+    is_loglikelihood = importance_sampling_log_likelihood
+    """Short-cut for :meth:`importance_sampling_log_likelihood`."""

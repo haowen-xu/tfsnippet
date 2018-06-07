@@ -50,7 +50,7 @@ class Validator(object):
                 validation time usage. (default "valid_time")
             loss_metric_name (str): The metric name for collecting
                 validation loss. (default ``loop.valid_metric_name``)
-            loss_weight_func ((*arrays) -> float or None): Specify how
+            loss_weight_func ((\*arrays) -> float or None): Specify how
                 to compute the loss weight for each mini-batch.  If
                 :obj:`None`, will use 1. as the loss weight.
                 (default :func:`auto_loss_weight`)
