@@ -154,6 +154,29 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'$'
         ))
 
+    def test_single_epoch_logs(self):
+        logs = []
+        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
+            for epoch in loop.iter_epochs():
+                for step, x in loop.iter_steps(np.arange(4)):
+                    time.sleep(0.01)
+                    loop.collect_metrics(x=x)
+                    if step % 2 == 0:
+                        loop.print_logs()
+                loop.collect_metrics(y=epoch)
+                loop.print_logs()
+        self.assertMatches('\n'.join(logs), re.compile(
+            r'^'
+            r'\[Step 2\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'x: 0\.5 \(±0\.5\)\n'
+            r'\[Step 4\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'x: 2\.5 \(±0\.5\)\n'
+            r'\[Epoch\] epoch time: 0\.0[456]\d* sec; '
+            r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
+            r'y: 1'
+            r'$'
+        ))
+
     def test_valid_metric_default_settings(self):
         logs = []
         with TrainLoop([], print_func=logs.append) as loop:
@@ -264,7 +287,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch 1/1\] epoch time: 0\.0[345]\d* sec; '
+            r'\[Epoch\] epoch time: 0\.0[345]\d* sec; '
             r'x timer: 0\.01\d* sec; y time: 0\.0[23]\d* sec'
             r'$'
         ))
@@ -279,7 +302,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch 1/1\] epoch time: [^ ]+ sec; x: 2\.75'
+            r'\[Epoch\] epoch time: [^ ]+ sec; x: 2\.75'
             r'$'
         ))
 

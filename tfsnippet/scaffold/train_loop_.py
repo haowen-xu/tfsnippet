@@ -97,10 +97,15 @@ class TrainLoop(DisposableContext):
                 (default 0). Should be one less than the actual first epoch.
             initial_step (int or tf.Tensor or tf.Variable): The initial step
                 (default 0). Should be one less than the actual first step.
-            max_epoch (int or tf.Tensor or tf.Variable):
-                The maximum epoch to run.
-            max_step (int or tf.Tensor or tf.Variable):
-                The maximum step to run.
+            max_epoch (None or int or tf.Tensor or tf.Variable):
+                The maximum epoch to run.  If :obj:`None`, will run for
+                infinite epochs.  If ``1``, the epoch counter will be
+                discarded in the output logs. (default :obj:`None`)
+            max_step (None or int or tf.Tensor or tf.Variable):
+                The maximum step to run.  If :obj:`None`, will run for
+                infinite steps.  Note this limit applies for the total
+                step counter, rather than the epoch-wise step counter.
+                (default :obj:`None`)
         """
         # regularize the parameters
         if not isinstance(param_vars, (dict, OrderedDict)):
@@ -480,17 +485,16 @@ class TrainLoop(DisposableContext):
                 else:
                     return '{} {}'.format(name, v)
 
-            tag = ''
-            if self._within_step:
-                tag = ', '.join((
-                    format_tag(self._epoch, self._max_epoch, 'Epoch'),
-                    format_tag(self._step, self._max_step, 'Step'),
-                ))
-            elif self._within_epoch:
-                tag = format_tag(self._epoch, self._max_epoch, 'Epoch')
-            else:
+            if not self._within_step and not self._within_epoch:
                 self._require_context()
-            message = '[{}] {}'.format(tag, message)
+            tags = []
+            if self._within_epoch and self._max_epoch != 1:
+                tags.append(format_tag(self._epoch, self._max_epoch, 'Epoch'))
+            if self._within_step:
+                tags.append(format_tag(self._step, self._max_step, 'Step'))
+            if not tags:
+                tags = ['Epoch']
+            message = '[{}] {}'.format(', '.join(tags), message)
         self._print_func(message)
 
     def print_training_summary(self):
