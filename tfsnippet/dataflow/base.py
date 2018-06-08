@@ -81,7 +81,7 @@ class DataFlow(object):
 
     def threaded(self, prefetch):
         """
-        Construct a :class:`ThreadingFlow` from this flow.
+        Construct a :class:`~tfsnippet.dataflow.ThreadingFlow` from this flow.
 
         Args:
             prefetch (int): Number of mini-batches to prefetch ahead.
@@ -93,6 +93,23 @@ class DataFlow(object):
         """
         from .threading_flow import ThreadingFlow
         return ThreadingFlow(self, prefetch=prefetch)
+
+    def select(self, indices):
+        """
+        Construct a :class:`DataFlow`, which selects and rearranges arrays
+        in each mini-batch.  For example::
+
+            flow = DataFlow.arrays([x, y, z], batch_size=64)
+            flow.select([0, 2, 0])  # selects ``(x, z, x)`` in each mini-batch
+
+        Args:
+            indices (Iterable[int]): The indices of arrays to select.
+
+        Returns:
+            DataFlow: The data flow with selected arrays in each mini-batch.
+        """
+        indices = tuple(indices)
+        return self.map(lambda *arrays: tuple(arrays[i] for i in indices))
 
     # -------- here starts the factory methods for data flows --------
     @staticmethod

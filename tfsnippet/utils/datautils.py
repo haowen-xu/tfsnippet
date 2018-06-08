@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import RandomState
 
 __all__ = [
     'minibatch_slices_iterator',
@@ -32,7 +33,8 @@ def minibatch_slices_iterator(length, batch_size,
         yield slice(start, length, 1)
 
 
-def split_numpy_arrays(arrays, portion=None, size=None, shuffle=True):
+def split_numpy_arrays(arrays, portion=None, size=None, shuffle=True,
+                       random_state=None):
     """
     Split numpy arrays into two halves, by portion or by size.
 
@@ -42,6 +44,8 @@ def split_numpy_arrays(arrays, portion=None, size=None, shuffle=True):
             Ignored if `size` is specified.
         size (int): Size of the second half.
         shuffle (bool): Whether or not to shuffle before splitting?
+        random_state (RandomState): Optional numpy RandomState for shuffling
+            data. (default :obj:`None`, use the global :class:`RandomState`).
 
     Returns:
         (tuple[np.ndarray], tuple[np.ndarray]): Splitted two halves of arrays.
@@ -73,8 +77,10 @@ def split_numpy_arrays(arrays, portion=None, size=None, shuffle=True):
 
     # shuffle the data if necessary
     if shuffle:
+        if random_state is None:
+            random_state = np.random
         indices = np.arange(data_count)
-        np.random.shuffle(indices)
+        random_state.shuffle(indices)
         arrays = tuple(a[indices] for a in arrays)
 
     # return directly if each side remains no data after splitting

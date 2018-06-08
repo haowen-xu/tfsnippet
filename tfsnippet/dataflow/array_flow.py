@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import RandomState
 
 from tfsnippet.utils import minibatch_slices_iterator
 from .base import ExtraInfoDataFlow
@@ -19,13 +20,13 @@ class ArrayFlow(ExtraInfoDataFlow):
     Usage::
 
         array_flow = DataFlow.arrays([x, y], batch_size=256, shuffle=True,
-                                          skip_incomplete=True)
+                                     skip_incomplete=True)
         for batch_x, batch_y in array_flow:
             ...
     """
 
     def __init__(self, arrays, batch_size,
-                 shuffle=False, skip_incomplete=False):
+                 shuffle=False, skip_incomplete=False, random_state=None):
         """
         Construct an :class:`ArrayFlow`.
 
@@ -38,6 +39,9 @@ class ArrayFlow(ExtraInfoDataFlow):
                 (default :obj:`False`)
             skip_incomplete (bool): Whether or not to exclude the last
                 mini-batch if it is incomplete? (default :obj:`False`)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
         """
         # validate parameters
         arrays = tuple(arrays)
@@ -63,6 +67,7 @@ class ArrayFlow(ExtraInfoDataFlow):
             is_shuffled=shuffle
         )
         self._arrays = arrays
+        self._random_state = random_state or np.random
 
         # internal indices buffer
         self._indices_buffer = None
@@ -78,7 +83,7 @@ class ArrayFlow(ExtraInfoDataFlow):
             if self._indices_buffer is None:
                 t = np.int32 if self._data_length < (1 << 31) else np.int64
                 self._indices_buffer = np.arange(self._data_length, dtype=t)
-            np.random.shuffle(self._indices_buffer)
+            self._random_state.shuffle(self._indices_buffer)
 
             def get_slice(s):
                 return tuple(
