@@ -9,7 +9,6 @@ def inception_score(ops, logits=None, probs=None, reduce_dims=None,
     """
     Compute the Inception score ("Improved techniques for training gans",
     Salimans, T. et al. 2016.) from given softmax `logits` or `probs`.
-    The Inception score is defined as:
 
     .. math::
 
