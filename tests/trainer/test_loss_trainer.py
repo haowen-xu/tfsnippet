@@ -25,7 +25,7 @@ class LossTrainerTestCase(tf.test.TestCase):
     def test_fit_step(self):
         loop = Mock(collect_metrics=Mock(return_value=None))
 
-        with tf.Session().as_default() as session:
+        with self.test_session() as session:
             ph = tf.placeholder(tf.int32, ())
             var = tf.get_variable('var', shape=[], dtype=tf.int32,
                                   initializer=tf.zeros_initializer())

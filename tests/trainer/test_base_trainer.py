@@ -86,7 +86,7 @@ class BaseTrainerTestCase(tf.test.TestCase):
         self.assertEquals('HookList()', repr(t.after_epochs))
 
     def test_run(self):
-        with tf.Session().as_default() as session:
+        with self.test_session() as session:
             df = DataFlow.arrays([np.arange(6, dtype=np.float32)], batch_size=4)
             ph = tf.placeholder(tf.float32, shape=[None])
             ph2 = tf.placeholder(tf.float32, shape=[])

@@ -1,10 +1,10 @@
-from . import (concepts, datautils, doc_inherit, misc, reuse, scope, session,
-               statistics, tensor_wrapper, tfver, typeutils)
+from . import (concepts, datautils, doc_inherit, imported, misc, reuse,
+               scope, session, statistics, tensor_wrapper, tfver, typeutils)
 
 __all__ = sum(
     [m.__all__ for m in [
-        concepts, datautils, doc_inherit, misc, reuse, scope, session,
-        statistics, tensor_wrapper, tfver, typeutils
+        concepts, datautils, doc_inherit, imported, misc, reuse,
+        scope, session, statistics, tensor_wrapper, tfver, typeutils
     ]],
     []
 )

@@ -26,7 +26,7 @@ def get_cache_dir(name, root_dir=None):
         str: Path of the data set cache directory.
     """
     if root_dir is None:
-        root_dir = os.path.expanduser('~/.ml-workspace/datasets')
+        root_dir = os.path.expanduser('~/.tfsnippet/datasets')
     return os.path.join(root_dir, name)
 
 
