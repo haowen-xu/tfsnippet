@@ -178,4 +178,4 @@ backend by passing ``tfsnippet.nn.npyos`` (for NumPy) or ``tfsnippet.nn.tfops``
     # Compute :math:`\log \sum_{k=1}^K \exp(x_k)` by TensorFlow
     log_sum_exp(tfops, x, axis=-1)
     # Compute log-softmax(logits) by NumPy
-    log_softmax(npyos, logits)
+    log_softmax(npyops, logits)
