@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pytest
 import tensorflow as tf
 
 from tfsnippet.nn import *
@@ -60,6 +61,10 @@ class InceptionScoreTestCase(tf.test.TestCase):
                 inception_score, probs=probs, reduce_dims=(0, 1)
             )
 
+    def test_error(self):
+        with pytest.raises(ValueError, match='At least one of `logits` and '
+                                             '`probs` should be specified'):
+            _ = inception_score(npyops)
 
 
 if __name__ == '__main__':

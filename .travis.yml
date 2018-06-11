@@ -18,4 +18,5 @@ script:
       -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}"
       -e TRAVIS_BRANCH="${TRAVIS_BRANCH}"
       "haowenxu/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
-      bash -c "pip install -r requirements-dev.txt && coverage run -m py.test && coveralls"
+      bash -c "apt-get -y update && apt-get -y install unrar &&
+        pip install -r requirements-dev.txt && coverage run -m py.test && coveralls"

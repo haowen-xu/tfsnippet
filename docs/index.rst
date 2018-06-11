@@ -27,6 +27,7 @@ API Docs
 .. toctree::
    :maxdepth: 1
 
+   api/tfsnippet.applications
    api/tfsnippet.bayes
    api/tfsnippet.dataflow
    api/tfsnippet.distributions
