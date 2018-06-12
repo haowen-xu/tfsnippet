@@ -138,10 +138,15 @@ class CachedPropertyTestCase(unittest.TestCase):
 class MaybeCloseTestCase(unittest.TestCase):
 
     def test_maybe_close(self):
+        # test having `close()`
         f = Mock(close=Mock(return_value=None))
         with maybe_close(f):
             self.assertFalse(f.close.called)
         self.assertTrue(f.close.called)
+
+        # test having not `close()`
+        with maybe_close(1):
+            pass
 
 
 class IterFilesTestCase(unittest.TestCase):

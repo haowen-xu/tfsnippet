@@ -15,10 +15,12 @@ class InceptionV3TestCase(tf.test.TestCase):
 
     def test_predict(self):
         model = InceptionV3()
-        model._initialize_model()  # ensure "cropped_panda.jpg" be downloaded
-        cache_dir = model._cache_dir
+
+        # ensure "cropped_panda.jpg" to be downloaded
+        model._initialize_model()
 
         # read the image data
+        cache_dir = model._cache_dir
         image_path = os.path.join(
             cache_dir.path, 'inception-2015-12-05/cropped_panda.jpg')
         with open(image_path, 'rb') as f:
@@ -29,14 +31,27 @@ class InceptionV3TestCase(tf.test.TestCase):
         self.assertEquals((1, 1008), proba.shape)
         self.assertEquals(169, np.argmax(np.squeeze(proba)))
 
+        # predict log-proba with jpeg
+        log_proba = model.predict_log_proba([image_data]).astype(np.float32)
+        self.assertEquals((1, 1008), proba.shape)
+        self.assertEquals(169, np.argmax(np.squeeze(proba)))
+        np.testing.assert_allclose(np.log(proba), log_proba, rtol=1e-2)
+
         # predict logits with binary data
         image_array = imageio.imread(image_path)
         image_array = np.expand_dims(image_array, 0)
         logits = model.predict_logits(image_array).astype(np.float32)
         self.assertEquals((1, 1008), logits.shape)
         self.assertEquals(169, np.argmax(np.squeeze(logits)))
+        # TensorFlow `log_softmax()` has special tweaks, thus is not identical
+        # to the result of `softmax()` in general.  We thus test 169 only.
         np.testing.assert_allclose(
             proba[0, 169], softmax(npyops, logits)[0, 169], rtol=1e-2)
+
+        # predict classes with jpeg
+        classes = model.predict([image_data])
+        self.assertEquals((1,), classes.shape)
+        np.testing.assert_equal([169], classes)
 
         # check get labels
         self.assertListEqual(

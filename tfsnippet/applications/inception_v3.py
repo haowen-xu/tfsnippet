@@ -97,6 +97,7 @@ class InceptionV3(object):
         self._jpeg_input = None  # the jpeg data input
         self._array_input = None  # the numpy array input
         self._softmax_output = None  # the softmax proba output
+        self._log_softmax_output = None  # the softmax log-proba output
         self._logits_output = None  # the softmax logits output
         self._node_lookup = None  # the mapping from class id to class label
 
@@ -130,6 +131,7 @@ class InceptionV3(object):
                     b = g.get_tensor_by_name('softmax/biases:0')
                     logits_output = (
                         tf.matmul(tf.squeeze(pool3, axis=(1, 2)), w) + b)
+                    log_softmax_output = tf.nn.log_softmax(logits_output)
 
                     # load the node lookup
                     node_lookup = NodeLookup(model_dir)
@@ -146,6 +148,7 @@ class InceptionV3(object):
             self._jpeg_input = jpeg_input
             self._array_input = array_input
             self._softmax_output = softmax_output
+            self._log_softmax_output = log_softmax_output
             self._logits_output = logits_output
             self._node_lookup = node_lookup
             self._inited = True
@@ -201,9 +204,25 @@ class InceptionV3(object):
         with self._graph.as_default(), self._sess.as_default():
             return self._run(images, self._softmax_output)
 
+    def predict_log_proba(self, images):
+        """
+        Predict the class log-probabilities for `images`.
+
+        Args:
+            images (list[bytes] or np.ndarray): List of JPEG image data
+                (each image as bytes), or numpy array of shape ``(?, ?, ?, 3)``,
+                the pixels of images.  Note the pixels should be 256-colors.
+
+        Returns:
+            np.ndarray: The predicted class log-probabilities.
+        """
+        self._initialize_model()
+        with self._graph.as_default(), self._sess.as_default():
+            return self._run(images, self._log_softmax_output)
+
     def predict_logits(self, images):
         """
-        Predict the softmax logits for `images`.
+        Predict the softmax logits (un-normalized log-proba) for `images`.
 
         Args:
             images (list[bytes] or np.ndarray): List of JPEG image data
@@ -216,6 +235,20 @@ class InceptionV3(object):
         self._initialize_model()
         with self._graph.as_default(), self._sess.as_default():
             return self._run(images, self._logits_output)
+
+    def predict(self, images):
+        """
+        Predict the class classes for `images`.
+
+        Args:
+            images (list[bytes] or np.ndarray): List of JPEG image data
+                (each image as bytes), or numpy array of shape ``(?, ?, ?, 3)``,
+                the pixels of images.  Note the pixels should be 256-colors.
+
+        Returns:
+            np.ndarray: The predicted classes.
+        """
+        return np.argmax(self.predict_logits(images), axis=-1)
 
     def inception_score(self, images):
         """

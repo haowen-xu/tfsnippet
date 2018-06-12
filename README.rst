@@ -161,6 +161,22 @@ and ``tfsnippet.trainer``.
         trainer.run(feed_dict={learning_rate: learning_rate_var})
 
 
+Pre-trained Models
+~~~~~~~~~~~~~~~~~~
+
+The ``tfsnippet.applications`` package provides useful utilities to load
+and use pre-trained models (among which most are third-party models).
+
+.. code-block:: python
+
+    from tfsnippet.applications import InceptionV3
+
+    # Model from https://www.tensorflow.org/tutorials/image_recognition
+    inception_v3 = InceptionV3()
+    image_data = imageio.imread('path-to-image.jpg')
+    class_proba = inception_v3.predict_proba([image_data])[0]
+
+
 Math Operations
 ~~~~~~~~~~~~~~~
 
