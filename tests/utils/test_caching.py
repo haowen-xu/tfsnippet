@@ -150,7 +150,7 @@ class CacheRootSettingsTestCase(unittest.TestCase):
 
 class CacheDirTestCase(unittest.TestCase):
 
-    def test_construction(self):
+    def test_basic(self):
         cache_dir = CacheDir('sub-dir/sub-sub-dir', cache_root=None)
         self.assertEquals('sub-dir/sub-sub-dir', cache_dir.name)
         self.assertEquals(os.path.abspath(get_cache_root()),
@@ -166,6 +166,8 @@ class CacheDirTestCase(unittest.TestCase):
             self.assertEquals(tmpdir, cache_dir.cache_root)
             self.assertEquals(os.path.join(tmpdir, 'sub-dir/sub-sub-dir'),
                               cache_dir.path)
+            self.assertEquals(os.path.join(cache_dir.path, 'a/b/c'),
+                              cache_dir.resolve('a/b/c'))
 
         with pytest.raises(ValueError, match='`name` is required'):
             _ = CacheDir('')

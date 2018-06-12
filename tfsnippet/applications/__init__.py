@@ -1,8 +1,8 @@
-from . import tf_inception
+from . import inception_v3
 
 __all__ = sum(
-    [m.__all__ for m in [tf_inception]],
+    [m.__all__ for m in [inception_v3]],
     []
 )
 
-from .tf_inception import *
+from .inception_v3 import *

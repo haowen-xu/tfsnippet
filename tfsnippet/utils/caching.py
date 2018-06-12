@@ -95,6 +95,18 @@ class CacheDir(object):
         """Get the absolute path of this cache directory."""
         return self._path
 
+    def resolve(self, sub_path):
+        """
+        Resolve a sub path relative to ``self.path``.
+
+        Args:
+            sub_path: The sub path to resolve.
+
+        Returns:
+            The resolved absolute path of `sub_path`.
+        """
+        return os.path.join(self.path, sub_path)
+
     def download(self, uri, filename=None, show_progress=True,
                  progress_file=sys.stderr):
         """

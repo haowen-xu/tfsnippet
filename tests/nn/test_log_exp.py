@@ -4,10 +4,10 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.nn import *
-from .utils import assert_op_result, naive_softmax
+from .utils import assert_op_result
 
 
-class LogOpsTestCase(tf.test.TestCase):
+class LogExpTestCase(tf.test.TestCase):
 
     def test_log_sum_exp(self):
         with self.test_session():
@@ -56,12 +56,6 @@ class LogOpsTestCase(tf.test.TestCase):
                 np.log(np.mean(np.exp(x), axis=None, keepdims=True)),
                 log_mean_exp, x, axis=None, keepdims=True
             )
-
-    def test_log_softmax(self):
-        with self.test_session():
-            x = np.linspace(0, 10, 1000).reshape([5, 10, 20])
-            softmax = naive_softmax(x)
-            assert_op_result(np.log(softmax), log_softmax, x)
 
 
 if __name__ == '__main__':

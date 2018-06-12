@@ -9,15 +9,16 @@ as the ``ops`` argument to obtain a NumPy or TensorFlow math operation.
 
 
 from . import npyops, tfops
-from . import inception_score, kld, log_ops
+from . import inception_score, kld, log_exp, softmax
 
 __all__ = ['npyops', 'tfops'] + sum(
     [m.__all__ for m in [
-        inception_score, kld, log_ops
+        inception_score, kld, log_exp, softmax
     ]],
     []
 )
 
 from .inception_score import *
 from .kld import *
-from .log_ops import *
+from .log_exp import *
+from .softmax import *

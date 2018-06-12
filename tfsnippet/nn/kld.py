@@ -1,4 +1,4 @@
-from .log_ops import log_softmax
+from .softmax import log_softmax
 
 __all__ = ['softmax_logits_kld', 'softmax_probs_kld']
 

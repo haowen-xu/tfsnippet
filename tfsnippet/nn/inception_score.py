@@ -1,5 +1,6 @@
 from . import tfops, npyops
-from .log_ops import log_softmax, log_mean_exp
+from .log_exp import log_mean_exp
+from .softmax import log_softmax
 
 __all__ = ['inception_score']
 

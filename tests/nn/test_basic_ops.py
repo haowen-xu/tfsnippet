@@ -52,8 +52,8 @@ class BasicOpsTestCase(tf.test.TestCase):
                 wrap_op('identity', x)
             )
             assert_op_result(
-                np.log(x),
-                wrap_op('log', x)
+                np.log(x + 1.),
+                wrap_op('log', x + 1.)
             )
             assert_op_result(
                 np.log1p(x),

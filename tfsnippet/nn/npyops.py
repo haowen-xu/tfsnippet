@@ -32,7 +32,7 @@ reduce_min = np.min
 squeeze = np.squeeze
 range = np.arange
 shape = np.shape
-rank = np.rank
+rank = np.ndim
 reshape = np.reshape
 
 
