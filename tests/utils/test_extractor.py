@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 import unittest
 
 import pytest
@@ -44,9 +45,11 @@ class ExtractorTestCase(unittest.TestCase):
     def test_tar(self):
         self.check_archive_file(TarExtractor, self.get_asset('payload.tar'))
         # xz
-        self.check_archive_file(TarExtractor, self.get_asset('payload.tar.xz'))
-        self.check_archive_file(TarExtractor, self.get_asset('payload.tar.xz'),
-                                'payload.txz')
+        if sys.version_info[:2] >= (3, 3):
+            self.check_archive_file(
+                TarExtractor, self.get_asset('payload.tar.xz'))
+            self.check_archive_file(
+                TarExtractor, self.get_asset('payload.tar.xz'), 'payload.txz')
         # gz
         self.check_archive_file(TarExtractor, self.get_asset('payload.tar.gz'))
         self.check_archive_file(TarExtractor, self.get_asset('payload.tar.gz'),

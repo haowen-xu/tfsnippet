@@ -2,6 +2,7 @@ import os
 import shutil
 from contextlib import contextmanager
 
+import requests
 import six
 import sys
 from tqdm import tqdm
@@ -10,10 +11,8 @@ from .archive_file import Extractor
 from .imported import makedirs
 
 if six.PY2:
-    from urllib import urlretrieve
     from urlparse import urlparse
 else:
-    from urllib.request import urlretrieve
     from urllib.parse import urlparse
 
 __all__ = [
@@ -137,15 +136,28 @@ class CacheDir(object):
                 desc = 'Downloading {}'.format(uri)
                 with _maybe_tqdm(tqdm_enabled=show_progress, desc=desc,
                                  unit='B', unit_scale=True, unit_divisor=1024,
-                                 miniters=1, file=progress_file) as t:
+                                 miniters=1, file=progress_file) as t, \
+                        open(temp_file, 'wb') as f:
+                    req = requests.get(uri, stream=True)
+                    if req.status_code != 200:
+                        raise IOError('HTTP Error {}: {}'.
+                                      format(req.status_code, req.content))
+
+                    # detect the total length
                     if t is not None:
-                        def h(b=1, bsize=1, tsize=None):
-                            if tsize is not None and t.total != tsize:
-                                t.total = tsize
-                            t.update(b * bsize - t.n)
-                    else:
-                        h = None
-                    urlretrieve(uri, filename=temp_file, reporthook=h)
+                        cont_length = req.headers.get('Content-Length')
+                        if cont_length is not None:
+                            try:
+                                t.total = int(cont_length)
+                            except ValueError:
+                                pass
+
+                    # do download the content
+                    for chunk in req.iter_content(8192):
+                        if chunk:
+                            f.write(chunk)
+                            if t is not None:
+                                t.update(len(chunk))
             except BaseException:
                 if os.path.isfile(temp_file):  # pragma: no cover
                     os.remove(temp_file)

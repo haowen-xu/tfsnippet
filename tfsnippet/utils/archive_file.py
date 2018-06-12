@@ -1,5 +1,6 @@
-import zipfile
+import sys
 import tarfile
+import zipfile
 
 try:
     import rarfile
@@ -8,6 +9,13 @@ except ImportError:  # pragma: no cover
     rarfile = None
 
 __all__ = ['Extractor', 'TarExtractor', 'ZipExtractor', 'RarExtractor']
+
+
+TAR_FILE_EXTENSIONS = ('.tar',
+                       '.tar.gz', '.tgz',
+                       '.tar.bz2', '.tbz', '.tbz2', '.tb2')
+if sys.version_info[:2] >= (3, 3):
+    TAR_FILE_EXTENSIONS = TAR_FILE_EXTENSIONS + ('.tar.xz', '.txz')
 
 
 def normalize_archive_entry_name(name):
@@ -95,11 +103,7 @@ class Extractor(object):
             return RarExtractor(file_path)
         elif file_path.endswith('.zip'):
             return ZipExtractor(file_path)
-        elif any(file_path.endswith(ext)
-                 for ext in ('.tar',
-                             '.tar.gz', '.tgz',
-                             '.tar.bz2', '.tbz', '.tbz2', '.tb2',
-                             '.tar.xz', '.txz')):
+        elif any(file_path.endswith(ext) for ext in TAR_FILE_EXTENSIONS):
             return TarExtractor(file_path)
         else:
             raise IOError('File is not a supported archive file: {!r}'.

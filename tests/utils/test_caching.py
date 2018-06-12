@@ -1,4 +1,3 @@
-import io
 import mimetypes
 import os
 import shutil
@@ -9,14 +8,16 @@ from threading import Thread
 
 import six
 import pytest
-from mock import Mock
+from mock import Mock, mock
 
 from tfsnippet.utils import *
 
 if six.PY2:
     from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+    from io import BytesIO as LogIO
 else:
     from http.server import HTTPServer, BaseHTTPRequestHandler
+    from io import StringIO as LogIO
 
 
 def get_asset_path(name):
@@ -108,12 +109,23 @@ def assets_server():
     port = get_free_port()
     server = HTTPServer(('127.0.0.1', port), AssetsHTTPRequestHandler)
     server.counter = [0]
-    background_thread = Thread(target=server.serve_forever, daemon=True)
+    background_thread = Thread(target=server.serve_forever)
+    background_thread.daemon = True
     background_thread.start()
     try:
         yield server, 'http://127.0.0.1:{}/'.format(port)
     finally:
         server.server_close()
+
+
+# patch the extractor for tests
+class PatchedExtractor(Extractor):
+    call_count = 0
+
+    @staticmethod
+    def open(file_path):
+        PatchedExtractor.call_count += 1
+        return Extractor.open(file_path)
 
 
 class CacheRootSettingsTestCase(unittest.TestCase):
@@ -198,71 +210,68 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertFalse(os.path.isfile(path))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
 
+    @mock.patch('tfsnippet.utils.caching.Extractor', PatchedExtractor)
     def test_extract_file(self):
         with TemporaryDirectory() as tmpdir:
             cache_dir = CacheDir('sub-dir', cache_root=tmpdir)
-            old_open = Extractor.open
-            Extractor.open = Mock(wraps=old_open)
-            try:
-                self.assertEquals(0, Extractor.open.call_count)
+            # old_open = Extractor.open
+            # Extractor.open = Mock(wraps=old_open)
+            self.assertEquals(0, PatchedExtractor.call_count)
 
-                # no cache
-                log_file = io.StringIO()
-                path = cache_dir.extract_file(get_asset_path('payload.tar.gz'),
-                                              progress_file=log_file)
-                self.assertEquals(1, Extractor.open.call_count)
-                self.assertEquals(
-                    os.path.join(cache_dir.path, 'payload'), path)
-                self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
-                self.assertFalse(os.path.isdir(path + '._extracting_'))
-                self.assertEquals(
-                    'Extracting {} ... done\n'.format(
-                        get_asset_path('payload.tar.gz')),
-                    log_file.getvalue()
-                )
+            # no cache
+            log_file = LogIO()
+            path = cache_dir.extract_file(get_asset_path('payload.tar.gz'),
+                                          progress_file=log_file)
+            self.assertEquals(1, PatchedExtractor.call_count)
+            self.assertEquals(
+                os.path.join(cache_dir.path, 'payload'), path)
+            self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
+            self.assertFalse(os.path.isdir(path + '._extracting_'))
+            self.assertEquals(
+                'Extracting {} ... done\n'.format(
+                    get_asset_path('payload.tar.gz')),
+                log_file.getvalue()
+            )
 
-                # having cache
-                log_file = io.StringIO()
-                path = cache_dir.extract_file(get_asset_path('payload.tgz'),
-                                              progress_file=log_file)
-                self.assertEquals(1, Extractor.open.call_count)
-                self.assertEquals(
-                    os.path.join(cache_dir.path, 'payload'), path)
-                self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
-                self.assertFalse(os.path.isdir(path + '._extracting_'))
-                self.assertEquals('', log_file.getvalue())
+            # having cache
+            log_file = LogIO()
+            path = cache_dir.extract_file(get_asset_path('payload.tgz'),
+                                          progress_file=log_file)
+            self.assertEquals(1, PatchedExtractor.call_count)
+            self.assertEquals(
+                os.path.join(cache_dir.path, 'payload'), path)
+            self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
+            self.assertFalse(os.path.isdir(path + '._extracting_'))
+            self.assertEquals('', log_file.getvalue())
 
-                # no cache, because of extract_dir mismatch
-                log_file = io.StringIO()
-                path = cache_dir.extract_file(get_asset_path('payload.tar.bz2'),
-                                              extract_dir='sub-dir/payload2',
-                                              show_progress=False,
-                                              progress_file=log_file)
-                self.assertEquals(2, Extractor.open.call_count)
-                self.assertEquals(
-                    os.path.join(cache_dir.path, 'sub-dir/payload2'), path)
-                self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
-                self.assertFalse(os.path.isdir(path + '._extracting_'))
-                self.assertEquals('', log_file.getvalue())
+            # no cache, because of extract_dir mismatch
+            log_file = LogIO()
+            path = cache_dir.extract_file(get_asset_path('payload.tar.bz2'),
+                                          extract_dir='sub-dir/payload2',
+                                          show_progress=False,
+                                          progress_file=log_file)
+            self.assertEquals(2, PatchedExtractor.call_count)
+            self.assertEquals(
+                os.path.join(cache_dir.path, 'sub-dir/payload2'), path)
+            self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
+            self.assertFalse(os.path.isdir(path + '._extracting_'))
+            self.assertEquals('', log_file.getvalue())
 
-                # test extracting error
-                err_archive = os.path.join(cache_dir.path, 'invalid.txt')
-                with open(err_archive, 'wb') as f:
-                    f.write(b'not a valid archive')
-                log_file = io.StringIO()
-                with pytest.raises(Exception):
-                    _ = cache_dir.extract_file(
-                        err_archive, progress_file=log_file)
-                path = os.path.join(cache_dir.path, 'invalid')
-                self.assertFalse(os.path.isdir(path))
-                self.assertFalse(os.path.isdir(path + '._extracting_'))
-                self.assertEquals(
-                    'Extracting {} ... error\n'.format(err_archive),
-                    log_file.getvalue()
-                )
-
-            finally:
-                Extractor.open = old_open
+            # test extracting error
+            err_archive = os.path.join(cache_dir.path, 'invalid.txt')
+            with open(err_archive, 'wb') as f:
+                f.write(b'not a valid archive')
+            log_file = LogIO()
+            with pytest.raises(Exception):
+                _ = cache_dir.extract_file(
+                    err_archive, progress_file=log_file)
+            path = os.path.join(cache_dir.path, 'invalid')
+            self.assertFalse(os.path.isdir(path))
+            self.assertFalse(os.path.isdir(path + '._extracting_'))
+            self.assertEquals(
+                'Extracting {} ... error\n'.format(err_archive),
+                log_file.getvalue()
+            )
 
     def test_download_and_extract_and_purge_all(self):
         with TemporaryDirectory() as tmpdir:
