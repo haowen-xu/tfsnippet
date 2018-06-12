@@ -5,6 +5,7 @@ import imageio
 import numpy as np
 import pytest
 import tensorflow as tf
+from tensorflow import keras as K
 
 from tfsnippet.applications import InceptionV3
 from tfsnippet.nn import softmax, npyops
@@ -14,6 +15,7 @@ class InceptionV3TestCase(tf.test.TestCase):
 
     def test_predict(self):
         model = InceptionV3()
+        model._initialize_model()  # ensure "cropped_panda.jpg" be downloaded
         cache_dir = model._cache_dir
 
         # read the image data
@@ -42,6 +44,11 @@ class InceptionV3TestCase(tf.test.TestCase):
              'melanoleuca', 'kit fox, Vulpes macrotis', ''],
             model.get_labels([169, 1, -1])
         )
+
+        # inception score
+        (_, _), (test_x, test_y) = K.datasets.cifar10.load_data()
+        score = model.inception_score(test_x[:10])
+        np.testing.assert_allclose(3.6584005, score, rtol=1e-2)
 
         # test errors
         with pytest.raises(TypeError, match='images` must be a list of bytes, '

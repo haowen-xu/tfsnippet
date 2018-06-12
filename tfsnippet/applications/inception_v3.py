@@ -5,6 +5,7 @@ import re
 import six
 import tensorflow as tf
 
+from tfsnippet.nn import inception_score, npyops
 from tfsnippet.utils import CacheDir, get_default_session_or_error
 
 __all__ = ['InceptionV3']
@@ -215,3 +216,21 @@ class InceptionV3(object):
         self._initialize_model()
         with self._graph.as_default(), self._sess.as_default():
             return self._run(images, self._logits_output)
+
+    def inception_score(self, images):
+        """
+        Compute the Inception score ("Improved techniques for training gans",
+        Salimans, T. et al. 2016.) for specified images, using InceptionV3.
+
+        Args:
+            images (list[bytes] or np.ndarray): List of JPEG image data
+                (each image as bytes), or numpy array of shape ``(?, ?, ?, 3)``,
+                the pixels of images.  Note the pixels should be 256-colors.
+
+        Returns:
+            float: The Inception score for `images`.
+        """
+        self._initialize_model()
+        with self._graph.as_default(), self._sess.as_default():
+            logits = self._run(images, self._logits_output)
+            return inception_score(npyops, logits=logits)

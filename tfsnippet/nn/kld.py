@@ -1,4 +1,4 @@
-from .softmax import log_softmax
+from .softmax import log_softmax, softmax
 
 __all__ = ['softmax_logits_kld', 'softmax_probs_kld']
 
@@ -29,8 +29,10 @@ def softmax_logits_kld(ops, p_logits, q_logits, keepdims=False):
     with ops.name_scope('softmax_logits_kld', values=[p_logits, q_logits]):
         log_p = log_softmax(ops, p_logits)
         log_q = log_softmax(ops, q_logits)
-        return ops.reduce_sum(ops.exp(log_p) * (log_p - log_q), axis=-1,
-                              keepdims=keepdims)
+        p = softmax(ops, p_logits)
+        # TODO: can we reduce time consumption by ``np.exp(log_p)``?
+        # p = ops.exp(log_p)
+        return ops.reduce_sum(p * (log_p - log_q), axis=-1, keepdims=keepdims)
 
 
 def softmax_probs_kld(ops, p_probs, q_probs, keepdims=False, clip_eps=1e-7):
