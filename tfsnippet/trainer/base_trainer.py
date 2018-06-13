@@ -4,7 +4,6 @@ from tfsnippet.utils import (ensure_variables_initialized,
                              DocInherit)
 
 from .dynamic_values import AnnealingDynamicValue
-from .feed_dict import resolve_feed_dict
 from .hooks import HookPriority, HookList
 from .validator import Validator
 
@@ -24,28 +23,18 @@ class BaseTrainer(object):
     responsibility to derive his training operation from a certain TensorFlow
     optimizer, and pass it to a proper trainer.
 
-    You may see an example of usage in :class:`~tfsnippet.trainer.LossTrainer`.
+    See Also:
+        tfsnippet.trainer.LossTrainer
     """
 
-    def __init__(self, loop, inputs, data_flow, feed_dict=None):
+    def __init__(self, loop):
         """
-        Construct a new :class:`BaseTrainer`.
+        Initialize the internal states of :class:`BaseTrainer`.
 
         Args:
             loop (TrainLoop): The training loop object.
-            inputs (list[tf.Tensor]): The input placeholders.
-                The number of tensors, and the order of tensors, should
-                both match the arrays of each mini-batch data, provided
-                by `data_flow`.
-            data_flow (DataFlow): The training data flow.
-            feed_dict (dict[tf.Tensor, any]): The fixed feed dict for
-                training.  It will be merged with `inputs` and the
-                argument of ``run(feed_dict)``. (default :obj:`None`)
         """
         self._loop = loop
-        self._inputs = list(inputs or ())
-        self._data_flow = data_flow
-        self._feed_dict = dict(feed_dict or ())
 
         self._before_epochs = HookList()
         self._after_epochs = HookList()
@@ -68,44 +57,8 @@ class BaseTrainer(object):
         """
         return self._loop
 
-    @property
-    def inputs(self):
-        """
-        Get the input placeholders.
-
-        Returns:
-            list[tf.Tensor]: The input placeholders.
-        """
-        return self._inputs
-
-    @property
-    def data_flow(self):
-        """
-        Get the training data flow.
-
-        Returns:
-            DataFlow: The training data flow.
-        """
-        return self._data_flow
-
-    @property
-    def feed_dict(self):
-        """
-        Get the fixed feed dict.
-
-        Returns:
-            dict[tf.Tensor, any]: The fixed feed dict.
-        """
-        return self._feed_dict
-
-    def run(self, feed_dict=None):
-        """
-        Run training.
-
-        Args:
-            feed_dict (dict[tf.Tensor, any]): The extra feed dict to be
-                merged with the already configured dict.  (default :obj:`None`)
-        """
+    def run(self):
+        """Run training loop."""
         if self._is_fitting:
             raise RuntimeError('`run()` is not re-entrant.')
         self._is_fitting = True
@@ -118,27 +71,18 @@ class BaseTrainer(object):
             # initialize internal status
             for hook_list in self.hook_lists:
                 hook_list.reset()
-            merged_feed_dict = {}
 
             for epoch in self.loop.iter_epochs():
                 # run before epoch hook
                 self.before_epochs.call_hooks()
 
                 # run steps of this epoch
-                for step, batch_data in self.loop.iter_steps(self.data_flow):
+                for payload in self._iter_steps():
                     # run before step hook
                     self.before_steps.call_hooks()
 
-                    # prepare for the feed dict of this step
-                    merged_feed_dict.clear()
-                    merged_feed_dict.update(self.feed_dict)
-                    if feed_dict is not None:
-                        merged_feed_dict.update(feed_dict)
-                    for ph, val in zip(self.inputs, batch_data):
-                        merged_feed_dict[ph] = val
-
                     # run the step
-                    self._fit_step(session, resolve_feed_dict(merged_feed_dict))
+                    self._run_step(session, payload)
 
                     # run after step hook
                     self.after_steps.call_hooks()
@@ -148,7 +92,30 @@ class BaseTrainer(object):
         finally:
             self._is_fitting = False
 
-    def _fit_step(self, session, feed_dict):
+    def _iter_steps(self):
+        """
+        Subclasses should override this to iterate through steps.
+
+        A common implementation of :meth:`_iter_steps()` might be::
+
+            def _iter_steps(self):
+                return self.loop.iter_steps(training_data)
+
+        Yields:
+            int or (int, tuple[np.ndarray]): The step counter, or the step
+                counter as well as the step training data.  Will be directly
+                given to :meth:`_fit_step` as the `payload` argument.
+        """
+        raise NotImplementedError()
+
+    def _run_step(self, session, payload):
+        """
+        Subclasses should override this to run a training step.
+
+        Args:
+            session: The TensorFlow session.
+            payload: The step payload generated by :meth:`_iter_steps`.
+        """
         raise NotImplementedError()
 
     @property

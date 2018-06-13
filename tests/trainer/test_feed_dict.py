@@ -1,5 +1,7 @@
 import unittest
 
+import six
+
 from tfsnippet.trainer import *
 
 
@@ -27,6 +29,21 @@ class ResolveFeedDictTestCase(unittest.TestCase):
         }
         self.assertIs(d, resolve_feed_dict(d, inplace=True))
         self.assertDictEqual({'a': 12, 'b': 34, 'c': 56, 'd': 78}, d)
+
+
+class MergeFeedDictTestCase(unittest.TestCase):
+
+    def test_merge(self):
+        self.assertDictEqual(
+            {'a': 10, 'b': 200, 'c': 300, 'd': 4},
+            merge_feed_dict(
+                None,
+                {'a': 1, 'b': 2, 'c': 3, 'd': 4},
+                iter([('a', 10), ('b', 20), ('c', 30)]),
+                None,
+                six.iteritems({'b': 200, 'c': 300})
+            )
+        )
 
 
 if __name__ == '__main__':
