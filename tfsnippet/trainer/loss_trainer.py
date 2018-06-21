@@ -1,4 +1,5 @@
 from .base_trainer import BaseTrainer
+from .feed_dict import resolve_feed_dict, merge_feed_dict
 
 __all__ = ['LossTrainer']
 
@@ -80,13 +81,45 @@ class LossTrainer(BaseTrainer):
                 argument of ``run(feed_dict)``. (default :obj:`None`)
             metric_name (str): The metric name for collecting training loss.
         """
-        super(LossTrainer, self).__init__(
-            loop=loop, inputs=inputs, data_flow=data_flow, feed_dict=feed_dict)
+        super(LossTrainer, self).__init__(loop=loop)
 
         # memorize the variables
+        self._inputs = list(inputs or ())
+        self._data_flow = data_flow
+        self._feed_dict = dict(feed_dict or ())
         self._loss = loss
         self._train_op = train_op
         self._metric_name = metric_name
+
+    @property
+    def inputs(self):
+        """
+        Get the input placeholders.
+
+        Returns:
+            list[tf.Tensor]: The input placeholders.
+        """
+        return self._inputs
+
+    @property
+    def data_flow(self):
+        """
+        Get the training data flow.
+
+        Returns:
+            DataFlow: The training data flow.
+        """
+        return self._data_flow
+
+    @property
+    def feed_dict(self):
+        """
+        Get the fixed feed dict.
+
+        Returns:
+            dict[tf.Tensor, any]: The fixed feed dict.
+        """
+        return self._feed_dict
 
     @property
     def loss(self):
@@ -103,6 +136,19 @@ class LossTrainer(BaseTrainer):
         """Get the metric name for collecting training loss."""
         return self._metric_name
 
-    def _fit_step(self, session, feed_dict):
+    def _iter_steps(self):
+        return self.loop.iter_steps(self.data_flow)
+
+    def _run_step(self, session, payload):
+        # prepare for the feed dict of this step
+        step, batch_data = payload
+        feed_dict = resolve_feed_dict(
+            merge_feed_dict(
+                self.feed_dict,
+                zip(self.inputs, batch_data)
+            )
+        )
+
+        # run the training operation
         _, loss = session.run([self._train_op, self.loss], feed_dict=feed_dict)
         self.loop.collect_metrics({self._metric_name: loss})

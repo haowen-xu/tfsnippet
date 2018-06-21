@@ -1,8 +1,10 @@
 -r requirements.txt
 
 coverage >= 4.3.4
+imageio >= 2.3.0
 mock >= 2.0.0
 pytest >= 3.0
+rarfile >= 3.0
 sphinx >= 1.6.3
 
 # !!! DO NOT INCLUDE TENSORFLOW IN THIS FILE !!!

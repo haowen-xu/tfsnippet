@@ -1,8 +1,9 @@
+import os
 import unittest
 
-from tfsnippet.utils import (humanize_duration, camel_to_underscore,
-                             cached_property, clear_cached_property,
-                             NOT_SET)
+from mock import Mock
+
+from tfsnippet.utils import *
 
 
 class HumanizeDurationTestCase(unittest.TestCase):
@@ -132,3 +133,39 @@ class CachedPropertyTestCase(unittest.TestCase):
         self.assertFalse(hasattr(o, '_cached_value'))
         self.assertEqual(o.cached_value, 456)
         self.assertEqual(o._cached_value, 456)
+
+
+class MaybeCloseTestCase(unittest.TestCase):
+
+    def test_maybe_close(self):
+        # test having `close()`
+        f = Mock(close=Mock(return_value=None))
+        with maybe_close(f):
+            self.assertFalse(f.close.called)
+        self.assertTrue(f.close.called)
+
+        # test having not `close()`
+        with maybe_close(1):
+            pass
+
+
+class IterFilesTestCase(unittest.TestCase):
+
+    def test_iter_files(self):
+        names = ['a/1.txt', 'a/2.txt', 'a/b/1.txt', 'a/b/2.txt',
+                 'b/1.txt', 'b/2.txt', 'c.txt']
+
+        with TemporaryDirectory() as tempdir:
+            for name in names:
+                f_path = os.path.join(tempdir, name)
+                f_dir = os.path.split(f_path)[0]
+                makedirs(f_dir, exist_ok=True)
+                with open(f_path, 'wb') as f:
+                    f.write(b'')
+
+            self.assertListEqual(names, sorted(iter_files(tempdir)))
+            self.assertListEqual(names, sorted(iter_files(tempdir + '/a/../')))
+
+
+if __name__ == '__main__':
+    unittest.main()

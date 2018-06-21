@@ -15,13 +15,8 @@ class BaseTrainerTestCase(tf.test.TestCase):
 
     def test_props(self):
         loop = Mock(valid_metric_name='valid_loss')
-        df = Mock()
-
-        t = BaseTrainer(loop, [12, 34], df, feed_dict={'a': 56})
+        t = BaseTrainer(loop)
         self.assertIs(loop, t.loop)
-        self.assertEquals([12, 34], t.inputs)
-        self.assertIs(df, t.data_flow)
-        self.assertEquals({'a': 56}, t.feed_dict)
         self.assertEquals(
             (t.before_epochs, t.before_steps, t.after_steps, t.after_epochs),
             t.hook_lists
@@ -41,7 +36,7 @@ class BaseTrainerTestCase(tf.test.TestCase):
         anneal2 = AnnealingDynamicValue(2., .5)
 
         # test add
-        t = BaseTrainer(loop, [12, 34], df)
+        t = BaseTrainer(loop)
         t.log_after_epochs(3)
         t.log_after_steps(4)
         t.validate_after_steps(
@@ -86,11 +81,8 @@ class BaseTrainerTestCase(tf.test.TestCase):
         self.assertEquals('HookList()', repr(t.after_epochs))
 
     def test_run(self):
-        with tf.Session().as_default() as session:
+        with self.test_session() as session:
             df = DataFlow.arrays([np.arange(6, dtype=np.float32)], batch_size=4)
-            ph = tf.placeholder(tf.float32, shape=[None])
-            ph2 = tf.placeholder(tf.float32, shape=[])
-            ph3 = tf.placeholder(tf.float32, shape=[])
 
             def log_message(m):
                 logged_messages.append(m)
@@ -98,8 +90,9 @@ class BaseTrainerTestCase(tf.test.TestCase):
 
             # test default loss weight and merged feed dict
             with TrainLoop([], max_epoch=2) as loop:
-                t = BaseTrainer(loop, [ph], df, feed_dict={ph2: 34})
-                t._fit_step = Mock(return_value=None)
+                t = BaseTrainer(loop)
+                t._run_step = Mock(return_value=None)
+                t._iter_steps = Mock(wraps=lambda: loop.iter_steps(df))
                 t.before_epochs.add_hook(
                     functools.partial(log_message, 'before_epoch'))
                 t.before_steps.add_hook(
@@ -109,17 +102,18 @@ class BaseTrainerTestCase(tf.test.TestCase):
                 t.after_epochs.add_hook(
                     functools.partial(log_message, 'after_epoch'))
 
-                t.run({ph3: 56})
-                self.assertEquals(4, len(t._fit_step.call_args_list))
-                for i, call_args in enumerate(t._fit_step.call_args_list[:-2]):
-                    call_session, call_feed_dict = call_args[0]
+                t.run()
+                self.assertEquals(4, len(t._run_step.call_args_list))
+                for i, call_args in enumerate(t._run_step.call_args_list[:-2]):
+                    call_session, call_payload = call_args[0]
                     self.assertIs(session, call_session)
+                    self.assertEquals(i + 1, call_payload[0])
+                    self.assertIsInstance(call_payload[1], tuple)
+                    self.assertEquals(1, len(call_payload[1]))
                     np.testing.assert_equal(
                         np.arange(6, dtype=np.float32)[i * 4: (i + 1) * 4],
-                        call_feed_dict[ph]
+                        call_payload[1][0]
                     )
-                    self.assertEquals(34, call_feed_dict[ph2])
-                    self.assertEquals(56, call_feed_dict[ph3])
 
                 self.assertEquals(
                     ['before_epoch', 'before_step', 'after_step',
@@ -127,21 +121,11 @@ class BaseTrainerTestCase(tf.test.TestCase):
                     logged_messages
                 )
 
-            # test override feed dict
-            with TrainLoop([], max_epoch=1) as loop:
-                t = BaseTrainer(loop, [ph], df, feed_dict={ph2: 34})
-                t._fit_step = Mock(return_value=None)
-                t.run(feed_dict={ph2: 56})
-
-                for i, call_args in enumerate(t._fit_step.call_args_list):
-                    call_session, call_feed_dict = call_args[0]
-                    self.assertEquals(56, call_feed_dict[ph2])
-                    self.assertNotIn(ph3, call_feed_dict)
-
             # test re-entrant error
             with TrainLoop([], max_epoch=1) as loop:
-                t = BaseTrainer(loop, [ph], df)
-                t._fit_step = Mock(return_value=None)
+                t = BaseTrainer(loop)
+                t._run_step = Mock(return_value=None)
+                t._iter_steps = Mock(wraps=lambda: loop.iter_steps(df))
 
                 def reentrant_error():
                     with pytest.raises(

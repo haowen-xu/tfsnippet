@@ -1,6 +1,6 @@
 from .dynamic_values import DynamicValue
 
-__all__ = ['resolve_feed_dict']
+__all__ = ['resolve_feed_dict', 'merge_feed_dict']
 
 
 def resolve_feed_dict(feed_dict, inplace=False):
@@ -31,3 +31,22 @@ def resolve_feed_dict(feed_dict, inplace=False):
         elif callable(v):
             feed_dict[k] = v()
     return feed_dict
+
+
+def merge_feed_dict(*feed_dicts):
+    """
+    Merge all feed dicts into one.
+
+    Args:
+        \**feed_dicts: List of feed dicts.  The later ones will override
+            values specified in the previous ones.  If a :obj:`None` is
+            specified, it will be simply ignored.
+
+    Returns:
+        The merged feed dict.
+    """
+    ret = {}
+    for feed_dict in feed_dicts:
+        if feed_dict is not None:
+            ret.update(feed_dict)
+    return ret

@@ -159,3 +159,39 @@ and ``tfsnippet.trainer``.
         trainer.log_after_epochs(freq=1)
         # Run all the training epochs and steps.
         trainer.run(feed_dict={learning_rate: learning_rate_var})
+
+
+Pre-trained Models
+~~~~~~~~~~~~~~~~~~
+
+The ``tfsnippet.applications`` package provides useful utilities to load
+and use pre-trained models (among which most are third-party models).
+
+.. code-block:: python
+
+    from tfsnippet.applications import InceptionV3
+
+    # Model from https://www.tensorflow.org/tutorials/image_recognition
+    inception_v3 = InceptionV3()
+    image_data = imageio.imread('path-to-image.jpg')
+    class_proba = inception_v3.predict_proba([image_data])[0]
+
+
+Math Operations
+~~~~~~~~~~~~~~~
+
+The ``tfsnippet.nn`` package provides numerical stable implementations for
+lots of advanced neural network math operations.  Also, it supports both
+NumPy and TensorFlow.  You may obtain the math operation for a particular
+backend by passing ``tfsnippet.nn.npyos`` (for NumPy) or ``tfsnippet.nn.tfops``
+(for TensorFlow) as the first argument ``ops`` of every math operation function.
+
+.. code-block:: python
+
+    from tfsnippet.nn import npyops, tfops
+    from tfsnippet.nn import log_sum_exp, log_softmax
+
+    # Compute :math:`\log \sum_{k=1}^K \exp(x_k)` by TensorFlow
+    log_sum_exp(tfops, x, axis=-1)
+    # Compute :math:`\log \frac{\exp(x_k)}{\sum_i \exp(x_i)}` by NumPy
+    log_softmax(npyops, logits)

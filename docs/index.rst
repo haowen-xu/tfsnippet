@@ -27,10 +27,13 @@ API Docs
 .. toctree::
    :maxdepth: 1
 
+   api/tfsnippet.applications
    api/tfsnippet.bayes
    api/tfsnippet.dataflow
    api/tfsnippet.distributions
+   api/tfsnippet.evaluation
    api/tfsnippet.modules
+   api/tfsnippet.nn
    api/tfsnippet.scaffold
    api/tfsnippet.stochastic
    api/tfsnippet.trainer
