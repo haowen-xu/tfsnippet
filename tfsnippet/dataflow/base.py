@@ -113,6 +113,26 @@ class DataFlow(object):
 
     # -------- here starts the factory methods for data flows --------
     @staticmethod
+    def gather(flows):
+        """
+        Gather multiple data flows into a single flow.
+
+        Args:
+            flows(Iterable[DataFlow]): The data flows to gather.
+                At least one data flow should be specified, otherwise a
+                :class:`ValueError` will be raised.
+
+        Returns:
+            tfsnippet.dataflow.GatherFlow: The gathered data flow.
+
+        Raises:
+            ValueError: If not even one data flow is specified.
+            TypeError: If a specified flow is not a :class:`DataFlow`.
+        """
+        from .gather_flow import GatherFlow
+        return GatherFlow(tuple(flows))
+
+    @staticmethod
     def seq(start, stop, step=1, batch_size=None, shuffle=False,
             skip_incomplete=False, dtype=np.int32):
         """
