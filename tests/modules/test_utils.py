@@ -1,9 +1,12 @@
+import unittest
+
 import pytest
 import six
 import tensorflow as tf
+from zhusuan import distributions as zd
 
 from tfsnippet.distributions import Normal, DistributionFactory
-from tfsnippet.modules.bayes.utils import validate_distribution_factory
+from tfsnippet.modules.utils import validate_distribution_factory
 
 if six.PY2:
     LONG_MAX = long(1) << 63 - long(1)
@@ -20,6 +23,12 @@ class ValidateDistributionFactoryTestCase(tf.test.TestCase):
         self.assertIs(factory.distribution_class, Normal)
         self.assertEqual(factory.default_args, {})
 
+        # test zhusuan distribution class
+        factory = validate_distribution_factory(zd.Normal, 'xyz')
+        self.assertIsInstance(factory, DistributionFactory)
+        self.assertIs(factory.distribution_class, zd.Normal)
+        self.assertEqual(factory.default_args, {})
+
         # test distribution factory
         factory_0 = Normal.factory(mean=0.)
         factory = validate_distribution_factory(factory_0, 'xyz')
@@ -27,10 +36,16 @@ class ValidateDistributionFactoryTestCase(tf.test.TestCase):
 
         # test error
         with pytest.raises(
-                TypeError, match='xyz must be a subclass of `Distribution`, or '
+                TypeError, match='xyz must be a subclass of `Distribution` or '
+                                 '`zhusuan.distributions.Distribution`, or '
                                  'an instance of `DistributionFactory`'):
             _ = validate_distribution_factory(object, 'xyz')
         with pytest.raises(
-                TypeError, match='xyz must be a subclass of `Distribution`, or '
+                TypeError, match='xyz must be a subclass of `Distribution` or '
+                                 '`zhusuan.distributions.Distribution`, or '
                                  'an instance of `DistributionFactory`'):
             _ = validate_distribution_factory(object(), 'xyz')
+
+
+if __name__ == '__main__':
+    unittest.main()

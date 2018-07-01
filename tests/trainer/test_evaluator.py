@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pytest
 import tensorflow as tf
 from mock import Mock
 
@@ -9,39 +10,43 @@ from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import *
 
 
-class AutoLossWeightTestCase(unittest.TestCase):
+class AutoBatchWeightTestCase(unittest.TestCase):
 
     def test_auto_loss_weight(self):
-        self.assertEquals(5., auto_loss_weight(np.arange(5)))
-        self.assertEquals(7., auto_loss_weight(np.arange(7), np.arange(5)))
-        self.assertEquals(1., auto_loss_weight(None))
+        self.assertEquals(5., auto_batch_weight(np.arange(5)))
+        self.assertEquals(7., auto_batch_weight(np.arange(7), np.arange(5)))
+        self.assertEquals(1., auto_batch_weight(None))
 
 
-class ValidatorTestCase(tf.test.TestCase):
+class EvaluatorTestCase(tf.test.TestCase):
 
     def test_props(self):
         loop = Mock(valid_metric_name='valid_loss')
         df = Mock()
 
-        v = Validator(loop, 12, [34, 56], df)
+        v = Evaluator(loop, 12, [34, 56], df)
         self.assertIs(loop, v.loop)
-        self.assertEquals(12, v.loss)
+        with self.test_session():
+            self.assertEquals(12, v.metrics['valid_loss'].eval())
         self.assertEquals([34, 56], v.inputs)
         self.assertIs(v.data_flow, df)
         self.assertEquals({}, v.feed_dict)
-        self.assertEquals('valid_time', v.time_metric_name)
-        self.assertEquals('valid_loss', v.loss_metric_name)
-        self.assertIs(auto_loss_weight, v.loss_weight_func)
+        self.assertEquals('eval_time', v.time_metric_name)
+        self.assertIs(auto_batch_weight, v.batch_weight_func)
 
-        loss_weight_func = Mock(return_value=123.)
-        v = Validator(loop, 12, [34, 56], df,
+        batch_weight_func = Mock(return_value=123.)
+        v = Evaluator(loop, {'valid_loss_x': 12}, [34, 56], df,
                       feed_dict={'a': 1},
                       time_metric_name='valid_time_x',
-                      loss_metric_name='valid_loss_x',
-                      loss_weight_func=loss_weight_func)
+                      batch_weight_func=batch_weight_func)
+        with self.test_session():
+            self.assertEquals(12, v.metrics['valid_loss_x'].eval())
         self.assertEquals('valid_time_x', v.time_metric_name)
-        self.assertEquals('valid_loss_x', v.loss_metric_name)
-        self.assertIs(loss_weight_func, v.loss_weight_func)
+        self.assertIs(batch_weight_func, v.batch_weight_func)
+
+    def test_error(self):
+        with pytest.raises(ValueError, match='Metric is not a scalar tensor'):
+            _ = Evaluator(Mock(), {'x': tf.constant([1, 2])}, [], Mock())
 
     def test_run(self):
         with self.test_session() as session:
@@ -52,7 +57,7 @@ class ValidatorTestCase(tf.test.TestCase):
 
             # test default loss weight and merged feed dict
             with TrainLoop([], max_epoch=1) as loop:
-                v = Validator(loop, tf.reduce_mean(ph), [ph], df,
+                v = Evaluator(loop, tf.reduce_mean(ph), [ph], df,
                               feed_dict={ph2: 34})
                 v._run_batch = Mock(wraps=v._run_batch)
 
@@ -60,6 +65,7 @@ class ValidatorTestCase(tf.test.TestCase):
                     v.run({ph3: 56})
                     np.testing.assert_almost_equal(
                         2.5, loop._epoch_metrics._metrics['valid_loss'].mean)
+                    self.assertIn('eval_time', loop._epoch_metrics._metrics)
 
                 self.assertEquals(2, len(v._run_batch.call_args_list))
                 for i, call_args in enumerate(v._run_batch.call_args_list):
@@ -72,18 +78,20 @@ class ValidatorTestCase(tf.test.TestCase):
                     self.assertEquals(34, call_feed_dict[ph2])
                     self.assertEquals(56, call_feed_dict[ph3])
 
-            # test None loss weight and override feed dict
+            # test None loss weight and None time metric and override feed dict
             with TrainLoop([], max_epoch=1) as loop:
-                v = Validator(loop, tf.reduce_mean(ph), [ph], df,
+                v = Evaluator(loop, {'valid_loss_x': tf.reduce_mean(ph)},
+                              [ph], df,
                               feed_dict={ph2: 34},
-                              loss_weight_func=None,
-                              loss_metric_name='valid_loss_x')
+                              batch_weight_func=None,
+                              time_metric_name=None)
                 v._run_batch = Mock(wraps=v._run_batch)
 
                 for epoch in loop.iter_epochs():
                     v.run({ph2: 56})
                     np.testing.assert_almost_equal(
                         3.0, loop._epoch_metrics._metrics['valid_loss_x'].mean)
+                    self.assertNotIn('eval_time', loop._epoch_metrics._metrics)
 
                 for i, call_args in enumerate(v._run_batch.call_args_list):
                     call_session, call_feed_dict = call_args[0]

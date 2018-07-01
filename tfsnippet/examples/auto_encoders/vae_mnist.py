@@ -10,7 +10,6 @@ from tfsnippet.modules import Sequential, DictMapper, VAE
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import LossTrainer, Validator, AnnealingDynamicValue
 from tfsnippet.utils import split_numpy_array
-from tfsnippet.examples import datasets
 
 
 def sample_input_x(input_x, dtype=tf.int32):
@@ -49,7 +48,7 @@ def train(loss, input_x, x_data, max_epoch, batch_size, valid_portion):
 
 def main():
     # load mnist data
-    (train_x, train_y), (test_x, test_y) = datasets.load_mnist()
+    (train_x, train_y), (test_x, test_y) = K.datasets.mnist.load_data()
 
     # the parameters of this experiment
     x_dim = train_x.shape[1]

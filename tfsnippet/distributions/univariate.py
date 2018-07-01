@@ -11,7 +11,7 @@ class Normal(ZhuSuanDistribution):
     Univariate Normal distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Normal`
     """
@@ -55,7 +55,7 @@ class Bernoulli(ZhuSuanDistribution):
     Univariate Bernoulli distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Bernoulli`
     """
@@ -87,7 +87,7 @@ class Categorical(ZhuSuanDistribution):
     ``[0, n_categories)``.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Categorical`
     """
@@ -128,7 +128,7 @@ class Uniform(ZhuSuanDistribution):
     Univariate Uniform distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Uniform`
     """

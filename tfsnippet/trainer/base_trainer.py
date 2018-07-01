@@ -5,7 +5,7 @@ from tfsnippet.utils import (ensure_variables_initialized,
 
 from .dynamic_values import AnnealingDynamicValue
 from .hooks import HookPriority, HookList
-from .validator import Validator
+from .evaluator import Evaluator
 
 __all__ = ['BaseTrainer']
 
@@ -24,7 +24,7 @@ class BaseTrainer(object):
     optimizer, and pass it to a proper trainer.
 
     See Also:
-        tfsnippet.trainer.LossTrainer
+        :class:`tfsnippet.trainer.LossTrainer`
     """
 
     def __init__(self, loop):
@@ -213,40 +213,45 @@ class BaseTrainer(object):
         """
         return self.remove_by_priority(HookPriority.LOGGING)
 
-    def validate_after_steps(self, validator, freq):
+    def evaluate_after_steps(self, evaluator, freq):
         """
-        Add a validation hook to run after every few steps.
+        Add a evaluation hook to run after every few steps.
 
         Args:
-            validator (Validator or () -> any): A validator object
+            evaluator (Evaluator or () -> any): A evaluator object
                 (which has ``.run()``), or any callable object.
-            freq (int): The frequency for this validation hook to run.
+            freq (int): The frequency for this evaluation hook to run.
         """
-        callback = validator if callable(validator) else validator.run
+        callback = evaluator if callable(evaluator) else evaluator.run
         self.after_steps.add_hook(
-            callback, freq=freq, priority=HookPriority.VALIDATION)
+            callback, freq=freq, priority=HookPriority.EVALUATION)
 
-    def validate_after_epochs(self, validator, freq):
+    def evaluate_after_epochs(self, evaluator, freq):
         """
-        Add a validation hook to run after every few epochs.
+        Add a evaluation hook to run after every few epochs.
 
         Args:
-            validator (Validator or () -> any): A validator object
+            evaluator (Evaluator or () -> any): A evaluator object
                 (which has ``.run()``), or any callable object.
-            freq (int): The frequency for this validation hook to run.
+            freq (int): The frequency for this evaluation hook to run.
         """
-        callback = validator if callable(validator) else validator.run
+        callback = evaluator if callable(evaluator) else evaluator.run
         self.after_epochs.add_hook(
-            callback, freq=freq, priority=HookPriority.VALIDATION)
+            callback, freq=freq, priority=HookPriority.EVALUATION)
 
-    def remove_validation_hooks(self):
+    def remove_evaluation_hooks(self):
         """
-        Remove validation hooks from all lists.
+        Remove evaluation hooks from all lists.
 
         Returns:
             int: The number of removed hooks.
         """
-        return self.remove_by_priority(HookPriority.VALIDATION)
+        return self.remove_by_priority(HookPriority.EVALUATION)
+
+    # legacy names for evaluation
+    validate_after_steps = evaluate_after_steps
+    validate_after_epochs = evaluate_after_epochs
+    remove_validation_hooks = remove_evaluation_hooks
 
     def anneal_after_steps(self, value, freq):
         """

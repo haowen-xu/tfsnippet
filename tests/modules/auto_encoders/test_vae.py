@@ -11,7 +11,7 @@ except ImportError:
 
 from tfsnippet.distributions import (Distribution, DistributionFactory, Normal,
                                      Bernoulli)
-from tfsnippet.modules import VAE, Module, Sequential, DictMapper
+from tfsnippet.modules import Module, Sequential, DictMapper, VAE
 from tfsnippet.utils import (VarScopeObject, instance_reuse,
                              ensure_variables_initialized)
 
@@ -157,13 +157,15 @@ class VAETestCase(tf.test.TestCase):
         # test type error for `p_x_given_z`
         with pytest.raises(
                 TypeError,
-                match='p_x_given_z must be a subclass of `Distribution`, or '
+                match='p_x_given_z must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=object, q_z_given_x=q_z_given_x,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
         with pytest.raises(
                 TypeError,
-                match='p_x_given_z must be a subclass of `Distribution`, or '
+                match='p_x_given_z must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=object(), q_z_given_x=q_z_given_x,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
@@ -171,13 +173,15 @@ class VAETestCase(tf.test.TestCase):
         # test type error for `q_z_given_x`
         with pytest.raises(
                 TypeError,
-                match='q_z_given_x must be a subclass of `Distribution`, or '
+                match='q_z_given_x must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=object,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
         with pytest.raises(
                 TypeError,
-                match='q_z_given_x must be a subclass of `Distribution`, or '
+                match='q_z_given_x must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=object(),
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)

@@ -8,7 +8,7 @@ from tfsnippet.stochastic import StochasticTensor, validate_n_samples
 from tfsnippet.utils import instance_reuse, is_tensor_object
 from tfsnippet.variational import VariationalChain
 from ..base import Module
-from .utils import validate_distribution_factory
+from ..utils import validate_distribution_factory
 
 __all__ = ['VAE']
 
@@ -123,10 +123,10 @@ class VAE(Module):
 
         Args:
             p_z (Distribution): :math:`p(z)`, the distribution instance.
-            p_x_given_z (Type[Distribution] or DistributionFactory):
-                :math:`p(x|h(z))`, the distribution class or factory.
-            q_z_given_x (Type[Distribution] or DistributionFactory):
-                :math:`q(z|h(x))`, the distribution class or factory.
+            p_x_given_z: :math:`p(x|h(z))`, a distribution class or
+                a :class:`DistributionFactory` object.
+            q_z_given_x: :math:`q(z|h(x))`, a distribution class or
+                a :class:`DistributionFactory` object.
             h_for_p_x (Module): :math:`h(z)`, the hidden network module for
                 :math:`p(x|h(z))`. The output of `h_for_p_x` must be a
                 ``dict[str, any]``, the parameters for `p_x_given_z`.
@@ -410,8 +410,8 @@ class VAE(Module):
                 by gradient descent.
 
         See Also:
-            :class:`~tfsnippet.variational.VariationalChain`,
-            :class:`~tfsnippet.variational.VariationalTrainingObjectives`
+            :class:`tfsnippet.variational.VariationalChain`,
+            :class:`tfsnippet.variational.VariationalTrainingObjectives`
         """
         with tf.name_scope('VAE.get_training_loss'):
             if n_z is not None:

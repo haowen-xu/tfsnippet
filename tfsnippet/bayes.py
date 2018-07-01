@@ -342,7 +342,7 @@ class BayesianNet(object):
                 objectives.
 
         See Also:
-            :class:`~tfsnippet.variational.VariationalChain`
+            :class:`tfsnippet.variational.VariationalChain`
         """
         from tfsnippet.variational.chain import VariationalChain
 

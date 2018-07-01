@@ -63,7 +63,7 @@ class DefaultMetricFormatter(MetricFormatter):
         of their names as follows:
 
         1.  names ending with "time" or "timer" should come first
-        2.  names ending with "loss" should come the second
+        2.  names ending with "loss" or "cost" should come the second
         3.  names ending with "acc" or "accuracy" should come the third
         4.  other names should all come afterwards
 
@@ -78,7 +78,7 @@ class DefaultMetricFormatter(MetricFormatter):
         def sort_key(name):
             if name.endswith('time') or name.endswith('timer'):
                 return -3, name
-            elif name.endswith('loss'):
+            elif name.endswith('loss') or name.endswith('cost'):
                 return -2, name
             elif name.endswith('acc') or name.endswith('accuracy'):
                 return -1, name
