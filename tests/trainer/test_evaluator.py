@@ -65,6 +65,8 @@ class EvaluatorTestCase(tf.test.TestCase):
                     v.run({ph3: 56})
                     np.testing.assert_almost_equal(
                         2.5, loop._epoch_metrics._metrics['valid_loss'].mean)
+                    np.testing.assert_almost_equal(
+                        2.5, v.last_metrics_dict['valid_loss'])
                     self.assertIn('eval_time', loop._epoch_metrics._metrics)
 
                 self.assertEquals(2, len(v._run_batch.call_args_list))
@@ -91,6 +93,8 @@ class EvaluatorTestCase(tf.test.TestCase):
                     v.run({ph2: 56})
                     np.testing.assert_almost_equal(
                         3.0, loop._epoch_metrics._metrics['valid_loss_x'].mean)
+                    np.testing.assert_almost_equal(
+                        3.0, v.last_metrics_dict['valid_loss_x'])
                     self.assertNotIn('eval_time', loop._epoch_metrics._metrics)
 
                 for i, call_args in enumerate(v._run_batch.call_args_list):

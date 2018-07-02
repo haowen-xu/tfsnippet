@@ -16,7 +16,9 @@ from tfsnippet.examples.nn import (resnet_block,
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
                                       Config,
-                                      anneal_after, save_images_collection)
+                                      anneal_after,
+                                      save_images_collection,
+                                      write_result)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error, makedirs
@@ -37,6 +39,7 @@ class ExpConfig(Config):
 
     # evaluation parameters
     test_n_z = 100
+    test_batch_size = 128
 
 
 config = ExpConfig()
@@ -167,13 +170,10 @@ def main():
 
     train_flow = DataFlow.arrays([x_train], config.batch_size, shuffle=True,
                                  skip_incomplete=True).map(input_sampler)
-    # eval_flow = DataFlow.arrays([x_train], config.batch_size).map(x_sampler)
-    test_flow = DataFlow.arrays([x_test], config.batch_size).map(input_sampler)
+    test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
+        map(input_sampler)
 
     with create_session().as_default():
-        # # fix the samples used by test_flow
-        # test_flow = test_flow.to_arrays_flow(config.batch_size)
-
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
@@ -187,21 +187,22 @@ def main():
                 trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            trainer.evaluate_after_epochs(
-                Evaluator(
-                    loop,
-                    metrics={'test_nll': test_nll, 'test_lb': lower_bound},
-                    inputs=[input_x],
-                    data_flow=test_flow,
-                    feed_dict={is_training: False},
-                    time_metric_name='test_time'
-                ),
-                freq=10
+            evaluator = Evaluator(
+                loop,
+                metrics={'test_nll': test_nll, 'test_lb': lower_bound},
+                inputs=[input_x],
+                data_flow=test_flow,
+                feed_dict={is_training: False},
+                time_metric_name='test_time'
             )
+            trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
             trainer.log_after_epochs(freq=1)
             trainer.run()
+
+    # write the final test_nll and test_lb
+    write_result(evaluator.last_metrics_dict)
 
 
 if __name__ == '__main__':

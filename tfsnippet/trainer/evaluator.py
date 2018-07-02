@@ -91,6 +91,7 @@ class Evaluator(object):
         self._feed_dict = dict(feed_dict or ())
         self._time_metric_name = time_metric_name
         self._batch_weight_func = batch_weight_func
+        self._last_metrics_dict = {}  # store the metrics of last evaluation
 
     @property
     def loop(self):
@@ -151,6 +152,16 @@ class Evaluator(object):
     def batch_weight_func(self):
         """Get the function to compute the metric weight for each mini-batch."""
         return self._batch_weight_func
+
+    @property
+    def last_metrics_dict(self):
+        """
+        Get the metric values from last evaluation.
+
+        Returns:
+            dict[str, any]: The metric values dict.
+        """
+        return self._last_metrics_dict
 
     def _run_batch(self, session, feed_dict):
         return session.run(list(six.itervalues(self.metrics)),
@@ -215,6 +226,7 @@ class Evaluator(object):
             weights=np.asarray(metric_weights),
         )
         assert(len(metric_names) == len(metric_values))
-        self.loop.collect_metrics({
+        self._last_metrics_dict = metrics_dict = {
             k: v for k, v in zip(metric_names, metric_values)
-        })
+        }
+        self.loop.collect_metrics(metrics_dict)

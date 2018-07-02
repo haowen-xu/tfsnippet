@@ -20,6 +20,9 @@ def write_result(result_dict):
         result_dict (dict[str, any]): JSON serializable result dict.
 
     """
+    print('')
+    print('Final Result')
+    print('------------')
     for k, v in six.iteritems(result_dict):
         print('{}: {}'.format(k, v))
 
