@@ -61,7 +61,8 @@ def model(x, is_training):
         x = resnet_block(x, 64, strides=2)  # output: (64, 7, 7)
         # x = resnet_block(x, 64)  # output: (64, 7, 7)
         x = global_average_pooling(x)  # output: (64, 1, 1)
-    return tf.layers.dense(tf.layers.flatten(x), 10, name='logits')
+    x = tf.layers.dense(tf.layers.flatten(x), 10, name='logits')
+    return x
 
 
 def main():

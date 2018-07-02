@@ -5,9 +5,11 @@ import tensorflow as tf
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Distribution, DistributionFactory
 from tfsnippet.stochastic import StochasticTensor, validate_n_samples
-from tfsnippet.utils import instance_reuse, is_tensor_object
+from tfsnippet.utils import (instance_reuse, is_tensor_object,
+                             reopen_variable_scope)
 from tfsnippet.variational import VariationalChain
 from ..base import Module
+from ..container import Lambda
 from ..utils import validate_distribution_factory
 
 __all__ = ['VAE']
@@ -151,12 +153,22 @@ class VAE(Module):
             raise TypeError('`p_z` must be an instance of `Distribution`')
         p_x_given_z = validate_distribution_factory(p_x_given_z, 'p_x_given_z')
         q_z_given_x = validate_distribution_factory(q_z_given_x, 'q_z_given_x')
-        if not isinstance(h_for_p_x, Module):
-            raise TypeError('`h_for_p_x` must be an instance of `Module`')
-        if not isinstance(h_for_q_z, Module):
-            raise TypeError('`h_for_q_z` must be an instance of `Module`')
-
+        if not callable(h_for_p_x):
+            raise TypeError('`h_for_p_x` must be an instance of `Module` or '
+                            'a callable object')
+        if not callable(h_for_q_z):
+            raise TypeError('`h_for_q_z` must be an instance of `Module` or '
+                            'a callable object')
         super(VAE, self).__init__(name=name, scope=scope)
+
+        # Defensive coding: wrap `h_for_p_x` and `h_for_q_z` in reused scope.
+        if not isinstance(h_for_p_x, Module):
+            with reopen_variable_scope(self.variable_scope):
+                h_for_p_x = Lambda(h_for_p_x, name='h_for_p_x')
+        if not isinstance(h_for_q_z, Module):
+            with reopen_variable_scope(self.variable_scope):
+                h_for_q_z = Lambda(h_for_q_z, name='h_for_q_z')
+
         self._p_z = p_z
         self._p_x_given_z = p_x_given_z
         self._q_z_given_x = q_z_given_x

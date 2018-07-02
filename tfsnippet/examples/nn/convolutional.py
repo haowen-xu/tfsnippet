@@ -1,5 +1,6 @@
 import functools
 
+import numpy as np
 import six
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
@@ -12,6 +13,7 @@ __all__ = [
     'global_average_pooling',
     'resnet_block',
     'deconv_resnet_block',
+    'reshape_conv2d_to_flat',
 ]
 
 
@@ -163,7 +165,8 @@ def deconv_resnet_block(inputs,
                         kernel_initializer=None,
                         bias_initializer=tf.zeros_initializer(),
                         kernel_regularizer=None,
-                        bias_regularizer=None):
+                        bias_regularizer=None,
+                        name=None):
     inputs = tf.convert_to_tensor(inputs)
     input_shape = int(inputs.get_shape()[3 if channels_last else 1])
     output_shape = int(output_dims)
@@ -187,3 +190,23 @@ def deconv_resnet_block(inputs,
         normalizer_fn=normalizer_fn,
         dropout_fn=dropout_fn,
     )
+
+
+def reshape_conv2d_to_flat(inputs, name=None):
+    """
+    Reshape the 2-d convolutional output `inputs` to flat vector.
+
+    Args:
+        inputs: 4-d Tensor, 2-d convolutional output.
+        name (None or str): Name of this operation.
+
+    Returns:
+        tf.Tensor: 2-d flatten vector.
+    """
+    with tf.name_scope(name, default_name='reshape_conv_to_flat',
+                       values=[inputs]):
+        out_shape = tf.concat(
+            [tf.shape(inputs)[:-3], [np.prod(int_shape(inputs)[-3:])]],
+            axis=0
+        )
+        return tf.reshape(inputs, out_shape)

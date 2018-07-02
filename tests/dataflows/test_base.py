@@ -1,9 +1,10 @@
 import unittest
 
+import numpy as np
 import pytest
 from mock import MagicMock
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflow import DataFlow, ArrayFlow
 
 
 class _DataFlow(DataFlow):
@@ -32,6 +33,26 @@ class DataFlowTestCase(unittest.TestCase):
 
         self.assertFalse(df._is_iter_entered)
         self.assertEquals(1, df._minibatch_iterator.call_count)
+
+    def test_get_arrays(self):
+        with pytest.raises(ValueError, match='empty, cannot convert to arrays'):
+            _ = DataFlow.arrays([np.arange(0)], batch_size=5).get_arrays()
+
+        # test one batch
+        df = DataFlow.arrays([np.arange(5), np.arange(5, 10)], batch_size=6)
+        arrays = df.get_arrays()
+        np.testing.assert_equal(np.arange(5), arrays[0])
+        np.testing.assert_equal(np.arange(5, 10), arrays[1])
+
+        # test two batches
+        df = DataFlow.arrays([np.arange(10), np.arange(10, 20)], batch_size=6)
+        arrays = df.get_arrays()
+        np.testing.assert_equal(np.arange(10), arrays[0])
+        np.testing.assert_equal(np.arange(10, 20), arrays[1])
+
+        # test to_arrays_flow
+        df2 = df.to_arrays_flow(batch_size=6)
+        self.assertIsInstance(df2, ArrayFlow)
 
 
 if __name__ == '__main__':
