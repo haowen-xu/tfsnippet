@@ -141,8 +141,8 @@ class VAETestCase(tf.test.TestCase):
         self.assertFalse(vae.is_reparameterized)
 
         # test wrap p_x_given_z and q_z_given_x in Lambda layer
-        vae = VAE(p_z=p_z, p_x_given_z=lambda z: z, q_z_given_x=lambda x: x,
-                  h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z, z_group_ndims=3,
+        vae = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=q_z_given_x,
+                  h_for_p_x=lambda z: z, h_for_q_z=lambda x: x, z_group_ndims=3,
                   x_group_ndims=2, is_reparameterized=False)
         self.assertIsInstance(vae.h_for_q_z, Lambda)
         self.assertIsInstance(vae.h_for_p_x, Lambda)
