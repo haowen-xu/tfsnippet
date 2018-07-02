@@ -27,7 +27,7 @@ class ExpConfig(Config):
     z_dim = 32
 
     # training parameters
-    max_epoch = 10
+    max_epoch = 3000
     batch_size = 128
     l2_reg = 0.0001
     initial_lr = 0.0001
