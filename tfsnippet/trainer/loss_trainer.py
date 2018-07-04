@@ -1,3 +1,6 @@
+import warnings
+
+from tfsnippet.scaffold import TrainLoop
 from .base_trainer import BaseTrainer
 from .feed_dict import resolve_feed_dict, merge_feed_dict
 
@@ -76,15 +79,20 @@ class LossTrainer(BaseTrainer):
                 both match the arrays of each mini-batch data, provided
                 by `data_flow`.
             data_flow (DataFlow): The training data flow.
-            feed_dict (dict[tf.Tensor, any]): The fixed feed dict for
-                training.  It will be merged with `inputs` and the
-                argument of ``run(feed_dict)``. (default :obj:`None`)
+                Each mini-batch must contain one array for each placeholder
+                in `inputs`.
+            feed_dict: The feed dict for training.  It will be merged with
+                the arrays provided by `data_flow` in each step.
+                (default :obj:`None`)
             metric_name (str): The metric name for collecting training loss.
         """
+        if loop.max_epoch is None and loop.max_step is None:
+            raise ValueError('At least one of `max_epoch`, `max_step` should '
+                             'be configured for `loop`.')
         super(LossTrainer, self).__init__(loop=loop)
 
-        # memorize the variables
-        self._inputs = list(inputs or ())
+        # memorize the arguments
+        self._inputs = tuple(inputs or ())
         self._data_flow = data_flow
         self._feed_dict = dict(feed_dict or ())
         self._loss = loss
@@ -114,10 +122,10 @@ class LossTrainer(BaseTrainer):
     @property
     def feed_dict(self):
         """
-        Get the fixed feed dict.
+        Get the feed dict for training.
 
         Returns:
-            dict[tf.Tensor, any]: The fixed feed dict.
+            dict[tf.Tensor, any]: The feed dict for training.
         """
         return self._feed_dict
 
@@ -135,6 +143,24 @@ class LossTrainer(BaseTrainer):
     def metric_name(self):
         """Get the metric name for collecting training loss."""
         return self._metric_name
+
+    def run(self, feed_dict=None):
+        """
+        Run training loop.
+
+        Args:
+            feed_dict: DEPRECATED.  The extra feed dict to be merged with
+                the already configured dict.  (default :obj:`None`)
+        """
+        old_feed_dict = self._feed_dict
+        try:
+            if feed_dict is not None:  # pragma: no cover
+                warnings.warn('`feed_dict` argument is deprecated.',
+                              DeprecationWarning)
+                self._feed_dict = merge_feed_dict(self._feed_dict, feed_dict)
+            super(LossTrainer, self).run()
+        finally:
+            self._feed_dict = old_feed_dict
 
     def _iter_steps(self):
         return self.loop.iter_steps(self.data_flow)

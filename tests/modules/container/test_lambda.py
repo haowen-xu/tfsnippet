@@ -1,3 +1,6 @@
+import unittest
+
+import numpy as np
 import tensorflow as tf
 
 from tfsnippet.modules import Lambda
@@ -21,3 +24,7 @@ class LambdaTestCase(tf.test.TestCase):
         self.assertEqual(var_1.name, 'lambda/var:0')
         self.assertEqual(op_1.name, 'lambda/forward_1/op:0')
         self.assertIs(var_1, var)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -9,7 +9,7 @@ class HookPriority(object):
     Smaller values take higher priorities.
     """
 
-    VALIDATION = 500
+    EVALUATION = VALIDATION = 500
     DEFAULT = 1000
     ANNEALING = 1500
     LOGGING = 10000

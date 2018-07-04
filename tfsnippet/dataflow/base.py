@@ -44,7 +44,7 @@ class DataFlow(object):
         thus a context must be firstly entered before using such data flows
         as iterators, for example::
 
-            with DataFlow.from_database(...) as df:
+            with DataFlow.threaded(...) as df:
                 for epoch in epochs:
                     for batch_x, batch_y in df:
                         ...
@@ -62,6 +62,59 @@ class DataFlow(object):
                 yield b
         finally:
             self._is_iter_entered = False
+
+    def get_arrays(self):
+        """
+        Iterate through the data-flow, collecting mini-batches into arrays.
+
+        Returns:
+            tuple[np.ndarray]: The collected arrays.
+
+        Raises:
+            ValueError: If this data-flow is empty.
+        """
+        arrays_buf = []
+        it = iter(self)
+        try:
+            batch = next(it)
+        except StopIteration:
+            raise ValueError('{!r} is empty, cannot convert to arrays'.
+                             format(self))
+        try:
+            arrays_buf = [[arr] for arr in batch]
+            while True:
+                batch = next(it)
+                for i, arr in enumerate(batch):
+                    arrays_buf[i].append(arr)
+        except StopIteration:
+            pass
+        return tuple(np.concatenate(arr) for arr in arrays_buf)
+
+    def to_arrays_flow(self, batch_size, shuffle=False, skip_incomplete=False,
+                       random_state=None):
+        """
+        Convert this data-flow to a :class:`~tfsnippet.dataflow.ArrayFlow`.
+
+        This method will iterate through the data-flow, collecting mini-batches
+        into arrays, and then construct an ArrayFlow.
+
+        Args:
+            batch_size (int): Size of each mini-batch.
+            shuffle (bool): Whether or not to shuffle data before iterating?
+                (default :obj:`False`)
+            skip_incomplete (bool): Whether or not to exclude the last
+                mini-batch if it is incomplete? (default :obj:`False`)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
+
+        Returns:
+            tfsnippet.dataflow.ArrayFlow: The constructed ArrayFlow.
+        """
+        from .array_flow import ArrayFlow
+        return ArrayFlow(self.get_arrays(), batch_size=batch_size,
+                         shuffle=shuffle, skip_incomplete=skip_incomplete,
+                         random_state=random_state)
 
     # -------- here starts the transforming methods --------
     def map(self, mapper):
@@ -134,7 +187,7 @@ class DataFlow(object):
 
     @staticmethod
     def seq(start, stop, step=1, batch_size=None, shuffle=False,
-            skip_incomplete=False, dtype=np.int32):
+            skip_incomplete=False, dtype=np.int32, random_state=None):
         """
         Construct a :class:`~tfsnippet.dataflow.SeqFlow`.
 
@@ -148,6 +201,9 @@ class DataFlow(object):
             skip_incomplete (bool): Whether or not to exclude the last
                 mini-batch if it is incomplete? (default :obj:`False`)
             dtype: Data type of the numbers. (default ``np.int32``)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
 
         Returns:
             tfsnippet.dataflow.SeqFlow: The data flow from number sequence.
@@ -155,11 +211,13 @@ class DataFlow(object):
         from .seq_flow import SeqFlow
         return SeqFlow(
             start=start, stop=stop, step=step, batch_size=batch_size,
-            shuffle=shuffle, skip_incomplete=skip_incomplete, dtype=dtype
+            shuffle=shuffle, skip_incomplete=skip_incomplete, dtype=dtype,
+            random_state=random_state
         )
 
     @staticmethod
-    def arrays(arrays, batch_size, shuffle=False, skip_incomplete=False):
+    def arrays(arrays, batch_size, shuffle=False, skip_incomplete=False,
+               random_state=None):
         """
         Construct an :class:`~tfsnippet.dataflow.ArrayFlow`.
 
@@ -172,6 +230,9 @@ class DataFlow(object):
                 (default :obj:`False`)
             skip_incomplete (bool): Whether or not to exclude the last
                 mini-batch if it is incomplete? (default :obj:`False`)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
 
         Returns:
             tfsnippet.dataflow.ArrayFlow: The data flow from arrays.
@@ -179,7 +240,7 @@ class DataFlow(object):
         from .array_flow import ArrayFlow
         return ArrayFlow(
             arrays=arrays, batch_size=batch_size, shuffle=shuffle,
-            skip_incomplete=skip_incomplete
+            skip_incomplete=skip_incomplete, random_state=random_state
         )
 
     @staticmethod

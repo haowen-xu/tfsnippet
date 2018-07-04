@@ -1,12 +1,13 @@
-from . import bayes, container, base
+from . import auto_encoders, base, container, utils
 
 __all__ = sum(
     [m.__all__ for m in [
-        bayes, container, base,
+        auto_encoders, base, container, utils
     ]],
     []
 )
 
-from .bayes import *
-from .container import *
+from .auto_encoders import *
 from .base import *
+from .container import *
+from .utils import *

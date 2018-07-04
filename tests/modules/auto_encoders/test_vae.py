@@ -11,7 +11,7 @@ except ImportError:
 
 from tfsnippet.distributions import (Distribution, DistributionFactory, Normal,
                                      Bernoulli)
-from tfsnippet.modules import VAE, Module, Sequential, DictMapper
+from tfsnippet.modules import Module, Sequential, DictMapper, VAE, Lambda
 from tfsnippet.utils import (VarScopeObject, instance_reuse,
                              ensure_variables_initialized)
 
@@ -140,6 +140,13 @@ class VAETestCase(tf.test.TestCase):
         self.assertIs(vae.x_group_ndims, 2)
         self.assertFalse(vae.is_reparameterized)
 
+        # test wrap p_x_given_z and q_z_given_x in Lambda layer
+        vae = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=q_z_given_x,
+                  h_for_p_x=lambda z: z, h_for_q_z=lambda x: x, z_group_ndims=3,
+                  x_group_ndims=2, is_reparameterized=False)
+        self.assertIsInstance(vae.h_for_q_z, Lambda)
+        self.assertIsInstance(vae.h_for_p_x, Lambda)
+
         # test type error for `p_z`
         with pytest.raises(
                 TypeError, match='`p_z` must be an instance of `Distribution`'):
@@ -157,13 +164,15 @@ class VAETestCase(tf.test.TestCase):
         # test type error for `p_x_given_z`
         with pytest.raises(
                 TypeError,
-                match='p_x_given_z must be a subclass of `Distribution`, or '
+                match='p_x_given_z must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=object, q_z_given_x=q_z_given_x,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
         with pytest.raises(
                 TypeError,
-                match='p_x_given_z must be a subclass of `Distribution`, or '
+                match='p_x_given_z must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=object(), q_z_given_x=q_z_given_x,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
@@ -171,26 +180,30 @@ class VAETestCase(tf.test.TestCase):
         # test type error for `q_z_given_x`
         with pytest.raises(
                 TypeError,
-                match='q_z_given_x must be a subclass of `Distribution`, or '
+                match='q_z_given_x must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=object,
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
         with pytest.raises(
                 TypeError,
-                match='q_z_given_x must be a subclass of `Distribution`, or '
+                match='q_z_given_x must be a subclass of `Distribution` or '
+                      '`zhusuan.distributions.Distribution`, or '
                       'an instance of `DistributionFactory`'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=object(),
                     h_for_p_x=h_for_p_x, h_for_q_z=h_for_q_z)
 
         # test type error for `h_for_p_x`
         with pytest.raises(
-                TypeError, match='`h_for_p_x` must be an instance of `Module`'):
+                TypeError, match='`h_for_p_x` must be an instance of `Module` '
+                                 'or a callable object'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=q_z_given_x,
                     h_for_p_x=object(), h_for_q_z=h_for_q_z)
 
         # test type error for `h_for_q_z`
         with pytest.raises(
-                TypeError, match='`h_for_q_z` must be an instance of `Module`'):
+                TypeError, match='`h_for_q_z` must be an instance of `Module` '
+                                 'or a callable object'):
             _ = VAE(p_z=p_z, p_x_given_z=p_x_given_z, q_z_given_x=q_z_given_x,
                     h_for_p_x=h_for_p_x, h_for_q_z=object())
 

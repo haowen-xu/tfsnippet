@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pytest
 import tensorflow as tf
 from mock import Mock
 
@@ -13,7 +14,7 @@ from tfsnippet.utils import ensure_variables_initialized
 class LossTrainerTestCase(tf.test.TestCase):
 
     def test_props(self):
-        loop = Mock()
+        loop = Mock(max_epoch=1, max_step=None)
         loss = Mock()
         train_op = Mock()
         df = Mock()
@@ -23,13 +24,19 @@ class LossTrainerTestCase(tf.test.TestCase):
         self.assertIs(loop, t.loop)
         self.assertIs(loss, t.loss)
         self.assertIs(train_op, t.train_op)
-        self.assertEquals([12, 34], t.inputs)
+        self.assertEquals((12, 34), t.inputs)
         self.assertIs(df, t.data_flow)
         self.assertEquals({'a': 56}, t.feed_dict)
         self.assertEquals('loss_x', t.metric_name)
 
         t = LossTrainer(loop, loss, train_op, [], Mock())
         self.assertEquals('loss', t.metric_name)
+
+        with pytest.raises(
+                ValueError, match='At least one of `max_epoch`, `max_step` '
+                                  'should be configured for `loop`'):
+            loop = Mock(max_epoch=None, max_step=None)
+            _ = LossTrainer(loop, loss, train_op, [], df)
 
     def test_run(self):
         ph = tf.placeholder(tf.int32, [5])

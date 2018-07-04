@@ -11,12 +11,13 @@ class Normal(ZhuSuanDistribution):
     Univariate Normal distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Normal`
     """
 
-    def __init__(self, mean, std=None, logstd=None, check_numerics=False):
+    def __init__(self, mean, std=None, logstd=None, is_reparameterized=True,
+                 check_numerics=False):
         """
         Construct the :class:`Normal`.
 
@@ -29,10 +30,17 @@ class Normal(ZhuSuanDistribution):
                 specified.
             logstd: A `float` tensor, the log standard deviation of the Normal
                 distribution.  Should be broadcastable against `mean`.
+            is_reparameterized (bool): Whether or not the gradients can
+                be propagated through parameters? (default :obj:`True`)
             check_numerics (bool): Whether or not to check numeric issues.
         """
         super(Normal, self).__init__(zd.Normal(
-            mean=mean, std=std, logstd=logstd, check_numerics=check_numerics))
+            mean=mean,
+            std=std,
+            logstd=logstd,
+            is_reparameterized=is_reparameterized,
+            check_numerics=check_numerics,
+        ))
 
     @property
     def mean(self):
@@ -55,7 +63,7 @@ class Bernoulli(ZhuSuanDistribution):
     Univariate Bernoulli distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Bernoulli`
     """
@@ -87,7 +95,7 @@ class Categorical(ZhuSuanDistribution):
     ``[0, n_categories)``.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Categorical`
     """
@@ -128,12 +136,13 @@ class Uniform(ZhuSuanDistribution):
     Univariate Uniform distribution.
 
     See Also:
-        :class:`~tfsnippet.distributions.Distribution`,
+        :class:`tfsnippet.distributions.Distribution`,
         :class:`zhusuan.distributions.Distribution`,
         :class:`zhusuan.distributions.Uniform`
     """
 
-    def __init__(self, minval=0., maxval=1., check_numerics=False):
+    def __init__(self, minval=0., maxval=1., is_reparameterized=True,
+                 check_numerics=False):
         """
         Construct the :class:`Uniform`.
 
@@ -143,11 +152,17 @@ class Uniform(ZhuSuanDistribution):
             maxval: A `float` Tensor. The upper bound on the range of the
                 uniform distribution. Should be element-wise bigger than
                 `minval`.
+            is_reparameterized (bool): Whether or not the gradients can
+                be propagated through parameters? (default :obj:`True`)
             check_numerics (bool): Whether or not to check numeric issues.
         """
         super(Uniform, self).__init__(
             zd.Uniform(
-                minval=minval, maxval=maxval, check_numerics=check_numerics))
+                minval=minval,
+                maxval=maxval,
+                is_reparameterized=is_reparameterized,
+                check_numerics=check_numerics,
+            ))
 
     @property
     def minval(self):

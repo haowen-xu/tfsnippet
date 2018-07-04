@@ -22,7 +22,7 @@ class SeqFlow(ArrayFlow):
     """
 
     def __init__(self, start, stop, step=1, batch_size=None, shuffle=False,
-                 skip_incomplete=False, dtype=np.int32):
+                 skip_incomplete=False, dtype=np.int32, random_state=None):
         """
         Construct a :class:`SeqFlow`.
 
@@ -36,6 +36,9 @@ class SeqFlow(ArrayFlow):
             skip_incomplete (bool): Whether or not to exclude the last
                 mini-batch if it is incomplete? (default :obj:`False`)
             dtype: Data type of the numbers. (default ``np.int32``)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
         """
         # check the parameters
         if batch_size is None:
@@ -46,7 +49,8 @@ class SeqFlow(ArrayFlow):
             arrays=[np.arange(start, stop, step, dtype=dtype)],
             batch_size=batch_size,
             shuffle=shuffle,
-            skip_incomplete=skip_incomplete
+            skip_incomplete=skip_incomplete,
+            random_state=random_state
         )
         self._start = start
         self._stop = stop
