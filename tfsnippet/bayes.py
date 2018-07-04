@@ -312,7 +312,7 @@ class BayesianNet(object):
         return list(zip(self.outputs(names), self.local_log_probs(names)))
 
     def variational_chain(self, model_builder, latent_names=None,
-                          latent_axis=None, observed=None):
+                          latent_axis=None, observed=None, **kwargs):
         """
         Treat this :class:`BayesianNet` as variational, and build the model
         net chained after this variational net.
@@ -332,6 +332,7 @@ class BayesianNet(object):
                 objectives. (default :obj:`None`)
             observed: Dict of ``(name, observation)`` fed into `model_builder`.
                 (default :obj:`None`)
+            \**kwargs: Additional named arguments passed to `model_builder`.
 
         Returns:
             tfsnippet.variational.VariationalChain: The object that holds this
@@ -362,7 +363,7 @@ class BayesianNet(object):
         })
 
         # build the model and its log-joint
-        model_and_log_joint = model_builder(merged_obs)
+        model_and_log_joint = model_builder(merged_obs, **kwargs)
         if isinstance(model_and_log_joint, tuple):
             model, log_joint = model_and_log_joint
         else:

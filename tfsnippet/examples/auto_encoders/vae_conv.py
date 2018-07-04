@@ -18,10 +18,10 @@ from tfsnippet.examples.utils import (load_mnist,
                                       Config,
                                       anneal_after,
                                       save_images_collection,
-                                      write_result)
+                                      Results)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
-from tfsnippet.utils import global_reuse, get_default_session_or_error, makedirs
+from tfsnippet.utils import global_reuse, get_default_session_or_error
 
 
 class ExpConfig(Config):
@@ -43,6 +43,7 @@ class ExpConfig(Config):
 
 
 config = ExpConfig()
+results = Results()
 
 
 @global_reuse
@@ -118,8 +119,8 @@ def main():
 
     # build the model
     vae = VAE(
-        p_z=Normal(mean=tf.zeros([config.z_dim]),
-                   std=tf.ones([config.z_dim])),
+        p_z=Normal(mean=tf.zeros([1, config.z_dim]),
+                   std=tf.ones([1, config.z_dim])),
         p_x_given_z=Bernoulli,
         q_z_given_x=Normal,
         h_for_p_x=functools.partial(h_for_p_x, is_training=is_training),
@@ -129,7 +130,7 @@ def main():
     loss = vae_loss + regularization_loss()
     lower_bound = -vae_loss
     test_chain = vae.chain(input_x, n_z=config.test_n_z)
-    test_nll = tf.reduce_mean(
+    test_nll = -tf.reduce_mean(
         test_chain.vi.evaluation.importance_sampling_log_likelihood())
 
     # derive the optimizer
@@ -147,10 +148,10 @@ def main():
         with loop.timeit('plot_time'):
             session = get_default_session_or_error()
             images = session.run(x_plots, feed_dict={is_training: False})
-            makedirs('vae_conv/plotting', exist_ok=True)
             save_images_collection(
                 images=images,
-                filename='vae_conv/plotting/{}.png'.format(loop.epoch),
+                filename=results.prepare_parent('plotting/{}.png'.
+                                                format(loop.epoch)),
                 grid_size=(10, 10)
             )
 
@@ -177,7 +178,7 @@ def main():
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
-                       summary_dir='vae_conv/train_summary',
+                       summary_dir=results.make_dir('train_summary'),
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,
@@ -202,7 +203,7 @@ def main():
             trainer.run()
 
     # write the final test_nll and test_lb
-    write_result(evaluator.last_metrics_dict)
+    results.commit(evaluator.last_metrics_dict)
 
 
 if __name__ == '__main__':

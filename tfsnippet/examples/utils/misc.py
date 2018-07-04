@@ -1,5 +1,7 @@
 import imageio
 import numpy as np
+import six
+import tensorflow as tf
 
 from tfsnippet.trainer import BaseTrainer, Evaluator, AnnealingDynamicValue
 from tfsnippet.utils import is_integer
@@ -10,6 +12,7 @@ __all__ = [
     'validate_after',
     'anneal_after',
     'save_images_collection',
+    'isolate_graph',
 ]
 
 
@@ -140,3 +143,20 @@ def save_images_collection(images, filename, grid_size, border_size=0,
     if n_channels == 1:
         buf = np.reshape(buf, (buf_h, buf_w))
     imageio.imsave(filename, buf)
+
+
+def isolate_graph(method):
+    """
+    Create an isolated :class:`tf.Graph` for the `method`.
+
+    Args:
+        method: The method to decorate.
+
+    Returns:
+        The decorated method.
+    """
+    @six.wraps(method)
+    def wrapper(*args, **kwargs):
+        with tf.Graph().as_default():
+            return method(*args, **kwargs)
+    return wrapper
