@@ -310,10 +310,6 @@ def gmvae_p_net(observed=None, n_samples=None):
         [tf.zeros_like(y_float)] * (config.z_dim - 2),
         axis=-1
     )
-    # if n_samples is not None:
-    #     z_prior_mean = tf.zeros(tf.stack([tf.shape(y)[0], 1, config.z_dim]))
-    # else:
-    #     z_prior_mean = tf.zeros([1, config.z_dim])
     z_prior_std = tf.ones([1, config.z_dim])
     z = net.add('z', Normal(mean=z_prior_mean, std=z_prior_std),
                 group_ndims=1)
