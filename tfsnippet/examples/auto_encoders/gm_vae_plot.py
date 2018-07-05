@@ -267,28 +267,27 @@ def gmvae_p_net(observed=None, n_samples=None):
 
 @isolate_graph
 def gmvae_experiment(x_train, x_valid, x_test):
-    with tf.device('/device:GPU:0'):
-        input_x = tf.placeholder(
-            dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
+    input_x = tf.placeholder(
+        dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
 
-        # train loss
-        q_net = gmvae_q_net(input_x, n_samples=config.n_samples)
-        chain = q_net.chain(gmvae_p_net, observed={'x': input_x},
-                            latent_names=['y', 'z'], latent_axis=0)
-        gmvae_loss = tf.reduce_mean(chain.vi.training.vimco())
-        loss = gmvae_loss + regularization_loss()
+    # train loss
+    q_net = gmvae_q_net(input_x, n_samples=config.n_samples)
+    chain = q_net.chain(gmvae_p_net, observed={'x': input_x},
+                        latent_names=['y', 'z'], latent_axis=0)
+    gmvae_loss = tf.reduce_mean(chain.vi.training.vimco())
+    loss = gmvae_loss + regularization_loss()
 
-        # test outputs
-        log_p_per_x = chain.vi.evaluation.is_loglikelihood()
-        nll = tf.reduce_mean(-log_p_per_x)
+    # test outputs
+    log_p_per_x = chain.vi.evaluation.is_loglikelihood()
+    nll = tf.reduce_mean(-log_p_per_x)
 
-        p_net = gmvae_p_net(n_samples=10000)
-        x_samples = tf.reshape(p_net['x'], [-1, config.x_dim])
-        z_prior_samples = tf.reshape(p_net['z'], [-1, config.z_dim])
+    p_net = gmvae_p_net(n_samples=10000)
+    x_samples = tf.reshape(p_net['x'], [-1, config.x_dim])
+    z_prior_samples = tf.reshape(p_net['z'], [-1, config.z_dim])
 
-        # get posterior z ~ q(z|x)
-        q_net = gmvae_q_net(input_x, n_samples=None)
-        z_posterior_samples = q_net['z']
+    # get posterior z ~ q(z|x)
+    q_net = gmvae_q_net(input_x, n_samples=None)
+    z_posterior_samples = q_net['z']
 
     with create_session().as_default() as session:
         experiment_common('gmvae', x_train, x_valid, x_test, input_x, loss,
