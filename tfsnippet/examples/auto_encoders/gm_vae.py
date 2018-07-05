@@ -5,16 +5,16 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
-from tfsnippet.modules import VAE
+from tfsnippet.bayes import BayesianNet
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.distributions import Normal, Bernoulli
+from tfsnippet.distributions import Normal, Bernoulli, Categorical
 from tfsnippet.examples.nn import (resnet_block,
                                    deconv_resnet_block,
                                    reshape_conv2d_to_flat,
                                    l2_regularizer,
                                    regularization_loss,
                                    conv2d,
-                                   batch_norm_2d)
+                                   batch_norm_2d, dense)
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
                                       Config,
@@ -30,7 +30,9 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 
 class ExpConfig(Config):
     # model parameters
+    x_dim = 784
     z_dim = 32
+    n_clusters = 16
     channels_last = False
 
     # training parameters
@@ -41,19 +43,33 @@ class ExpConfig(Config):
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
+    train_n_samples = 50
 
     # evaluation parameters
-    test_n_z = 100
+    test_n_samples = 100
     test_batch_size = 128
 
 
-config = ExpConfig()
-results = Results()
+def gaussian_mixture_prior(y, z_dim, n_clusters):
+    theta = 2 * np.pi / n_clusters
+    R = np.sqrt(18. / (1 - np.cos(theta)))
+    y_float = tf.to_float(tf.stop_gradient(y))
+    z_prior_mean = tf.stack(
+        [R * tf.cos(y_float * theta), R * tf.sin(y_float * theta)] +
+        [tf.zeros_like(y_float)] * (z_dim - 2),
+        axis=-1
+    )
+    z_prior_std = tf.ones([1, z_dim])
+    return Normal(mean=z_prior_mean, std=z_prior_std)
 
 
 @global_reuse
 @add_arg_scope
-def h_for_q_z(x, is_training, channels_last=config.channels_last):
+def q_net(x, observed=None, n_samples=None, is_training=True,
+          channels_last=False):
+    net = BayesianNet(observed=observed)
+
+    # compute the hidden features
     with arg_scope([resnet_block],
                    activation_fn=tf.nn.relu,
                    normalizer_fn=functools.partial(
@@ -67,40 +83,85 @@ def h_for_q_z(x, is_training, channels_last=config.channels_last):
                    ),
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        x = tf.to_float(x)
-        x = tf.reshape(x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        x = resnet_block(x, 16)  # output: (16, 28, 28)
-        x = resnet_block(x, 32, strides=2)  # output: (32, 14, 14)
-        x = resnet_block(x, 32)  # output: (32, 14, 14)
-        x = resnet_block(x, 64, strides=2)  # output: (64, 7, 7)
-        x = resnet_block(x, 64)  # output: (64, 7, 7)
-    x = reshape_conv2d_to_flat(x)
-    return {
-        'mean': tf.layers.dense(x, config.z_dim, name='z_mean'),
-        'logstd': tf.layers.dense(x, config.z_dim, name='z_logstd'),
-    }
+        h_x = x
+        h_x = tf.to_float(h_x)
+        h_x = tf.reshape(
+            h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
+        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
+    h_x = reshape_conv2d_to_flat(h_x)
+    h_x_dim = 64 * 7 * 7
+
+    # sample y ~ q(y|x)
+    y_logits = dense(h_x, config.n_clusters, name='y_logits')
+    y = net.add('y', Categorical(y_logits), n_samples=n_samples)
+
+    # sample z ~ q(z|y,x)
+    if n_samples is not None:
+        h_z = tf.tile(tf.reshape(h_x, [1, -1, h_x_dim]),
+                      tf.stack([n_samples, 1, 1]))
+    else:
+        h_z = h_x
+
+    h_z = tf.concat([h_z, tf.one_hot(y, config.n_clusters)], axis=-1)
+    h_z = tf.reshape(h_z, [-1, h_x_dim + config.n_clusters])
+    h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
+    z_mean = tf.reshape(dense(h_z, config.z_dim, name='z_mean'),
+                        [n_samples, -1, config.z_dim])
+    z_logstd = tf.reshape(dense(h_z, config.z_dim, name='z_logstd'),
+                          [n_samples, -1, config.z_dim])
+    z = net.add('z',
+                Normal(mean=z_mean, logstd=z_logstd, is_reparameterized=False),
+                group_ndims=1)
+
+    return net
 
 
 @global_reuse
 @add_arg_scope
-def h_for_p_x(z, is_training, channels_last=config.channels_last):
+def p_net(observed=None, n_samples=None, is_training=True,
+          channels_last=False):
+    net = BayesianNet(observed=observed)
+
+    # sample y
+    y = net.add('y',
+                Categorical(tf.zeros([1, config.n_clusters])),
+                n_samples=n_samples)
+
+    # sample z ~ p(z|y)
+    z = net.add('z',
+                gaussian_mixture_prior(y, config.z_dim, config.n_clusters),
+                group_ndims=1)
+
+    # compute the hidden features for x
     with arg_scope([deconv_resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        origin_shape = tf.shape(z)[:-1]  # might be (n_z, n_batch)
-        z = tf.reshape(z, [-1, config.z_dim])
-        z = tf.reshape(tf.layers.dense(z, 64 * 7 * 7),
-                       [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
-        z = deconv_resnet_block(z, 64)  # output: (64, 7, 7)
-        z = deconv_resnet_block(z, 32, strides=2)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 32)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 16, strides=2)  # output: (16, 28, 28)
-        z = conv2d(
-            z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
+        h_z = z
+        origin_shape = tf.shape(h_z)[:-1]  # might be (n_z, n_batch)
+        h_z = tf.reshape(h_z, [-1, config.z_dim])
+        h_z = tf.reshape(
+            tf.layers.dense(h_z, 64 * 7 * 7),
+            [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7]
+        )
+        h_z = deconv_resnet_block(h_z, 64)  # output: (64, 7, 7)
+        h_z = deconv_resnet_block(h_z, 32, strides=2)  # output: (32, 14, 14)
+        h_z = deconv_resnet_block(h_z, 32)  # output: (32, 14, 14)
+        h_z = deconv_resnet_block(h_z, 16, strides=2)  # output: (16, 28, 28)
+        h_z = conv2d(
+            h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
             channels_last=channels_last)  # output: (1, 28, 28)
-    x_logits = tf.reshape(z, tf.concat([origin_shape, [784]], axis=0))
-    return {'logits': x_logits}
+
+    # sample x ~ p(x|z)
+    x_logits = tf.reshape(
+        h_z, tf.concat([origin_shape, [config.x_dim]], axis=0), name='x_logits')
+    x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
+
+    return net
 
 
 def sample_from_logits(x):
@@ -114,7 +175,7 @@ def sample_from_logits(x):
 def main():
     # load mnist data
     (x_train, y_train), (x_test, y_test) = \
-        load_mnist(shape=[784], dtype=np.float32, normalize=True)
+        load_mnist(shape=[config.x_dim], dtype=np.float32, normalize=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -127,15 +188,6 @@ def main():
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
-    vae = VAE(
-        p_z=Normal(mean=tf.zeros([1, config.z_dim]),
-                   std=tf.ones([1, config.z_dim])),
-        p_x_given_z=Bernoulli,
-        q_z_given_x=Normal,
-        h_for_p_x=functools.partial(h_for_p_x, is_training=is_training),
-        h_for_q_z=functools.partial(h_for_q_z, is_training=is_training),
-    )
-
     grads = []
     losses = []
     lower_bounds = []
@@ -150,27 +202,49 @@ def main():
             dev_sampled_x = sample_from_logits(dev_input_x)
 
             if pre_build:
-                with arg_scope([h_for_q_z, h_for_p_x], channels_last=True):
-                    _ = vae.chain(dev_sampled_x)
+                with arg_scope([q_net, p_net], channels_last=True,
+                               is_training=is_training):
+                    _ = q_net(dev_sampled_x).chain(
+                        p_net,
+                        latent_names=['y', 'z'],
+                        observed={'x': dev_sampled_x}
+                    )
 
             else:
-                # derive the loss and lower-bound for training
-                dev_vae_loss = vae.get_training_loss(dev_sampled_x)
-                dev_loss = dev_vae_loss + regularization_loss()
-                dev_lower_bound = -dev_vae_loss
-                losses.append(dev_loss)
-                lower_bounds.append(dev_lower_bound)
+                with arg_scope([q_net, p_net],
+                               channels_last=config.channels_last,
+                               is_training=is_training):
+                    # derive the loss and lower-bound for training
+                    train_q_net = q_net(
+                        dev_sampled_x, n_samples=config.train_n_samples
+                    )
+                    train_chain = train_q_net.chain(
+                        p_net, latent_names=['y', 'z'], latent_axis=0,
+                        observed={'x': dev_sampled_x}
+                    )
+                    dev_vae_loss = tf.reduce_mean(
+                        train_chain.vi.training.vimco())
+                    dev_loss = dev_vae_loss + regularization_loss()
+                    dev_lower_bound = -dev_vae_loss
+                    losses.append(dev_loss)
+                    lower_bounds.append(dev_lower_bound)
 
-                # derive the nll and logits output for testing
-                test_chain = vae.chain(dev_sampled_x, n_z=config.test_n_z)
-                dev_test_nll = -tf.reduce_mean(
-                    test_chain.vi.evaluation.is_loglikelihood())
-                test_nlls.append(dev_test_nll)
+                    # derive the nll and logits output for testing
+                    test_q_net = q_net(
+                        dev_sampled_x, n_samples=config.test_n_samples
+                    )
+                    test_chain = test_q_net.chain(
+                        p_net, latent_names=['y', 'z'], latent_axis=0,
+                        observed={'x': dev_sampled_x}
+                    )
+                    dev_test_nll = -tf.reduce_mean(
+                        test_chain.vi.evaluation.is_loglikelihood())
+                    test_nlls.append(dev_test_nll)
 
-                # derive the optimizer
-                params = tf.trainable_variables()
-                grads.append(
-                    optimizer.compute_gradients(dev_loss, var_list=params))
+                    # derive the optimizer
+                    params = tf.trainable_variables()
+                    grads.append(
+                        optimizer.compute_gradients(dev_loss, var_list=params))
 
     # merge multi-gpu outputs and operations
     [loss, lower_bound, test_nll] = \
@@ -183,9 +257,11 @@ def main():
 
     # derive the plotting function
     with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
+        plot_p_net = p_net(n_samples=100, is_training=is_training,
+                           channels_last=config.channels_last)
         x_plots = tf.reshape(
             tf.cast(
-                255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),
+                255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
                 dtype=tf.uint8
             ),
             [-1, 28, 28]
@@ -241,4 +317,6 @@ def main():
 
 
 if __name__ == '__main__':
+    config = ExpConfig()
+    results = Results()
     main()
