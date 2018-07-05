@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import functools
 import os
 
 import seaborn as sns
@@ -7,18 +6,12 @@ import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tensorflow import keras as K
-from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.modules import VAE, Sequential, DictMapper
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Categorical
-from tfsnippet.examples.nn import (dense,
-                                   resnet_block,
-                                   deconv_resnet_block,
-                                   reshape_conv2d_to_flat,
-                                   l2_regularizer,
-                                   regularization_loss)
+from tfsnippet.examples.nn import dense, regularization_loss
 from tfsnippet.examples.utils import (create_session,
                                       Config,
                                       anneal_after,
@@ -36,13 +29,10 @@ class ExpConfig(Config):
     z_dim = 5
     n_clusters = 4  # for gmvae
     n_samples = 64  # for training and testing
-    soft_clustering = True  # whether we use one network to build q(z|y,x),
-                            # rather than `n_clusters` networks.
 
     # training parameters
     max_epoch = 300
     batch_size = 128
-    l2_reg = 0.0001
     initial_lr = 0.0001
     lr_anneal_factor = 0.9995
     lr_anneal_epoch_freq = None
@@ -55,53 +45,6 @@ class ExpConfig(Config):
 
 config = ExpConfig()
 results = Results()
-
-
-@global_reuse
-def h_for_q_z(x, is_training):
-    with arg_scope([resnet_block],
-                   activation_fn=tf.nn.relu,
-                   normalizer_fn=functools.partial(
-                       tf.layers.batch_normalization,
-                       axis=1,
-                       training=is_training
-                   ),
-                   dropout_fn=functools.partial(
-                       tf.layers.dropout,
-                       training=is_training
-                   ),
-                   kernel_regularizer=l2_regularizer(config.l2_reg)):
-        x = tf.to_float(x)
-        x = tf.reshape(x, [-1, 1, 28, 28])
-        x = resnet_block(x, 16)  # output: (16, 28, 28)
-        x = resnet_block(x, 32, strides=2)  # output: (32, 14, 14)
-        x = resnet_block(x, 32)  # output: (32, 14, 14)
-        x = resnet_block(x, 64, strides=2)  # output: (64, 7, 7)
-        x = resnet_block(x, 64)  # output: (64, 7, 7)
-    x = reshape_conv2d_to_flat(x)
-    return {
-        'mean': dense(x, config.z_dim, name='z_mean'),
-        'logstd': dense(x, config.z_dim, name='z_logstd'),
-    }
-
-
-@global_reuse
-def h_for_p_x(z, is_training):
-    with arg_scope([deconv_resnet_block],
-                   activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg)):
-        origin_shape = tf.shape(z)[:-1]  # might be (n_z, n_batch)
-        z = tf.reshape(z, [-1, config.z_dim])
-        z = tf.reshape(dense(z, 64 * 7 * 7), [-1, 64, 7, 7])
-        z = deconv_resnet_block(z, 64)  # output: (64, 7, 7)
-        z = deconv_resnet_block(z, 32, strides=2)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 32)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 16, strides=2)  # output: (16, 28, 28)
-        z = tf.layers.conv2d(
-            z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
-            data_format='channels_first')  # output: (1, 28, 28)
-    x_logits = tf.reshape(z, tf.concat([origin_shape, [784]], axis=0))
-    return {'logits': x_logits}
 
 
 def make_data(n_samples):
@@ -248,7 +191,7 @@ def vae_experiment(x_train, x_valid, x_test):
     loss = vae_loss + regularization_loss()
 
     # test outputs
-    log_p_per_x = chain.vi.evaluation.importance_sampling_log_likelihood()
+    log_p_per_x = chain.vi.evaluation.is_loglikelihood()
     nll = tf.reduce_mean(-log_p_per_x)
     samples = tf.reshape(vae.model(n_z=10000)['x'], [-1, config.x_dim])
 
@@ -340,7 +283,7 @@ def gmvae_experiment(x_train, x_valid, x_test):
     loss = gmvae_loss + regularization_loss()
 
     # test outputs
-    log_p_per_x = chain.vi.evaluation.importance_sampling_log_likelihood()
+    log_p_per_x = chain.vi.evaluation.is_loglikelihood()
     nll = tf.reduce_mean(-log_p_per_x)
 
     p_net = gmvae_p_net(n_samples=10000)

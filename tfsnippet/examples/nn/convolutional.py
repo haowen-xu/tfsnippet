@@ -5,9 +5,10 @@ import six
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.examples.utils import (int_shape,
-                                      validate_strides_or_filter_arg,
-                                      add_variable_scope)
+from tfsnippet.examples.utils import (validate_strides_or_kernel_size,
+                                      add_variable_scope,
+                                      int_shape)
+from .wrapper import conv2d, deconv2d
 
 __all__ = [
     'global_average_pooling',
@@ -46,9 +47,8 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
                   kernel_size, strides, channels_last, resize_last,
                   activation_fn, normalizer_fn, dropout_fn):
     # check the arguments
-    kernel_size = validate_strides_or_filter_arg('filters', kernel_size)
-    strides = validate_strides_or_filter_arg('strides', strides)
-    data_format = 'channels_last' if channels_last else 'channels_first'
+    kernel_size = validate_strides_or_kernel_size('kernel_size', kernel_size)
+    strides = validate_strides_or_kernel_size('strides', strides)
 
     # normalization and activation functions
     def add_scope(method):
@@ -63,26 +63,26 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
     dropout_fn = add_scope(dropout_fn or (lambda x: x))
 
     # convolutional functions
-    resize_conv = lambda inputs, kernel_size, name: conv_fn(
-        inputs, output_shape, kernel_size=kernel_size, strides=strides,
-        padding='same', data_format=data_format, name=name
-    )
-    keep_conv = lambda inputs, kernel_size, name: conv_fn(
-        inputs, input_shape, kernel_size=kernel_size, strides=(1, 1),
-        padding='same', data_format=data_format, name=name
-    )
+    resize_conv = lambda shape: (lambda inputs, kernel_size, name: conv_fn(
+        inputs, shape, kernel_size=kernel_size, strides=strides,
+        name=name
+    ))
+    keep_conv = lambda shape: (lambda inputs, kernel_size, name: conv_fn(
+        inputs, shape, kernel_size=kernel_size, strides=(1, 1),
+        name=name
+    ))
 
     # build the shortcut path
     if strides != (1, 1):
-        shortcut = resize_conv(inputs, (1, 1), 'shortcut')
+        shortcut = resize_conv(output_shape)(inputs, (1, 1), 'shortcut')
     else:
         shortcut = inputs
 
     # build the residual path
     if resize_last:
-        conv1, conv2 = keep_conv, resize_conv
+        conv1, conv2 = keep_conv(input_shape), resize_conv(output_shape)
     else:
-        conv1, conv2 = resize_conv, keep_conv
+        conv1, conv2 = resize_conv(output_shape), keep_conv(output_shape)
     residual = inputs
     residual = normalizer_fn(residual, 'norm1')
     residual = activation_fn(residual, 'nonlinear1')
@@ -97,18 +97,27 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
 
 
 def _partial_conv(conv_fn,
-                  normalizer_fn=None,
+                  channels_last,
+                  use_bias,
                   kernel_initializer=None,
                   bias_initializer=tf.zeros_initializer(),
                   kernel_regularizer=None,
-                  bias_regularizer=None):
+                  bias_regularizer=None,
+                  kernel_constraint=None,
+                  bias_constraint=None,
+                  trainable=True):
     return functools.partial(
         conv_fn,
+        padding='same',
+        channels_last=channels_last,
+        use_bias=use_bias,
         kernel_initializer=kernel_initializer,
         bias_initializer=bias_initializer,
         kernel_regularizer=kernel_regularizer,
         bias_regularizer=bias_regularizer,
-        use_bias=normalizer_fn is None
+        kernel_constraint=kernel_constraint,
+        bias_constraint=bias_constraint,
+        trainable=trainable
     )
 
 
@@ -122,22 +131,30 @@ def resnet_block(inputs,
                  activation_fn=None,
                  normalizer_fn=None,
                  dropout_fn=None,
+                 use_bias=True,
                  kernel_initializer=None,
                  bias_initializer=tf.zeros_initializer(),
                  kernel_regularizer=None,
                  bias_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 trainable=True,
                  name=None):
     inputs = tf.convert_to_tensor(inputs)
     input_shape = int(inputs.get_shape()[3 if channels_last else 1])
     output_shape = int(output_dims)
     return _resnet_block(
         conv_fn=_partial_conv(
-            tf.layers.conv2d,
-            normalizer_fn=normalizer_fn,
+            conv2d,
+            channels_last=channels_last,
+            use_bias=use_bias and (normalizer_fn is None),
             kernel_initializer=kernel_initializer,
             bias_initializer=bias_initializer,
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint,
+            trainable=trainable,
         ),
         inputs=inputs,
         input_shape=input_shape,
@@ -162,22 +179,30 @@ def deconv_resnet_block(inputs,
                         activation_fn=None,
                         normalizer_fn=None,
                         dropout_fn=None,
+                        use_bias=True,
                         kernel_initializer=None,
                         bias_initializer=tf.zeros_initializer(),
                         kernel_regularizer=None,
                         bias_regularizer=None,
+                        kernel_constraint=None,
+                        bias_constraint=None,
+                        trainable=True,
                         name=None):
     inputs = tf.convert_to_tensor(inputs)
     input_shape = int(inputs.get_shape()[3 if channels_last else 1])
     output_shape = int(output_dims)
     return _resnet_block(
         conv_fn=_partial_conv(
-            tf.layers.conv2d_transpose,
-            normalizer_fn=normalizer_fn,
+            deconv2d,
+            channels_last=channels_last,
+            use_bias=use_bias and (normalizer_fn is None),
             kernel_initializer=kernel_initializer,
             bias_initializer=bias_initializer,
             kernel_regularizer=kernel_regularizer,
             bias_regularizer=bias_regularizer,
+            kernel_constraint=kernel_constraint,
+            bias_constraint=bias_constraint,
+            trainable=trainable,
         ),
         inputs=inputs,
         input_shape=input_shape,
@@ -185,7 +210,7 @@ def deconv_resnet_block(inputs,
         kernel_size=kernel_size,
         strides=strides,
         channels_last=channels_last,
-        resize_last=True,
+        resize_last=False,
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,
         dropout_fn=dropout_fn,

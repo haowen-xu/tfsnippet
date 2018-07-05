@@ -2,21 +2,27 @@ import imageio
 import numpy as np
 import six
 import tensorflow as tf
+import zhusuan as zs
 
+from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.trainer import BaseTrainer, Evaluator, AnnealingDynamicValue
 from tfsnippet.utils import is_integer
 
 __all__ = [
-    'validate_strides_or_filter_arg',
+    'validate_strides_or_kernel_size',
     'check_epochs_and_steps_arg',
     'validate_after',
     'anneal_after',
     'save_images_collection',
     'isolate_graph',
+    'get_batch_size',
+    'int_shape',
+    'is_dynamic_tensor',
+    'smart_apply',
 ]
 
 
-def validate_strides_or_filter_arg(arg_name, arg_value):
+def validate_strides_or_kernel_size(arg_name, arg_value):
     """
     Validate the `strides` or `filter` arg, to ensure it is a tuple of
     two integers.
@@ -160,3 +166,71 @@ def isolate_graph(method):
         with tf.Graph().as_default():
             return method(*args, **kwargs)
     return wrapper
+
+
+def get_batch_size(input):
+    """
+    Infer the mini-batch size according to `input`.
+
+    Args:
+        input (tf.Tensor): The input placeholder.
+
+    Returns:
+        int or tf.Tensor: The batch size.
+    """
+    if input.get_shape() is None:
+        batch_size = tf.shape(input)[0]
+    else:
+        batch_size = int_shape(input)[0]
+        if batch_size is None:
+            batch_size = tf.shape(input)[0]
+    return batch_size
+
+
+def int_shape(tensor):
+    """
+    Get the int shape tuple of specified `tensor`.
+
+    Args:
+        tensor: The tensor object.
+
+    Returns:
+        tuple[int or None]: The int shape tuple.
+    """
+    shape = tensor.get_shape().as_list()
+    return tuple((int(v) if v is not None else None) for v in shape)
+
+
+def is_dynamic_tensor(tensor):
+    """
+    Check whether or not `tensor` is a dynamic tensor.
+
+    Args:
+        tensor: The tensor to be checked.
+
+    Returns:
+        bool: Whether the tensor is a dynamic tensor.
+    """
+    return isinstance(tensor, (tf.Tensor, tf.Variable, StochasticTensor,
+                               zs.StochasticTensor))
+
+
+def smart_apply(tensor, static_fn, dynamic_fn):
+    """
+    Apply transformation on `tensor`, with either `static_fn` for static
+    tensors (e.g., Numpy arrays, numbers) or `dynamic_fn` for dynamic
+    tensors.
+
+    Args:
+        tensor: The tensor to be transformed.
+        static_fn: Static transformation function.
+        dynamic_fn: Dynamic transformation function.
+
+    Returns:
+        Tensor: The transformed tensor.
+    """
+    if isinstance(tensor, (tf.Tensor, tf.Variable, StochasticTensor,
+                           zs.StochasticTensor)):
+        return dynamic_fn(tensor)
+    else:
+        return static_fn(tensor)
