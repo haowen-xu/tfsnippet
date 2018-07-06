@@ -283,7 +283,7 @@ def main():
                                  skip_incomplete=True)
     test_flow = DataFlow.arrays([x_test], config.test_batch_size)
 
-    with create_session(lock_memory=.5,
+    with create_session(lock_memory=.9,
                         log_device_placement=True).as_default():
         # train the network
         with TrainLoop(params,

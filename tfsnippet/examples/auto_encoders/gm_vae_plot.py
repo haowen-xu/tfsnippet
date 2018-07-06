@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import functools
 import os
 
 import seaborn as sns
@@ -11,7 +12,7 @@ from tfsnippet.bayes import BayesianNet
 from tfsnippet.examples.auto_encoders.gm_vae import gaussian_mixture_prior
 from tfsnippet.modules import VAE, Sequential, DictMapper
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.distributions import Normal, Categorical
+from tfsnippet.distributions import Normal, Categorical, Bernoulli
 from tfsnippet.examples.nn import dense, regularization_loss
 from tfsnippet.examples.utils import (create_session,
                                       Config,
@@ -29,7 +30,7 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 class ExpConfig(Config):
     # model parameters
     x_dim = 2
-    z_dim = 5
+    z_dim = 16
     n_clusters = 4  # for gmvae
     n_samples = 64  # for training and testing
 
@@ -80,6 +81,10 @@ def plot_log_p(x, log_p, filename):
 
 def experiment_common(tag, x_train, x_valid, x_test,
                       input_x, loss, log_p_per_x, nll, samples):
+    print('=' * 80)
+    print('Start experiment {!r}'.format(tag))
+    print('=' * 80)
+
     # derive the optimizer
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
@@ -154,39 +159,67 @@ def experiment_common(tag, x_train, x_valid, x_test,
 
 
 @isolate_graph
-def vae_experiment(x_train, x_valid, x_test):
+def vae_experiment(x_train, x_valid, x_test, latent_posterior,
+                   algorithm):
     input_x = tf.placeholder(
         dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
-    vae = VAE(
-        p_z=Normal(mean=tf.zeros([1, config.z_dim]),
-                   std=tf.ones([1, config.z_dim])),
-        p_x_given_z=Normal,
-        q_z_given_x=Normal,
-        h_for_p_x=Sequential([
-            K.layers.Dense(100, activation=tf.nn.relu),
-            K.layers.Dense(100, activation=tf.nn.relu),
-            DictMapper({
-                'mean': K.layers.Dense(config.x_dim, name='x_mean'),
-                'std': lambda x: 1e-4 + tf.nn.softplus(
-                    K.layers.Dense(config.x_dim, name='x_std')(x)
-                )
-            })
-        ]),
-        h_for_q_z=Sequential([
+
+    if latent_posterior is Normal:
+        h_for_q_z = Sequential([
             K.layers.Dense(100, activation=tf.nn.relu),
             K.layers.Dense(100, activation=tf.nn.relu),
             DictMapper({
                 'mean': K.layers.Dense(config.z_dim, name='z_mean'),
-                'std': lambda x: 1e-4 + tf.nn.softplus(
-                    K.layers.Dense(config.z_dim, name='z_std')(x)
-                )
+                'std': functools.partial(
+                    softplus_std, n_dims=config.z_dim, name='z_std')
+            })
+        ])
+        if algorithm not in ('sgvb', 'iwae'):
+            raise ValueError('Unexpected algorithm for vae_normal: {!r}'.
+                             format(algorithm))
+        tag = 'vae_normal_{}'.format(algorithm)
+        latent_prior = Normal(mean=tf.zeros([1, config.z_dim]),
+                              std=tf.ones([1, config.z_dim]))
+    elif latent_posterior is Bernoulli:
+        h_for_q_z = Sequential([
+            K.layers.Dense(100, activation=tf.nn.relu),
+            K.layers.Dense(100, activation=tf.nn.relu),
+            DictMapper({
+                'logits': K.layers.Dense(config.z_dim, name='z_logits'),
+            })
+        ])
+        if algorithm not in ('vimco', 'rws_wake'):
+            raise ValueError('Unexpected algorithm for vae_bernoulli: {!r}'.
+                             format(algorithm))
+        tag = 'bernoulli_vae_{}'.format(algorithm)
+        latent_prior = Bernoulli(tf.zeros([1, config.z_dim]))
+    else:
+        raise ValueError('Unexpected latent distribution: {!r}'.
+                         format(latent_posterior))
+
+    vae = VAE(
+        p_z=latent_prior,
+        p_x_given_z=Normal,
+        q_z_given_x=latent_posterior,
+        h_for_p_x=Sequential([
+            tf.to_float,
+            K.layers.Dense(100, activation=tf.nn.relu),
+            K.layers.Dense(100, activation=tf.nn.relu),
+            DictMapper({
+                'mean': K.layers.Dense(config.x_dim, name='x_mean'),
+                'std': functools.partial(
+                    softplus_std, n_dims=config.x_dim, name='x_std')
             })
         ]),
+        h_for_q_z=h_for_q_z,
     )
     chain = vae.chain(input_x, n_z=config.n_samples)
 
     # train loss
-    vae_loss = tf.reduce_mean(chain.vi.training.iwae())
+    if algorithm == 'sgvb':
+        vae_loss = vae.get_training_loss(input_x)
+    else:
+        vae_loss = tf.reduce_mean(getattr(chain.vi.training, algorithm)())
     loss = vae_loss + regularization_loss()
 
     # test outputs
@@ -195,13 +228,12 @@ def vae_experiment(x_train, x_valid, x_test):
     samples = tf.reshape(vae.model(n_z=10000)['x'], [-1, config.x_dim])
 
     with create_session().as_default():
-        experiment_common('vae', x_train, x_valid, x_test, input_x, loss,
+        experiment_common(tag, x_train, x_valid, x_test, input_x, loss,
                           log_p_per_x, nll, samples)
 
 
 def softplus_std(inputs, n_dims, name=None):
-    with tf.name_scope(name, default_name='softplus_std', values=[inputs]):
-        return 1e-4 + tf.nn.softplus(dense(inputs, n_dims))
+    return 1e-4 + tf.nn.softplus(dense(inputs, n_dims, name=name))
 
 
 @global_reuse
@@ -266,15 +298,18 @@ def gmvae_p_net(observed=None, n_samples=None):
 
 
 @isolate_graph
-def gmvae_experiment(x_train, x_valid, x_test):
+def gmvae_experiment(x_train, x_valid, x_test, algorithm):
     input_x = tf.placeholder(
         dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
+    tag = 'gmvae_{}'.format(algorithm)
 
     # train loss
     q_net = gmvae_q_net(input_x, n_samples=config.n_samples)
     chain = q_net.chain(gmvae_p_net, observed={'x': input_x},
                         latent_names=['y', 'z'], latent_axis=0)
-    gmvae_loss = tf.reduce_mean(chain.vi.training.vimco())
+    if algorithm not in ('rws_wake', 'vimco'):
+        raise ValueError('Unexpected algorithm: {!r}'.format(algorithm))
+    gmvae_loss = tf.reduce_mean(getattr(chain.vi.training, algorithm)())
     loss = gmvae_loss + regularization_loss()
 
     # test outputs
@@ -290,7 +325,7 @@ def gmvae_experiment(x_train, x_valid, x_test):
     z_posterior_samples = q_net['z']
 
     with create_session().as_default() as session:
-        experiment_common('gmvae', x_train, x_valid, x_test, input_x, loss,
+        experiment_common(tag, x_train, x_valid, x_test, input_x, loss,
                           log_p_per_x, nll, x_samples)
 
         [z_out] = collect_outputs(
@@ -298,24 +333,30 @@ def gmvae_experiment(x_train, x_valid, x_test):
             inputs=[input_x],
             data_flow=DataFlow.arrays([x_test], config.test_batch_size)
         )
-        plot_data(z_out[:, :2], results.prepare_parent('gmvae/z_posterior.png'))
+        plot_data(z_out[:, :2],
+                  results.prepare_parent(tag + '/z_posterior.png'))
         [z_out] = session.run([z_prior_samples])
-        plot_data(z_out[:, :2], results.prepare_parent('gmvae/z_prior.png'))
+        plot_data(z_out[:, :2],
+                  results.prepare_parent(tag + '/z_prior.png'))
 
 
 def main():
     # prepare the data
     x_data = make_data(130000 // 2)
-    # plot_data(x_data, 'data.png')
+    plot_data(x_data, 'data.png')
     np.random.shuffle(x_data)
     x_train, x_valid, x_test = \
         x_data[:70000], x_data[70000: 100000], x_data[100000:]
 
     # do VAE experiment
-    # vae_experiment(x_train, x_valid, x_test)
+    vae_experiment(x_train, x_valid, x_test, Normal, 'sgvb')
+    vae_experiment(x_train, x_valid, x_test, Normal, 'iwae')
+    vae_experiment(x_train, x_valid, x_test, Bernoulli, 'vimco')
+    vae_experiment(x_train, x_valid, x_test, Bernoulli, 'rws_wake')
 
     # do GMVAE experiment
-    gmvae_experiment(x_train, x_valid, x_test)
+    gmvae_experiment(x_train, x_valid, x_test, 'vimco')
+    gmvae_experiment(x_train, x_valid, x_test, 'rws_wake')
 
 
 if __name__ == '__main__':

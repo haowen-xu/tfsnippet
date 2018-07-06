@@ -20,7 +20,7 @@ __all__ = [
 
 @add_arg_scope
 @add_variable_scope
-def global_average_pooling(inputs, channels_last=False, name=None):
+def global_average_pooling(inputs, channels_last=False):
     """
     Global average pooling layer.
 
@@ -28,7 +28,6 @@ def global_average_pooling(inputs, channels_last=False, name=None):
         inputs: The inputs feature map.
         channels_last: Whether or not the channels are the last dimension?
             (default :obj:`False`)
-        name: Optional name of the variable scope.
 
     Returns:
         The output feature map.
@@ -138,8 +137,7 @@ def resnet_block(inputs,
                  bias_regularizer=None,
                  kernel_constraint=None,
                  bias_constraint=None,
-                 trainable=True,
-                 name=None):
+                 trainable=True):
     inputs = tf.convert_to_tensor(inputs)
     input_shape = int(inputs.get_shape()[3 if channels_last else 1])
     output_shape = int(output_dims)
@@ -186,8 +184,7 @@ def deconv_resnet_block(inputs,
                         bias_regularizer=None,
                         kernel_constraint=None,
                         bias_constraint=None,
-                        trainable=True,
-                        name=None):
+                        trainable=True):
     inputs = tf.convert_to_tensor(inputs)
     input_shape = int(inputs.get_shape()[3 if channels_last else 1])
     output_shape = int(output_dims)

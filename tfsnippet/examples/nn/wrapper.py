@@ -35,7 +35,7 @@ def dense(inputs,
         kernel_constraint=kernel_constraint,
         bias_constraint=bias_constraint,
         trainable=trainable,
-        name='linear'
+        name=name
     )
     if normalizer_fn is not None:
         output = normalizer_fn(output)
@@ -78,7 +78,7 @@ def conv2d(inputs,
         kernel_constraint=kernel_constraint,
         bias_constraint=bias_constraint,
         trainable=trainable,
-        name='linear'
+        name=name
     )
     if normalizer_fn is not None:
         output = normalizer_fn(output)
@@ -121,7 +121,7 @@ def deconv2d(inputs,
         kernel_constraint=kernel_constraint,
         bias_constraint=bias_constraint,
         trainable=trainable,
-        name='linear'
+        name=name
     )
     if normalizer_fn is not None:
         output = normalizer_fn(output)
@@ -131,7 +131,6 @@ def deconv2d(inputs,
 
 
 @add_arg_scope
-@add_variable_scope
 def batch_norm_2d(inputs,
                   channels_last=False,
                   momentum=0.99,
@@ -166,4 +165,5 @@ def batch_norm_2d(inputs,
         gamma_constraint=gamma_constraint,
         trainable=trainable,
         training=training,
+        name=name
     )
