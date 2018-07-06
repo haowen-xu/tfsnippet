@@ -22,7 +22,9 @@ from tfsnippet.examples.utils import (load_mnist,
                                       save_images_collection,
                                       Results,
                                       MultiGPU,
-                                      get_batch_size)
+                                      get_batch_size,
+                                      flatten,
+                                      unflatten)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -101,18 +103,20 @@ def q_net(x, observed=None, n_samples=None, is_training=True,
 
     # sample z ~ q(z|y,x)
     if n_samples is not None:
-        h_z = tf.tile(tf.reshape(h_x, [1, -1, h_x_dim]),
-                      tf.stack([n_samples, 1, 1]))
+        h_z = tf.concat(
+            [
+                tf.tile(tf.reshape(h_x, [1, -1, h_x_dim]),
+                        tf.stack([n_samples, 1, 1])),
+                tf.one_hot(y, config.n_clusters)
+            ],
+            axis=-1
+        )
     else:
-        h_z = h_x
-
-    h_z = tf.concat([h_z, tf.one_hot(y, config.n_clusters)], axis=-1)
-    h_z = tf.reshape(h_z, [-1, h_x_dim + config.n_clusters])
+        h_z = tf.concat([h_x, tf.one_hot(y, config.n_clusters)], axis=-1)
+    h_z, s1, s2 = flatten(h_z, 2)
     h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
-    z_mean = tf.reshape(dense(h_z, config.z_dim, name='z_mean'),
-                        [n_samples, -1, config.z_dim])
-    z_logstd = tf.reshape(dense(h_z, config.z_dim, name='z_logstd'),
-                          [n_samples, -1, config.z_dim])
+    z_mean = unflatten(dense(h_z, config.z_dim, name='z_mean'), s1, s2)
+    z_logstd = unflatten(dense(h_z, config.z_dim, name='z_logstd'), s1, s2)
     z = net.add('z',
                 Normal(mean=z_mean, logstd=z_logstd, is_reparameterized=False),
                 group_ndims=1)
@@ -141,24 +145,22 @@ def p_net(observed=None, n_samples=None, is_training=True,
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        h_z = z
-        origin_shape = tf.shape(h_z)[:-1]  # might be (n_z, n_batch)
-        h_z = tf.reshape(h_z, [-1, config.z_dim])
-        h_z = tf.reshape(
-            tf.layers.dense(h_z, 64 * 7 * 7),
+        h_x, s1, s2 = flatten(z, 2)
+        h_x = tf.reshape(
+            tf.layers.dense(h_x, 64 * 7 * 7),
             [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7]
         )
-        h_z = deconv_resnet_block(h_z, 64)  # output: (64, 7, 7)
-        h_z = deconv_resnet_block(h_z, 32, strides=2)  # output: (32, 14, 14)
-        h_z = deconv_resnet_block(h_z, 32)  # output: (32, 14, 14)
-        h_z = deconv_resnet_block(h_z, 16, strides=2)  # output: (16, 28, 28)
-        h_z = conv2d(
-            h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
+        h_x = deconv_resnet_block(h_x, 64)  # output: (64, 7, 7)
+        h_x = deconv_resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = deconv_resnet_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = deconv_resnet_block(h_x, 16, strides=2)  # output: (16, 28, 28)
+        h_x = conv2d(
+            h_x, 1, (1, 1), padding='same', name='feature_map_to_pixel',
             channels_last=channels_last)  # output: (1, 28, 28)
+        h_x = tf.reshape(h_x, [-1, config.x_dim], name='x_logits')
 
     # sample x ~ p(x|z)
-    x_logits = tf.reshape(
-        h_z, tf.concat([origin_shape, [config.x_dim]], axis=0), name='x_logits')
+    x_logits = unflatten(h_x, s1, s2)
     x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
