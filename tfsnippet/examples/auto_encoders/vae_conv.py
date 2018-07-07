@@ -8,9 +8,13 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 from tfsnippet.modules import VAE
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.examples.nn import (l2_regularizer,
+from tfsnippet.examples.nn import (resnet_block,
+                                   deconv_resnet_block,
+                                   reshape_conv2d_to_flat,
+                                   l2_regularizer,
                                    regularization_loss,
-                                   dense)
+                                   conv2d,
+                                   batch_norm_2d)
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
                                       Config,
@@ -18,9 +22,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       save_images_collection,
                                       Results,
                                       MultiGPU,
-                                      get_batch_size,
-                                      flatten,
-                                      unflatten)
+                                      get_batch_size)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -28,16 +30,16 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 
 class ExpConfig(Config):
     # model parameters
-    z_dim = 200
-    x_dim = 784
+    z_dim = 32
+    channels_last = False
 
     # training parameters
-    max_epoch = 1000
+    max_epoch = 3000
     batch_size = 128
     l2_reg = 0.0001
-    initial_lr = 0.001
+    initial_lr = 0.0001
     lr_anneal_factor = 0.5
-    lr_anneal_epoch_freq = 100
+    lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
 
     # evaluation parameters
@@ -51,29 +53,53 @@ results = Results()
 
 @global_reuse
 @add_arg_scope
-def h_for_q_z(x, is_training):
-    with arg_scope([dense],
+def h_for_q_z(x, is_training, channels_last=config.channels_last):
+    with arg_scope([resnet_block],
                    activation_fn=tf.nn.relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_x = tf.to_float(x)
-        h_x = dense(h_x, 500)
-        h_x = dense(h_x, 500)
+                   normalizer_fn=functools.partial(
+                       batch_norm_2d,
+                       channels_last=channels_last,
+                       training=is_training,
+                   ),
+                   dropout_fn=functools.partial(
+                       tf.layers.dropout,
+                       training=is_training
+                   ),
+                   kernel_regularizer=l2_regularizer(config.l2_reg),
+                   channels_last=channels_last):
+        x = tf.to_float(x)
+        x = tf.reshape(x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
+        x = resnet_block(x, 16)  # output: (16, 28, 28)
+        x = resnet_block(x, 32, strides=2)  # output: (32, 14, 14)
+        x = resnet_block(x, 32)  # output: (32, 14, 14)
+        x = resnet_block(x, 64, strides=2)  # output: (64, 7, 7)
+        x = resnet_block(x, 64)  # output: (64, 7, 7)
+    x = reshape_conv2d_to_flat(x)
     return {
-        'mean': tf.layers.dense(h_x, config.z_dim, name='z_mean'),
-        'logstd': tf.layers.dense(h_x, config.z_dim, name='z_logstd'),
+        'mean': tf.layers.dense(x, config.z_dim, name='z_mean'),
+        'logstd': tf.layers.dense(x, config.z_dim, name='z_logstd'),
     }
 
 
 @global_reuse
 @add_arg_scope
-def h_for_p_x(z, is_training):
-    with arg_scope([dense],
+def h_for_p_x(z, is_training, channels_last=config.channels_last):
+    with arg_scope([deconv_resnet_block],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_x, s1, s2 = flatten(z, 2)
-        h_x = dense(h_x, 500)
-        h_x = dense(h_x, 500)
-        x_logits = unflatten(dense(h_x, config.x_dim, name='x_logits'), s1, s2)
+                   kernel_regularizer=l2_regularizer(config.l2_reg),
+                   channels_last=channels_last):
+        origin_shape = tf.shape(z)[:-1]  # might be (n_z, n_batch)
+        z = tf.reshape(z, [-1, config.z_dim])
+        z = tf.reshape(tf.layers.dense(z, 64 * 7 * 7),
+                       [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
+        z = deconv_resnet_block(z, 64)  # output: (64, 7, 7)
+        z = deconv_resnet_block(z, 32, strides=2)  # output: (32, 14, 14)
+        z = deconv_resnet_block(z, 32)  # output: (32, 14, 14)
+        z = deconv_resnet_block(z, 16, strides=2)  # output: (16, 28, 28)
+        z = conv2d(
+            z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
+            channels_last=channels_last)  # output: (1, 28, 28)
+    x_logits = tf.reshape(z, tf.concat([origin_shape, [784]], axis=0))
     return {'logits': x_logits}
 
 
@@ -88,7 +114,7 @@ def sample_from_logits(x):
 def main():
     # load mnist data
     (x_train, y_train), (x_test, y_test) = \
-        load_mnist(shape=[config.x_dim], dtype=np.float32, normalize=True)
+        load_mnist(shape=[784], dtype=np.float32, normalize=True)
 
     # input placeholders
     input_x = tf.placeholder(

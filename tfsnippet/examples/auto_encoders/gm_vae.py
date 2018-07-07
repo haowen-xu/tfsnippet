@@ -14,7 +14,8 @@ from tfsnippet.examples.nn import (resnet_block,
                                    l2_regularizer,
                                    regularization_loss,
                                    conv2d,
-                                   batch_norm_2d, dense)
+                                   batch_norm_2d,
+                                   dense)
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
                                       Config,
@@ -24,7 +25,8 @@ from tfsnippet.examples.utils import (load_mnist,
                                       MultiGPU,
                                       get_batch_size,
                                       flatten,
-                                      unflatten)
+                                      unflatten,
+                                      int_shape)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -33,17 +35,17 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 class ExpConfig(Config):
     # model parameters
     x_dim = 784
-    z_dim = 32
-    n_clusters = 16
+    z_dim = 200
+    n_clusters = 10
     channels_last = False
 
     # training parameters
-    max_epoch = 3000
+    max_epoch = 1000
     batch_size = 128
     l2_reg = 0.0001
-    initial_lr = 0.0001
+    initial_lr = 0.001
     lr_anneal_factor = 0.5
-    lr_anneal_epoch_freq = 300
+    lr_anneal_epoch_freq = 100
     lr_anneal_step_freq = None
     train_n_samples = 50
 
@@ -53,16 +55,22 @@ class ExpConfig(Config):
 
 
 def gaussian_mixture_prior(y, z_dim, n_clusters):
-    theta = 2 * np.pi / n_clusters
-    R = np.sqrt(18. / (1 - np.cos(theta)))
-    y_float = tf.to_float(tf.stop_gradient(y))
-    z_prior_mean = tf.stack(
-        [R * tf.cos(y_float * theta), R * tf.sin(y_float * theta)] +
-        [tf.zeros_like(y_float)] * (z_dim - 2),
-        axis=-1
-    )
-    z_prior_std = tf.ones([1, z_dim])
-    return Normal(mean=z_prior_mean, std=z_prior_std)
+    # theta = 2 * np.pi / n_clusters
+    # R = np.sqrt(18. / (1 - np.cos(theta)))
+    # y_float = tf.to_float(tf.stop_gradient(y))
+    # z_prior_mean = tf.stack(
+    #     [R * tf.cos(y_float * theta), R * tf.sin(y_float * theta)] +
+    #     [tf.zeros_like(y_float)] * (z_dim - 2),
+    #     axis=-1
+    # )
+    # z_prior_std = tf.ones([1, z_dim])
+    # return Normal(mean=z_prior_mean, std=z_prior_std)
+    y = tf.stop_gradient(y)
+    if None not in int_shape(y):
+        z_shape = int_shape(y) + (z_dim,)
+    else:
+        z_shape = tf.concat([tf.shape(y), [z_dim]], axis=0)
+    return Normal(mean=tf.zeros(z_shape), std=tf.ones(z_shape))
 
 
 @global_reuse
@@ -72,54 +80,63 @@ def q_net(x, observed=None, n_samples=None, is_training=True,
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
-    with arg_scope([resnet_block],
+    # with arg_scope([resnet_block],
+    #                activation_fn=tf.nn.relu,
+    #                normalizer_fn=functools.partial(
+    #                    batch_norm_2d,
+    #                    channels_last=channels_last,
+    #                    training=is_training,
+    #                ),
+    #                dropout_fn=functools.partial(
+    #                    tf.layers.dropout,
+    #                    training=is_training
+    #                ),
+    #                kernel_regularizer=l2_regularizer(config.l2_reg),
+    #                channels_last=channels_last):
+    #     h_x = tf.to_float(x)
+    #     h_x = tf.reshape(
+    #         h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
+    #     h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
+    #     h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+    #     h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
+    #     h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+    #     h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
+    #     h_x = reshape_conv2d_to_flat(h_x)
+    #     h_x_dim = 64 * 7 * 7
+
+    with arg_scope([dense],
                    activation_fn=tf.nn.relu,
-                   normalizer_fn=functools.partial(
-                       batch_norm_2d,
-                       channels_last=channels_last,
-                       training=is_training,
-                   ),
-                   dropout_fn=functools.partial(
-                       tf.layers.dropout,
-                       training=is_training
-                   ),
-                   kernel_regularizer=l2_regularizer(config.l2_reg),
-                   channels_last=channels_last):
-        h_x = x
-        h_x = tf.to_float(h_x)
-        h_x = tf.reshape(
-            h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
-    h_x = reshape_conv2d_to_flat(h_x)
-    h_x_dim = 64 * 7 * 7
+                   kernel_regularizer=l2_regularizer(config.l2_reg)):
+        h_x = tf.to_float(x)
+        h_x = dense(h_x, 500)
+        h_x = dense(h_x, 500)
+        h_x_dim = 500
 
     # sample y ~ q(y|x)
     y_logits = dense(h_x, config.n_clusters, name='y_logits')
     y = net.add('y', Categorical(y_logits), n_samples=n_samples)
 
-    # sample z ~ q(z|y,x)
-    if n_samples is not None:
-        h_z = tf.concat(
-            [
-                tf.tile(tf.reshape(h_x, [1, -1, h_x_dim]),
-                        tf.stack([n_samples, 1, 1])),
-                tf.one_hot(y, config.n_clusters)
-            ],
-            axis=-1
-        )
-    else:
-        h_z = tf.concat([h_x, tf.one_hot(y, config.n_clusters)], axis=-1)
-    h_z, s1, s2 = flatten(h_z, 2)
-    h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
-    z_mean = unflatten(dense(h_z, config.z_dim, name='z_mean'), s1, s2)
-    z_logstd = unflatten(dense(h_z, config.z_dim, name='z_logstd'), s1, s2)
+    # # sample z ~ q(z|y,x)
+    # if n_samples is not None:
+    #     h_z = tf.concat(
+    #         [
+    #             tf.tile(tf.reshape(h_x, [1, -1, h_x_dim]),
+    #                     tf.stack([n_samples, 1, 1])),
+    #             tf.one_hot(y, config.n_clusters)
+    #         ],
+    #         axis=-1
+    #     )
+    # else:
+    #     h_z = tf.concat([h_x, tf.one_hot(y, config.n_clusters)], axis=-1)
+    # h_z, s1, s2 = flatten(h_z, 2)
+    # h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
+
+    # sample z ~ q(z|x)
+    z_mean = dense(h_x, config.z_dim, name='z_mean')
+    z_logstd = dense(h_x, config.z_dim, name='z_logstd')
     z = net.add('z',
                 Normal(mean=z_mean, logstd=z_logstd, is_reparameterized=False),
-                group_ndims=1)
+                n_samples=n_samples, group_ndims=1)
 
     return net
 
@@ -141,23 +158,30 @@ def p_net(observed=None, n_samples=None, is_training=True,
                 group_ndims=1)
 
     # compute the hidden features for x
-    with arg_scope([deconv_resnet_block],
+    # with arg_scope([deconv_resnet_block],
+    #                activation_fn=tf.nn.leaky_relu,
+    #                kernel_regularizer=l2_regularizer(config.l2_reg),
+    #                channels_last=channels_last):
+    #     h_x, s1, s2 = flatten(z, 2)
+    #     h_x = tf.reshape(
+    #         tf.layers.dense(h_x, 64 * 7 * 7),
+    #         [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7]
+    #     )
+    #     h_x = deconv_resnet_block(h_x, 64)  # output: (64, 7, 7)
+    #     h_x = deconv_resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+    #     h_x = deconv_resnet_block(h_x, 32)  # output: (32, 14, 14)
+    #     h_x = deconv_resnet_block(h_x, 16, strides=2)  # output: (16, 28, 28)
+    #     h_x = conv2d(
+    #         h_x, 1, (1, 1), padding='same', name='feature_map_to_pixel',
+    #         channels_last=channels_last)  # output: (1, 28, 28)
+    #     h_x = tf.reshape(h_x, [-1, config.x_dim])
+    with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg),
-                   channels_last=channels_last):
+                   kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x, s1, s2 = flatten(z, 2)
-        h_x = tf.reshape(
-            tf.layers.dense(h_x, 64 * 7 * 7),
-            [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7]
-        )
-        h_x = deconv_resnet_block(h_x, 64)  # output: (64, 7, 7)
-        h_x = deconv_resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = deconv_resnet_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = deconv_resnet_block(h_x, 16, strides=2)  # output: (16, 28, 28)
-        h_x = conv2d(
-            h_x, 1, (1, 1), padding='same', name='feature_map_to_pixel',
-            channels_last=channels_last)  # output: (1, 28, 28)
-        h_x = tf.reshape(h_x, [-1, config.x_dim], name='x_logits')
+        h_x = dense(h_x, 500)
+        h_x = dense(h_x, 500)
+        h_x = dense(h_x, config.x_dim, name='x_logits')
 
     # sample x ~ p(x|z)
     x_logits = unflatten(h_x, s1, s2)
