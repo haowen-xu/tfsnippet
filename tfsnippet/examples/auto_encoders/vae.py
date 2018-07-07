@@ -45,10 +45,6 @@ class ExpConfig(Config):
     test_batch_size = 128
 
 
-config = ExpConfig()
-results = Results()
-
-
 @global_reuse
 @add_arg_scope
 def h_for_q_z(x, is_training):
@@ -215,4 +211,6 @@ def main():
 
 
 if __name__ == '__main__':
+    config = ExpConfig()
+    results = Results()
     main()
