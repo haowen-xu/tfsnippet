@@ -337,7 +337,8 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test enable summary with `summary_dir`
         with TemporaryDirectory() as tempdir:
-            with TrainLoop([], max_epoch=2, summary_dir=tempdir) as loop:
+            with TrainLoop([], max_epoch=2, summary_dir=tempdir,
+                           summary_graph=tf.get_default_graph()) as loop:
                 self.assertIsInstance(loop.summary_writer,
                                       tf.summary.FileWriter)
                 self.assertIsNone(loop._early_stopping)
@@ -352,7 +353,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             obj = read_summary(tempdir)
             self.assertEqual(
-                ['epoch_time', 'loss', 'step_time', 'valid_loss', 'x'],
+                ['loss', 'valid_loss', 'x'],
                 sorted(obj[0])
             )
             np.testing.assert_equal(obj[1], [1, 2, 3, 4, 5, 6])
@@ -379,7 +380,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['epoch_time', 'loss', 'step_time', 'valid_loss']
+                ['loss', 'valid_loss']
             )
 
         with TemporaryDirectory() as tempdir:
@@ -394,7 +395,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['epoch_time', 'loss', 'step_time', 'valid_loss']
+                ['loss', 'valid_loss']
             )
 
     def test_early_stopping(self):

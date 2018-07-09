@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 from collections import defaultdict
 
 import numpy as np
@@ -62,10 +63,11 @@ class DefaultMetricFormatter(MetricFormatter):
     1.  The metrics are first divided into groups according to the suffices
         of their names as follows:
 
-        1.  names ending with "time" or "timer" should come first
-        2.  names ending with "loss" or "cost" should come the second
-        3.  names ending with "acc" or "accuracy" should come the third
-        4.  other names should all come afterwards
+        1.  names ending with "time" or "timer" should come the first
+        2.  other metrics should come the second
+        2.  names ending with "loss" or "cost" should come the third
+        3.  names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
+            should come the fourth
 
     2.  The metrics are then sorted according to their names, within each group.
 
@@ -74,14 +76,17 @@ class DefaultMetricFormatter(MetricFormatter):
     which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
+    METRIC_ORDERS = (
+        (-1, re.compile(r'.*timer?$')),
+        (998, re.compile(r'.*(loss|cost)$')),
+        (999, re.compile(r'(.*acc(uracy)?|(^|_)(nll|lb)|lower_bound)$')),
+    )
+
     def sort_metrics(self, names):
         def sort_key(name):
-            if name.endswith('time') or name.endswith('timer'):
-                return -3, name
-            elif name.endswith('loss') or name.endswith('cost'):
-                return -2, name
-            elif name.endswith('acc') or name.endswith('accuracy'):
-                return -1, name
+            for priority, pattern in self.METRIC_ORDERS:
+                if pattern.match(name):
+                    return priority, name
             return 0, name
 
         return sorted(names, key=sort_key)
@@ -122,19 +127,25 @@ class MetricLogger(object):
             logger.clear()
     """
 
-    def __init__(self, summary_writer=None, formatter=None):
+    def __init__(self, summary_writer=None, summary_skip_pattern=None,
+                 formatter=None):
         """
         Construct the :class:`MetricLogger`.
 
         Args:
             summary_writer: TensorFlow summary writer.
+            summary_skip_pattern (str or regex): Metrics matching this pattern
+                will be excluded from `summary_writer`. (default :obj:`None`)
             formatter (MetricFormatter): Metric formatter for this logger.
                 If not specified, will use an instance of
                 :class:`DefaultMetricFormatter`.
         """
         if formatter is None:
             formatter = DefaultMetricFormatter()
+        if summary_skip_pattern is not None:
+            summary_skip_pattern = re.compile(summary_skip_pattern)
         self._formatter = formatter
+        self._summary_skip_pattern = summary_skip_pattern
         self._summary_writer = summary_writer
 
         # accumulators for various metrics
@@ -173,7 +184,9 @@ class MetricLogger(object):
             v = np.asarray(v)
             self._metrics[k].collect(v)
 
-            if self._summary_writer is not None:
+            if self._summary_writer is not None and \
+                    (self._summary_skip_pattern is None or
+                     not self._summary_skip_pattern.match(k)):
                 mean_value = v.mean()
                 tf_summary_values.append(
                     tf.summary.Summary.Value(tag=k, simple_value=mean_value))

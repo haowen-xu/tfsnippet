@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import copy
 import os
+import re
 import time
 import warnings
 from collections import OrderedDict
@@ -9,7 +10,8 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.utils import StatisticsCollector, DisposableContext
+from tfsnippet.utils import (StatisticsCollector, DisposableContext,
+                             get_default_session_or_error)
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -58,6 +60,8 @@ class TrainLoop(DisposableContext):
                  print_func=print,
                  summary_dir=None,
                  summary_writer=None,
+                 summary_graph=None,
+                 summary_skip_pattern=re.compile(r'.*(time|timer)$'),
                  metric_formatter=DefaultMetricFormatter(),
                  valid_metric_name='valid_loss',
                  initial_valid_metric=None,
@@ -79,8 +83,11 @@ class TrainLoop(DisposableContext):
                 will be printed via logging facilities.
             summary_dir (str): Directory for writing TensorFlow summaries.
                 Ignored if `summary_writer` is specified.
-            summary_writer:
-                TensorFlow summary writer for writing metrics onto disk.
+            summary_writer: TensorFlow summary writer for writing metrics.
+            summary_graph: If specified, log the graph via `summary_writer`.
+            summary_skip_pattern (str or regex): Metrics matching this pattern
+                will be excluded from `summary_writer`.
+                (default ".*(time|timer)$")
             metric_formatter (MetricFormatter): The training metrics formatter.
             valid_metric_name (str): Name of the validation metric.
             initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
@@ -148,6 +155,8 @@ class TrainLoop(DisposableContext):
         self._valid_metric_smaller_is_better = smaller_is_better
         self._summary_dir = summary_dir
         self._summary_writer = summary_writer
+        self._summary_graph = summary_graph
+        self._summary_skip_pattern = summary_skip_pattern
         self._own_summary_writer = own_summary_writer
 
         # train loop states
@@ -174,12 +183,16 @@ class TrainLoop(DisposableContext):
     def _enter(self):
         # open the summary writer if required
         if self._summary_dir is not None:
-            self._summary_writer = tf.summary.FileWriter(self._summary_dir)
+            self._summary_writer = tf.summary.FileWriter(
+                self._summary_dir, graph=self._summary_graph)
 
         # create the metric accumulators
         self._step_metrics = MetricLogger(formatter=self._metric_formatter)
-        self._epoch_metrics = MetricLogger(summary_writer=self._summary_writer,
-                                           formatter=self._metric_formatter)
+        self._epoch_metrics = MetricLogger(
+            summary_writer=self._summary_writer,
+            summary_skip_pattern=self._summary_skip_pattern,
+            formatter=self._metric_formatter
+        )
 
         # open the early-stopping if required
         if self.use_early_stopping:

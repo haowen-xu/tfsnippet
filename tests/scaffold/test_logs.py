@@ -57,10 +57,10 @@ class MetricLoggerTestCase(tf.test.TestCase):
             logger.format_logs(),
             'train time: 0.25 sec (±0.05 sec); '
             'valid timer: 0.1 sec; '
+            'other metric: 5; '
             'loss: 3.25 (±1.92029); '
             'valid loss: 3; '
-            'valid acc: 6 (±1); '
-            'other metric: 5'
+            'valid acc: 6 (±1)'
         )
 
         logger.clear()
@@ -73,12 +73,14 @@ class MetricLoggerTestCase(tf.test.TestCase):
         with TemporaryDirectory() as tempdir:
             # generate the metric summary
             with contextlib.closing(tf.summary.FileWriter(tempdir)) as sw:
-                logger = MetricLogger(sw)
+                logger = MetricLogger(
+                    sw, summary_skip_pattern=r'.*(time|timer)$')
                 step = 0
                 for epoch in range(1, 3):
                     for data in range(10):
                         step += 1
                         logger.collect_metrics({'acc': step * 100 + data}, step)
+                        logger.collect_metrics({'time': epoch}, step)
 
                     with self.test_session(use_gpu=False):
                         logger.collect_metrics(

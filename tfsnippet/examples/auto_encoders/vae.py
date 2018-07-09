@@ -28,16 +28,16 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 
 class ExpConfig(Config):
     # model parameters
-    z_dim = 200
+    z_dim = 40
     x_dim = 784
 
     # training parameters
-    max_epoch = 1000
+    max_epoch = 3000
     batch_size = 128
     l2_reg = 0.0001
     initial_lr = 0.001
     lr_anneal_factor = 0.5
-    lr_anneal_epoch_freq = 100
+    lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
 
     # evaluation parameters
@@ -177,12 +177,12 @@ def main():
                                  skip_incomplete=True)
     test_flow = DataFlow.arrays([x_test], config.test_batch_size)
 
-    with create_session(lock_memory=.5,
-                        log_device_placement=True).as_default():
+    with create_session().as_default():
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
+                       summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,
