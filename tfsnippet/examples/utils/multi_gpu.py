@@ -278,7 +278,7 @@ class MultiGPU(object):
 
     def average(self, tensors, batch_size=None):
         """
-        Take the average of given tensors.
+        Take the average of given tensors from different devices.
 
         If `batch_size` is specified, the tensors will be averaged with respect
         to the size of data fed to each device.
@@ -327,3 +327,32 @@ class MultiGPU(object):
 
             return [tf.reduce_sum(tf.stack(t) * weights, axis=0)
                     for t in tensors]
+
+    def concat(self, tensors):
+        """
+        Concat given tensors from different devices.
+
+        Args:
+            tensors (list[list[tf.Tensor]]): List of tensors from each device.
+
+        Returns:
+            list[tf.Tensor]: The concatenated tensors.
+        """
+        # check the arguments and try the fast path: only one tensor
+        tensors = list(tensors)
+        if not tensors:
+            return []
+        length = len(tensors[0])
+        if length == 0:
+            raise ValueError('`tensors` must be list of non-empty Tensor '
+                             'lists.')
+        for t in tensors[1:]:
+            if len(t) != length:
+                raise ValueError('`tensors` must be list of Tensor lists of '
+                                 'the same length.')
+        if length == 1:
+            return [t[0] for t in tensors]
+
+        # do the slow path: concat all tensors
+        with tf.device(self.main_device), tf.name_scope('average_tensors'):
+            return [tf.concat(t, axis=0) for t in tensors]

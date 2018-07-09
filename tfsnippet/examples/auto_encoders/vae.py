@@ -41,7 +41,7 @@ class ExpConfig(Config):
     lr_anneal_step_freq = None
 
     # evaluation parameters
-    test_n_z = 100
+    test_n_z = 500
     test_batch_size = 128
 
 
