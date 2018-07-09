@@ -144,12 +144,12 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'x: 0\.5 \(±0\.5\)\n'
             r'\[Epoch 1, Step 4/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Epoch 1\] epoch time: 0\.0[456]\d* sec; '
+            r'\[Epoch 1, Step 4/6\] epoch time: 0\.0[456]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
             r'y: 1\n'
             r'\[Epoch 2, Step 6/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 0\.5 \(±0\.5\)\n'
-            r'\[Epoch 2\] epoch time: 0\.0[23]\d* sec; '
+            r'\[Epoch 2, Step 6/6\] epoch time: 0\.0[23]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 0\.5 \(±0\.5\); y: 2'
             r'$'
         ))
@@ -171,7 +171,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'x: 0\.5 \(±0\.5\)\n'
             r'\[Step 4\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Epoch\] epoch time: 0\.0[456]\d* sec; '
+            r'\[Step 4\] epoch time: 0\.0[456]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
             r'y: 1'
             r'$'
@@ -201,7 +201,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'valid loss: 0\.6 \(\*\)\n'
             r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
             r'valid loss: 0\.7\n'
-            r'\[Epoch 1\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
             r'\(±[^ ]+ sec\); valid loss: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
@@ -232,7 +232,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'y: 0\.6\n'
             r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
             r'y: 0\.8 \(\*\)\n'
-            r'\[Epoch 1\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
             r'\(±[^ ]+ sec\); y: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
@@ -287,7 +287,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch\] epoch time: 0\.0[345]\d* sec; '
+            r'\[Step 0\] epoch time: 0\.0[345]\d* sec; '
             r'x timer: 0\.01\d* sec; y time: 0\.0[23]\d* sec'
             r'$'
         ))
@@ -302,7 +302,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch\] epoch time: [^ ]+ sec; x: 2\.75'
+            r'\[Step 0\] epoch time: [^ ]+ sec; x: 2\.75'
             r'$'
         ))
 

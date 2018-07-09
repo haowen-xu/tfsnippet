@@ -501,12 +501,9 @@ class TrainLoop(DisposableContext):
             if not self._within_step and not self._within_epoch:
                 self._require_context()
             tags = []
-            if self._within_epoch and self._max_epoch != 1:
+            if self._max_epoch != 1:
                 tags.append(format_tag(self._epoch, self._max_epoch, 'Epoch'))
-            if self._within_step:
-                tags.append(format_tag(self._step, self._max_step, 'Step'))
-            if not tags:
-                tags = ['Epoch']
+            tags.append(format_tag(self._step, self._max_step, 'Step'))
             message = '[{}] {}'.format(', '.join(tags), message)
         self._print_func(message)
 

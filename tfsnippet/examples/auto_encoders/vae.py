@@ -49,7 +49,7 @@ class ExpConfig(Config):
 @add_arg_scope
 def h_for_q_z(x, is_training):
     with arg_scope([dense],
-                   activation_fn=tf.nn.relu,
+                   activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
         h_x = dense(h_x, 500)
