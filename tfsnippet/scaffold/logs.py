@@ -79,7 +79,7 @@ class DefaultMetricFormatter(MetricFormatter):
     METRIC_ORDERS = (
         (-1, re.compile(r'.*timer?$')),
         (998, re.compile(r'.*(loss|cost)$')),
-        (999, re.compile(r'(.*acc(uracy)?|(^|_)(nll|lb)|lower_bound)$')),
+        (999, re.compile(r'(.*(acc(uracy)?|lower_bound))|((^|.*_)(nll|lb))$')),
     )
 
     def sort_metrics(self, names):

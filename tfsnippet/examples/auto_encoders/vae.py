@@ -73,7 +73,7 @@ def h_for_p_x(z, is_training):
     return {'logits': x_logits}
 
 
-def sample_from_logits(x):
+def sample_from_probs(x):
     uniform_samples = tf.random_uniform(
         shape=tf.shape(x), minval=0., maxval=1.,
         dtype=x.dtype
@@ -88,7 +88,7 @@ def main():
 
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.float32, shape=(None,) + x_train.shape[1:], name='input_x')
+        dtype=tf.int32, shape=(None,) + x_train.shape[1:], name='input_x')
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
@@ -117,22 +117,20 @@ def main():
     for dev, pre_build, [dev_input_x] in multi_gpu.data_parallel(
             batch_size, [input_x]):
         with tf.device(dev), multi_gpu.maybe_name_scope(dev):
-            dev_sampled_x = sample_from_logits(dev_input_x)
-
             if pre_build:
                 with arg_scope([h_for_q_z, h_for_p_x], channels_last=True):
-                    _ = vae.chain(dev_sampled_x)
+                    _ = vae.chain(dev_input_x)
 
             else:
                 # derive the loss and lower-bound for training
-                dev_vae_loss = vae.get_training_loss(dev_sampled_x)
+                dev_vae_loss = vae.get_training_loss(dev_input_x)
                 dev_loss = dev_vae_loss + regularization_loss()
                 dev_lower_bound = -dev_vae_loss
                 losses.append(dev_loss)
                 lower_bounds.append(dev_lower_bound)
 
                 # derive the nll and logits output for testing
-                test_chain = vae.chain(dev_sampled_x, n_z=config.test_n_z)
+                test_chain = vae.chain(dev_input_x, n_z=config.test_n_z)
                 dev_test_nll = -tf.reduce_mean(
                     test_chain.vi.evaluation.is_loglikelihood())
                 test_nlls.append(dev_test_nll)
@@ -173,9 +171,19 @@ def main():
             )
 
     # prepare for training and testing data
+    def input_x_sampler(x):
+        sess = get_default_session_or_error()
+        return sess.run([sampled_x], feed_dict={sample_input_x: x})
+
+    with tf.device('/device:CPU:0'):
+        sample_input_x = tf.placeholder(
+            dtype=tf.float32, shape=(None, config.x_dim), name='sample_input_x')
+        sampled_x = sample_from_probs(sample_input_x)
+
     train_flow = DataFlow.arrays([x_train], config.batch_size, shuffle=True,
-                                 skip_incomplete=True)
-    test_flow = DataFlow.arrays([x_test], config.test_batch_size)
+                                 skip_incomplete=True).map(input_x_sampler)
+    test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
+        map(input_x_sampler)
 
     with create_session().as_default():
         # train the network
