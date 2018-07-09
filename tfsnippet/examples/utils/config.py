@@ -1,3 +1,4 @@
+import codecs
 import json
 import os
 
@@ -42,6 +43,15 @@ class Config(object):
         # program is run via `mlrun` from MLToolkit.
         # See `MLToolkit <https://github.com/haowen-xu/mltoolkit>`_ for details.
         self.from_env('MLTOOLKIT_EXPERIMENT_CONFIG')
+
+        # Save config to ``env["MLTOOLKIT_EXPERIMENT_MERGED_CONFIG_FILE"]``
+        # if presents.
+        merged_config_file = \
+            os.environ.get('MLTOOLKIT_EXPERIMENT_MERGED_CONFIG_FILE', None)
+        if merged_config_file:
+            config_str = json.dumps(self.to_dict())
+            with codecs.open(merged_config_file, 'wb', 'utf-8') as f:
+                f.write(config_str)
 
     def to_dict(self):
         """

@@ -69,8 +69,9 @@ def h_for_p_x(z, is_training):
         h_x, s1, s2 = flatten(z, 2)
         h_x = dense(h_x, 500)
         h_x = dense(h_x, 500)
-        x_logits = unflatten(dense(h_x, config.x_dim, name='x_logits'), s1, s2)
-    return {'logits': x_logits}
+    return {
+        'logits': unflatten(dense(h_x, config.x_dim, name='x_logits'), s1, s2)
+    }
 
 
 def sample_from_probs(x):
