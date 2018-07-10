@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import codecs
 import functools
-import json
 
 import numpy as np
 import tensorflow as tf
@@ -11,13 +10,8 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli, Categorical
-from tfsnippet.examples.nn import (resnet_block,
-                                   deconv_resnet_block,
-                                   reshape_conv2d_to_flat,
-                                   l2_regularizer,
+from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
-                                   conv2d,
-                                   batch_norm_2d,
                                    dense)
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
@@ -30,6 +24,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       flatten,
                                       unflatten,
                                       int_shape, collect_outputs)
+from tfsnippet.examples.utils.evaluation import ClusteringClassifier
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -40,8 +35,7 @@ class ExpConfig(Config):
     x_dim = 784
     z_dim = 32
     n_clusters = 16
-    channels_last = False
-    gaussian_mixture_prior = 'unit'  # choices: {'unit', '2d_balls'}
+    gaussian_mixture_prior = 'unit'  # choices: {'unit'}
     mean_field_assumption_for_q = True
 
     # training parameters
@@ -67,17 +61,6 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
         else:
             z_shape = tf.concat([tf.shape(y), [z_dim]], axis=0)
         return Normal(mean=tf.zeros(z_shape), std=tf.ones(z_shape))
-    elif config.gaussian_mixture_prior == '2d_balls':
-        theta = 2 * np.pi / n_clusters
-        R = np.sqrt(18. / (1 - np.cos(theta)))
-        y_float = tf.to_float(tf.stop_gradient(y))
-        z_prior_mean = tf.stack(
-            [R * tf.cos(y_float * theta), R * tf.sin(y_float * theta)] +
-            [tf.zeros_like(y_float)] * (z_dim - 2),
-            axis=-1
-        )
-        z_prior_std = tf.ones([1, z_dim])
-        return Normal(mean=z_prior_mean, std=z_prior_std)
     else:
         raise ValueError(
             'Unexpected value for config `gaussian_mixture_prior`: {}'.
@@ -87,8 +70,7 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_samples=None, is_training=True,
-          channels_last=False):
+def q_net(x, observed=None, n_samples=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -141,8 +123,7 @@ def q_net(x, observed=None, n_samples=None, is_training=True,
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_samples=None, is_training=True,
-          channels_last=False):
+def p_net(observed=None, n_samples=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # sample y
@@ -207,8 +188,7 @@ def main():
             batch_size, [input_x]):
         with tf.device(dev), multi_gpu.maybe_name_scope(dev):
             if pre_build:
-                with arg_scope([q_net, p_net], channels_last=True,
-                               is_training=is_training):
+                with arg_scope([q_net, p_net], is_training=is_training):
                     _ = q_net(dev_input_x).chain(
                         p_net,
                         latent_names=['y', 'z'],
@@ -216,9 +196,7 @@ def main():
                     )
 
             else:
-                with arg_scope([q_net, p_net],
-                               channels_last=config.channels_last,
-                               is_training=is_training):
+                with arg_scope([q_net, p_net], is_training=is_training):
                     # derive the loss and lower-bound for training
                     train_q_net = q_net(
                         dev_input_x, n_samples=config.train_n_samples
@@ -269,8 +247,7 @@ def main():
 
     # derive the plotting function
     with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
-        plot_p_net = p_net(n_samples=100, is_training=is_training,
-                           channels_last=config.channels_last)
+        plot_p_net = p_net(n_samples=100, is_training=is_training)
         x_plots = tf.reshape(
             tf.cast(
                 255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
@@ -291,32 +268,20 @@ def main():
             )
 
     # derive the final un-supervised classifier
-    cluster_to_label = [None, None]
+    c_classifier = ClusteringClassifier(config.n_clusters, 10)
 
     def train_classifier(loop):
+        df = DataFlow.arrays([x_train], batch_size=config.batch_size). \
+            map(input_x_sampler)
         with loop.timeit('cls_train_time'):
             [c_pred] = collect_outputs(
                 outputs=[y_given_x],
                 inputs=[input_x],
-                data_flow=train_flow,
+                data_flow=df,
                 feed_dict={is_training: False}
             )
-            cluster_probs = np.array([
-                np.mean(c_pred == i) for i in range(config.n_clusters)])
-            y_true = y_train
-            probs = np.zeros([config.n_clusters, 10])
-            for c, t in zip(c_pred, y_true):
-                probs[c, t] += 1
-            probs = probs / np.maximum(np.sum(probs, axis=-1, keepdims=True), 1)
-            labels = np.argmax(probs, axis=-1)
-            cluster_to_label[:] = probs, labels
-            print('> Cluster probs: [{}]'.format(
-                ', '.join('{:.4g}'.format(p) for p in cluster_probs)))
-            print('  Cluster labels: {}'.format(labels.tolist()))
-            print('  Cluster label probs:')
-            for i, label_prob in enumerate(probs):
-                print('    {}: [{}]'.format(
-                    i, ', '.join('{:.4g}'.format(p) for p in label_prob)))
+            c_classifier.fit(c_pred, y_train)
+            print(c_classifier.describe())
 
     def evaluate_classifier(loop):
         with loop.timeit('cls_test_time'):
@@ -326,9 +291,8 @@ def main():
                 data_flow=test_flow,
                 feed_dict={is_training: False}
             )
-            y_pred = cluster_to_label[1][c_pred]
-            y_true = y_test
-            loop.collect_metrics({'test_acc': accuracy_score(y_true, y_pred)})
+            y_pred = c_classifier.predict(c_pred)
+            loop.collect_metrics({'test_acc': accuracy_score(y_test, y_pred)})
 
     # prepare for training and testing data
     def input_x_sampler(x):
@@ -353,6 +317,7 @@ def main():
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
+                       summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,
@@ -382,11 +347,8 @@ def main():
             trainer.run()
 
     # write the final results
-    with codecs.open('cluster_labels.json', 'wb', 'utf-8') as f:
-        f.write(json.dumps({
-            'probs': cluster_to_label[0].tolist(),
-            'labels': cluster_to_label[1].tolist(),
-        }))
+    with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
+        f.write(c_classifier.describe())
     results.commit(evaluator.last_metrics_dict)
 
 

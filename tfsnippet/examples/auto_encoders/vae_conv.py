@@ -22,7 +22,9 @@ from tfsnippet.examples.utils import (load_mnist,
                                       save_images_collection,
                                       Results,
                                       MultiGPU,
-                                      get_batch_size)
+                                      get_batch_size,
+                                      flatten,
+                                      unflatten)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -30,28 +32,28 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 
 class ExpConfig(Config):
     # model parameters
-    z_dim = 32
-    channels_last = False
+    z_dim = 40
+    x_dim = 784
 
     # training parameters
     max_epoch = 3000
     batch_size = 128
     l2_reg = 0.0001
-    initial_lr = 0.0001
+    initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
 
     # evaluation parameters
-    test_n_z = 100
-    test_batch_size = 128
+    test_n_z = 500
+    test_batch_size = 64
 
 
 @global_reuse
 @add_arg_scope
-def h_for_q_z(x, is_training, channels_last=config.channels_last):
+def h_for_q_z(x, is_training, channels_last):
     with arg_scope([resnet_block],
-                   activation_fn=tf.nn.relu,
+                   activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
                        batch_norm_2d,
                        channels_last=channels_last,
@@ -63,43 +65,44 @@ def h_for_q_z(x, is_training, channels_last=config.channels_last):
                    ),
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        x = tf.to_float(x)
-        x = tf.reshape(x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        x = resnet_block(x, 16)  # output: (16, 28, 28)
-        x = resnet_block(x, 32, strides=2)  # output: (32, 14, 14)
-        x = resnet_block(x, 32)  # output: (32, 14, 14)
-        x = resnet_block(x, 64, strides=2)  # output: (64, 7, 7)
-        x = resnet_block(x, 64)  # output: (64, 7, 7)
-    x = reshape_conv2d_to_flat(x)
+        h_x = tf.to_float(x)
+        h_x = tf.reshape(
+            h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
+        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
+    h_x = reshape_conv2d_to_flat(h_x)
     return {
-        'mean': tf.layers.dense(x, config.z_dim, name='z_mean'),
-        'logstd': tf.layers.dense(x, config.z_dim, name='z_logstd'),
+        'mean': tf.layers.dense(h_x, config.z_dim, name='z_mean'),
+        'logstd': tf.layers.dense(h_x, config.z_dim, name='z_logstd'),
     }
 
 
 @global_reuse
 @add_arg_scope
-def h_for_p_x(z, is_training, channels_last=config.channels_last):
+def h_for_p_x(z, is_training, channels_last):
     with arg_scope([deconv_resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        origin_shape = tf.shape(z)[:-1]  # might be (n_z, n_batch)
-        z = tf.reshape(z, [-1, config.z_dim])
-        z = tf.reshape(tf.layers.dense(z, 64 * 7 * 7),
-                       [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
-        z = deconv_resnet_block(z, 64)  # output: (64, 7, 7)
-        z = deconv_resnet_block(z, 32, strides=2)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 32)  # output: (32, 14, 14)
-        z = deconv_resnet_block(z, 16, strides=2)  # output: (16, 28, 28)
-        z = conv2d(
-            z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
-            channels_last=channels_last)  # output: (1, 28, 28)
-    x_logits = tf.reshape(z, tf.concat([origin_shape, [784]], axis=0))
+        h_z, s1, s2 = flatten(z, 2)
+        h_z = tf.reshape(tf.layers.dense(h_z, 64 * 7 * 7),
+                         [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
+        h_z = deconv_resnet_block(h_z, 64)  # output: (64, 7, 7)
+        h_z = deconv_resnet_block(h_z, 32, strides=2)  # output: (32, 14, 14)
+        h_z = deconv_resnet_block(h_z, 32)  # output: (32, 14, 14)
+        h_z = deconv_resnet_block(h_z, 16, strides=2)  # output: (16, 28, 28)
+    h_z = conv2d(
+        h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
+        channels_last=channels_last)  # output: (1, 28, 28)
+    h_z = tf.reshape(h_z, [-1, config.x_dim])
+    x_logits = unflatten(h_z, s1, s2)
     return {'logits': x_logits}
 
 
-def sample_from_logits(x):
+def sample_from_probs(x):
     uniform_samples = tf.random_uniform(
         shape=tf.shape(x), minval=0., maxval=1.,
         dtype=x.dtype
@@ -114,7 +117,7 @@ def main():
 
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.float32, shape=(None,) + x_train.shape[1:], name='input_x')
+        dtype=tf.int32, shape=(None,) + x_train.shape[1:], name='input_x')
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
@@ -143,30 +146,30 @@ def main():
     for dev, pre_build, [dev_input_x] in multi_gpu.data_parallel(
             batch_size, [input_x]):
         with tf.device(dev), multi_gpu.maybe_name_scope(dev):
-            dev_sampled_x = sample_from_logits(dev_input_x)
-
             if pre_build:
                 with arg_scope([h_for_q_z, h_for_p_x], channels_last=True):
-                    _ = vae.chain(dev_sampled_x)
+                    _ = vae.chain(dev_input_x)
 
             else:
-                # derive the loss and lower-bound for training
-                dev_vae_loss = vae.get_training_loss(dev_sampled_x)
-                dev_loss = dev_vae_loss + regularization_loss()
-                dev_lower_bound = -dev_vae_loss
-                losses.append(dev_loss)
-                lower_bounds.append(dev_lower_bound)
+                with arg_scope([h_for_q_z, h_for_p_x],
+                               channels_last=dev in multi_gpu.gpu_devices):
+                    # derive the loss and lower-bound for training
+                    dev_vae_loss = vae.get_training_loss(dev_input_x)
+                    dev_loss = dev_vae_loss + regularization_loss()
+                    dev_lower_bound = -dev_vae_loss
+                    losses.append(dev_loss)
+                    lower_bounds.append(dev_lower_bound)
 
-                # derive the nll and logits output for testing
-                test_chain = vae.chain(dev_sampled_x, n_z=config.test_n_z)
-                dev_test_nll = -tf.reduce_mean(
-                    test_chain.vi.evaluation.is_loglikelihood())
-                test_nlls.append(dev_test_nll)
+                    # derive the nll and logits output for testing
+                    test_chain = vae.chain(dev_input_x, n_z=config.test_n_z)
+                    dev_test_nll = -tf.reduce_mean(
+                        test_chain.vi.evaluation.is_loglikelihood())
+                    test_nlls.append(dev_test_nll)
 
-                # derive the optimizer
-                params = tf.trainable_variables()
-                grads.append(
-                    optimizer.compute_gradients(dev_loss, var_list=params))
+                    # derive the optimizer
+                    params = tf.trainable_variables()
+                    grads.append(
+                        optimizer.compute_gradients(dev_loss, var_list=params))
 
     # merge multi-gpu outputs and operations
     [loss, lower_bound, test_nll] = \
@@ -178,7 +181,9 @@ def main():
     )
 
     # derive the plotting function
-    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
+    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'), \
+            arg_scope([h_for_q_z, h_for_p_x],
+                      channels_last=multi_gpu.is_main_device_gpu()):
         x_plots = tf.reshape(
             tf.cast(
                 255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),
@@ -199,15 +204,29 @@ def main():
             )
 
     # prepare for training and testing data
+    def input_x_sampler(x):
+        sess = get_default_session_or_error()
+        return sess.run([sampled_x], feed_dict={sample_input_x: x})
+
+    with tf.device('/device:CPU:0'):
+        sample_input_x = tf.placeholder(
+            dtype=tf.float32, shape=(None, config.x_dim), name='sample_input_x')
+        sampled_x = sample_from_probs(sample_input_x)
+
     train_flow = DataFlow.arrays([x_train], config.batch_size, shuffle=True,
-                                 skip_incomplete=True)
-    test_flow = DataFlow.arrays([x_test], config.test_batch_size)
+                                 skip_incomplete=True).map(input_x_sampler)
+    test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
+        map(input_x_sampler)
 
     with create_session().as_default():
+        # fix the testing flow, reducing the testing time
+        test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
+
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
+                       summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,

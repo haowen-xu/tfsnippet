@@ -187,6 +187,9 @@ def main():
         map(input_x_sampler)
 
     with create_session().as_default():
+        # fix the testing flow, reducing the testing time
+        test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
+
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,

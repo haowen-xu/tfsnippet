@@ -170,6 +170,10 @@ class MultiGPU(object):
         """Get the names of all used devices, with the main device at first."""
         return self._all_devices
 
+    def is_main_device_gpu(self):
+        """Check whether or not the main device is GPU."""
+        return self.main_device in self.gpu_devices
+
     def data_parallel(self, batch_size, inputs):
         """
         Iterate through all devices and build the data-paralleled model.
