@@ -66,11 +66,11 @@ def h_for_p_x(z, is_training):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_x, s1, s2 = flatten(z, 2)
-        h_x = dense(h_x, 500)
-        h_x = dense(h_x, 500)
+        h_z, s1, s2 = flatten(z, 2)
+        h_z = dense(h_z, 500)
+        h_z = dense(h_z, 500)
     return {
-        'logits': unflatten(dense(h_x, config.x_dim, name='x_logits'), s1, s2)
+        'logits': unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
     }
 
 
@@ -119,7 +119,7 @@ def main():
             batch_size, [input_x]):
         with tf.device(dev), multi_gpu.maybe_name_scope(dev):
             if pre_build:
-                with arg_scope([h_for_q_z, h_for_p_x], channels_last=True):
+                with arg_scope([h_for_q_z, h_for_p_x]):
                     _ = vae.chain(dev_input_x)
 
             else:
