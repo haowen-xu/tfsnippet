@@ -386,6 +386,7 @@ def main():
 
     # derive the final un-supervised classifier
     c_classifier = ClusteringClassifier(config.n_clusters, 10)
+    test_metrics = {}
 
     def train_classifier(loop):
         df = DataFlow.arrays([x_train], batch_size=config.batch_size). \
@@ -409,7 +410,9 @@ def main():
                 feed_dict={is_training: False}
             )
             y_pred = c_classifier.predict(c_pred)
-            loop.collect_metrics({'test_acc': accuracy_score(y_test, y_pred)})
+            cls_metrics = {'test_acc': accuracy_score(y_test, y_pred)}
+            loop.collect_metrics(cls_metrics)
+            test_metrics.update(cls_metrics)
 
     # prepare for training and testing data
     def input_x_sampler(x):
@@ -479,7 +482,8 @@ def main():
     # write the final results
     with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
         f.write(c_classifier.describe())
-    results.commit(evaluator.last_metrics_dict)
+    test_metrics.update(evaluator.last_metrics_dict)
+    results.commit(test_metrics)
 
 
 if __name__ == '__main__':
