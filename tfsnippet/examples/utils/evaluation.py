@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from tfsnippet.trainer import merge_feed_dict
 from tfsnippet.utils import get_default_session_or_error
 
-__all__ = ['collect_outputs', 'plot_2d_log_p']
+__all__ = ['collect_outputs', 'plot_2d_log_p', 'ClusteringClassifier']
 
 
 def collect_outputs(outputs, inputs, data_flow, feed_dict=None, session=None):

@@ -7,7 +7,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.modules import VAE
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.distributions import Normal, Bernoulli
+from tfsnippet.distributions import Bernoulli
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)

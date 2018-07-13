@@ -19,6 +19,7 @@ class DynamicValuesTestCase(unittest.TestCase):
             v.set(v)
 
     def test_AnnealingDynamicValue(self):
+        # test without min_value
         v = AnnealingDynamicValue(1, .5)
         self.assertEquals(1, v.get())
         self.assertEquals(.5, v.ratio)
@@ -32,6 +33,17 @@ class DynamicValuesTestCase(unittest.TestCase):
 
         v.set(2.)
         self.assertEquals(2., v.get())
+        v.anneal()
+        self.assertEquals(.5, v.get())
+
+        # test with min_value
+        v = AnnealingDynamicValue(1, .5, 2)
+        self.assertEquals(2, v.get())
+
+        v = AnnealingDynamicValue(1, .5, .5)
+        self.assertEquals(1, v.get())
+        v.anneal()
+        self.assertEquals(.5, v.get())
         v.anneal()
         self.assertEquals(.5, v.get())
 

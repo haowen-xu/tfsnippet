@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import codecs
 import functools
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -9,7 +10,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.distributions import Normal, Bernoulli, Categorical
+from tfsnippet.distributions import Normal, Bernoulli, Categorical, ExpConcrete
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
@@ -23,8 +24,9 @@ from tfsnippet.examples.utils import (load_mnist,
                                       get_batch_size,
                                       flatten,
                                       unflatten,
-                                      int_shape, collect_outputs)
-from tfsnippet.examples.utils.evaluation import ClusteringClassifier
+                                      int_shape,
+                                      collect_outputs,
+                                      ClusteringClassifier)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -33,34 +35,75 @@ from tfsnippet.utils import global_reuse, get_default_session_or_error
 class ExpConfig(Config):
     # model parameters
     x_dim = 784
-    z_dim = 32
+    z_dim = 16
     n_clusters = 16
-    gaussian_mixture_prior = 'unit'  # choices: {'unit'}
-    mean_field_assumption_for_q = True
+    l2_reg = 0.0001
+    use_concrete_distribution = False
+    gaussian_mixture_prior = 'learnt'  # choices: {'unit', 'learnt'}
+    mean_field_assumption_for_q = False
 
     # training parameters
     max_epoch = 3000
     batch_size = 128
-    l2_reg = 0.0001
+    train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
+    train_n_samples_for_concrete = 25  # use "sgvb" if None, otherwise "iwae"
+
     initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
-    train_n_samples = 50
+
+    initial_tau_p = 1.0
+    initial_tau_q = 1.0
+    min_tau_p = 0.5
+    min_tau_q = 0.666
+    tau_p_anneal_factor = 0.95
+    tau_p_anneal_epoch_freq = 25
+    tau_p_anneal_step_freq = None
+    tau_q_anneal_factor = 0.95
+    tau_q_anneal_epoch_freq = 25
+    tau_q_anneal_step_freq = None
 
     # evaluation parameters
     test_n_samples = 500
     test_batch_size = 128
 
 
-def gaussian_mixture_prior(y, z_dim, n_clusters):
+@global_reuse
+def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
     if config.gaussian_mixture_prior == 'unit':
-        y = tf.stop_gradient(y)
         if None not in int_shape(y):
-            z_shape = int_shape(y) + (z_dim,)
+            data_shape = int_shape(y)
+            if use_concrete:
+                data_shape = data_shape[:-1]
+            z_shape = data_shape + (z_dim,)
         else:
-            z_shape = tf.concat([tf.shape(y), [z_dim]], axis=0)
+            data_shape = tf.shape(y)
+            if use_concrete:
+                data_shape = data_shape[:-1]
+            z_shape = tf.concat([data_shape, [z_dim]], axis=0)
         return Normal(mean=tf.zeros(z_shape), std=tf.ones(z_shape))
+
+    elif config.gaussian_mixture_prior == 'learnt':
+        prior_mean = tf.get_variable(
+            'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
+            initializer=tf.random_normal_initializer()
+        )
+        prior_logstd = tf.get_variable(
+            'z_prior_logstd', dtype=tf.float32, shape=[n_clusters, z_dim],
+            initializer=tf.zeros_initializer()
+        )
+        if use_concrete:
+            y, s1, s2 = flatten(tf.exp(y), 2)
+            z_mean = unflatten(tf.matmul(y, prior_mean, name='z_mean'), s1, s2)
+            z_logstd = unflatten(
+                tf.matmul(y, prior_logstd, name='z_logstd'), s1, s2)
+        else:
+            z_mean = tf.nn.embedding_lookup(prior_mean, y, name='z_mean')
+            z_logstd = tf.nn.softplus(tf.nn.embedding_lookup(prior_logstd, y),
+                                      name='z_logstd')
+        return Normal(mean=z_mean, logstd=z_logstd)
+
     else:
         raise ValueError(
             'Unexpected value for config `gaussian_mixture_prior`: {}'.
@@ -70,7 +113,10 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_samples=None, is_training=True):
+def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
+    use_concrete = config.use_concrete_distribution and tau is not None
+    logging.info('q_net builder: %r', locals())
+
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -83,7 +129,13 @@ def q_net(x, observed=None, n_samples=None, is_training=True):
 
     # sample y ~ q(y|x)
     y_logits = dense(h_x, config.n_clusters, name='y_logits')
-    y = net.add('y', Categorical(y_logits), n_samples=n_samples)
+    if use_concrete:
+        y = net.add('y', ExpConcrete(tau, y_logits), is_reparameterized=True,
+                    n_samples=n_samples)
+        y_one_hot = tf.exp(y)
+    else:
+        y = net.add('y', Categorical(y_logits), n_samples=n_samples)
+        y_one_hot = tf.one_hot(y, config.n_clusters, dtype=tf.float32)
 
     # sample z ~ q(z|y,x)
     with arg_scope([dense],
@@ -99,13 +151,12 @@ def q_net(x, observed=None, n_samples=None, is_training=True):
                     [
                         tf.tile(tf.reshape(h_x, [1, -1, 500]),
                                 tf.stack([n_samples, 1, 1])),
-                        tf.one_hot(y, config.n_clusters)
+                        y_one_hot
                     ],
                     axis=-1
                 )
             else:
-                h_z = tf.concat([h_x, tf.one_hot(y, config.n_clusters)],
-                                axis=-1)
+                h_z = tf.concat([h_x, y_one_hot], axis=-1)
             h_z, s1, s2 = flatten(h_z, 2)
             h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
             z_n_samples = None
@@ -115,7 +166,7 @@ def q_net(x, observed=None, n_samples=None, is_training=True):
     z = net.add('z',
                 Normal(mean=unflatten(z_mean, s1, s2),
                        logstd=unflatten(z_logstd, s1, s2),
-                       is_reparameterized=False),
+                       is_reparameterized=use_concrete),
                 n_samples=z_n_samples, group_ndims=1)
 
     return net
@@ -123,18 +174,29 @@ def q_net(x, observed=None, n_samples=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_samples=None, is_training=True):
+def p_net(observed=None, n_samples=None, tau=None, is_training=True):
+    use_concrete = config.use_concrete_distribution and tau is not None
+    logging.info('p_net builder: %r', locals())
+
     net = BayesianNet(observed=observed)
 
     # sample y
-    y = net.add('y',
-                Categorical(tf.zeros([1, config.n_clusters])),
-                n_samples=n_samples)
+    if use_concrete:
+        y = net.add('y',
+                    ExpConcrete(tau, tf.zeros([1, config.n_clusters])),
+                    n_samples=n_samples,
+                    is_reparameterized=True)
+    else:
+        y = net.add('y',
+                    Categorical(tf.zeros([1, config.n_clusters])),
+                    n_samples=n_samples)
 
     # sample z ~ p(z|y)
     z = net.add('z',
-                gaussian_mixture_prior(y, config.z_dim, config.n_clusters),
-                group_ndims=1)
+                gaussian_mixture_prior(y, config.z_dim, config.n_clusters,
+                                       use_concrete=use_concrete),
+                group_ndims=1,
+                is_reparameterized=use_concrete)
 
     # compute the hidden features for x
     with arg_scope([dense],
@@ -151,6 +213,17 @@ def p_net(observed=None, n_samples=None, is_training=True):
     return net
 
 
+@global_reuse
+def reinforce_baseline_net(x):
+    x, s1, s2 = flatten(tf.to_float(x), 2)
+    with arg_scope([dense],
+                   kernel_regularizer=l2_regularizer(config.l2_reg),
+                   activation_fn=tf.nn.leaky_relu):
+        h_x = dense(x, 500)
+    h_x = unflatten(tf.reshape(dense(h_x, 1), [-1]), s1, s2)
+    return h_x
+
+
 def sample_from_probs(x):
     uniform_samples = tf.random_uniform(
         shape=tf.shape(x), minval=0., maxval=1.,
@@ -160,6 +233,11 @@ def sample_from_probs(x):
 
 
 def main():
+    logging.basicConfig(
+        level='INFO',
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    )
+
     # load mnist data
     (x_train, y_train), (x_test, y_test) = \
         load_mnist(shape=[config.x_dim], dtype=np.float32, normalize=True)
@@ -169,15 +247,23 @@ def main():
         dtype=tf.int32, shape=(None,) + x_train.shape[1:], name='input_x')
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
+    learning_rate = tf.placeholder(shape=(), dtype=tf.float32,
+                                   name='learning_rate')
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
+    tau_p = tf.placeholder(shape=(), dtype=tf.float32, name='tau_p')
+    tau_p_var = AnnealingDynamicValue(config.initial_tau_p,
+                                      config.tau_p_anneal_factor,
+                                      config.min_tau_p)
+    tau_q = tf.placeholder(shape=(), dtype=tf.float32, name='tau_q')
+    tau_q_var = AnnealingDynamicValue(config.initial_tau_q,
+                                      config.tau_q_anneal_factor,
+                                      config.min_tau_q)
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
     grads = []
     losses = []
-    lower_bounds = []
     test_nlls = []
     y_given_x_list = []
     batch_size = get_batch_size(input_x)
@@ -198,19 +284,39 @@ def main():
             else:
                 with arg_scope([q_net, p_net], is_training=is_training):
                     # derive the loss and lower-bound for training
+                    train_n_samples = (
+                        config.train_n_samples_for_concrete
+                        if config.use_concrete_distribution
+                        else config.train_n_samples
+                    )
                     train_q_net = q_net(
-                        dev_input_x, n_samples=config.train_n_samples
+                        dev_input_x, n_samples=train_n_samples, tau=tau_q
                     )
                     train_chain = train_q_net.chain(
                         p_net, latent_names=['y', 'z'], latent_axis=0,
-                        observed={'x': dev_input_x}
+                        observed={'x': dev_input_x}, tau=tau_p
                     )
-                    dev_vae_loss = tf.reduce_mean(
-                        train_chain.vi.training.vimco())
+
+                    if config.use_concrete_distribution:
+                        if train_n_samples is None:
+                            dev_vae_loss = tf.reduce_mean(
+                                train_chain.vi.training.sgvb())
+                        else:
+                            dev_vae_loss = tf.reduce_mean(
+                                train_chain.vi.training.iwae())
+                    else:
+                        if train_n_samples is None:
+                            dev_baseline = reinforce_baseline_net(dev_input_x)
+                            dev_vae_loss = tf.reduce_mean(
+                                train_chain.vi.training.reinforce(
+                                    baseline=dev_baseline
+                                )
+                            )
+                        else:
+                            dev_vae_loss = tf.reduce_mean(
+                                train_chain.vi.training.vimco())
                     dev_loss = dev_vae_loss + regularization_loss()
-                    dev_lower_bound = -dev_vae_loss
                     losses.append(dev_loss)
-                    lower_bounds.append(dev_lower_bound)
 
                     # derive the nll and logits output for testing
                     test_q_net = q_net(
@@ -235,8 +341,8 @@ def main():
                         optimizer.compute_gradients(dev_loss, var_list=params))
 
     # merge multi-gpu outputs and operations
-    [loss, lower_bound, test_nll] = \
-        multi_gpu.average([losses, lower_bounds, test_nlls], batch_size)
+    [loss, test_nll] = \
+        multi_gpu.average([losses, test_nlls], batch_size)
     [y_given_x] = multi_gpu.concat([y_given_x_list])
 
     train_op = multi_gpu.apply_grads(
@@ -321,15 +427,26 @@ def main():
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True}
+                feed_dict={learning_rate: learning_rate_var,
+                           tau_p: tau_p_var,
+                           tau_q: tau_q_var,
+                           is_training: True}
             )
             anneal_after(
                 trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
+            anneal_after(
+                trainer, tau_p_var, epochs=config.tau_p_anneal_epoch_freq,
+                steps=config.tau_p_anneal_step_freq
+            )
+            anneal_after(
+                trainer, tau_q_var, epochs=config.tau_q_anneal_epoch_freq,
+                steps=config.tau_q_anneal_step_freq
+            )
             evaluator = Evaluator(
                 loop,
-                metrics={'test_nll': test_nll, 'test_lb': lower_bound},
+                metrics={'test_nll': test_nll},
                 inputs=[input_x],
                 data_flow=test_flow,
                 feed_dict={is_training: False},
