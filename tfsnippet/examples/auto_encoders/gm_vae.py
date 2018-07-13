@@ -39,7 +39,7 @@ class ExpConfig(Config):
     n_clusters = 16
     l2_reg = 0.0001
     use_concrete_distribution = False
-    gaussian_mixture_prior = 'learnt'  # choices: {'unit', 'learnt'}
+    gaussian_mixture_prior = 'learnt_std'  # {'unit', 'learnt', 'learnt_std'}
     mean_field_assumption_for_q = False
 
     # training parameters
@@ -95,13 +95,24 @@ def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
         )
         if use_concrete:
             y, s1, s2 = flatten(tf.exp(y), 2)
-            z_mean = unflatten(tf.matmul(y, prior_mean, name='z_mean'), s1, s2)
-            z_logstd = unflatten(
-                tf.matmul(y, prior_logstd, name='z_logstd'), s1, s2)
+            z_mean = unflatten(tf.matmul(y, prior_mean), s1, s2)
+            z_logstd = unflatten(tf.matmul(y, prior_logstd), s1, s2)
         else:
-            z_mean = tf.nn.embedding_lookup(prior_mean, y, name='z_mean')
-            z_logstd = tf.nn.softplus(tf.nn.embedding_lookup(prior_logstd, y),
-                                      name='z_logstd')
+            z_mean = tf.nn.embedding_lookup(prior_mean, y)
+            z_logstd = tf.nn.embedding_lookup(prior_logstd, y)
+        return Normal(mean=z_mean, logstd=z_logstd)
+
+    elif config.gaussian_mixture_prior == 'learnt_std':
+        prior_mean = tf.get_variable(
+            'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
+            initializer=tf.random_normal_initializer()
+        )
+        if use_concrete:
+            y, s1, s2 = flatten(tf.exp(y), 2)
+            z_mean = unflatten(tf.matmul(y, prior_mean), s1, s2)
+        else:
+            z_mean = tf.nn.embedding_lookup(prior_mean, y)
+        z_logstd = tf.zeros_like(z_mean)
         return Normal(mean=z_mean, logstd=z_logstd)
 
     else:
@@ -158,7 +169,7 @@ def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
             else:
                 h_z = tf.concat([h_x, y_one_hot], axis=-1)
             h_z, s1, s2 = flatten(h_z, 2)
-            h_z = dense(h_z, 100, activation_fn=tf.nn.relu)
+            h_z = dense(h_z, 500)
             z_n_samples = None
 
     z_mean = dense(h_z, config.z_dim, name='z_mean')
@@ -332,7 +343,7 @@ def main():
 
                     # derive the classifier via q(y|x)
                     dev_q_y_given_x = tf.argmax(
-                        train_q_net['y'].distribution.logits, axis=-1)
+                        test_q_net['y'].distribution.logits, axis=-1)
                     y_given_x_list.append(dev_q_y_given_x)
 
                     # derive the optimizer
@@ -421,9 +432,11 @@ def main():
 
         # train the network
         with TrainLoop(params,
+                       var_groups=['p_net', 'q_net', 'gaussian_mixture_prior'],
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
                        summary_graph=tf.get_default_graph(),
+                       summary_commit_freqs={'loss': 10},
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,

@@ -259,8 +259,8 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertEqual('\n'.join(logs), (
             'Trainable Parameters (10 in total)\n'
             '----------------------------------\n'
-            'a  (2, 3)  6\n'
-            'b  (4,)    4\n'
+            'a                        (2, 3)  6\n'
+            'b                        (4,)    4\n'
         ))
 
         # test param variables in dict
@@ -272,8 +272,8 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertEqual('\n'.join(logs), (
             'Trainable Parameters (10 in total)\n'
             '----------------------------------\n'
-            'aa  (2, 3)  6\n'
-            'bb  (4,)    4\n'
+            'aa                       (2, 3)  6\n'
+            'bb                       (4,)    4\n'
         ))
 
     def test_timeit(self):

@@ -10,8 +10,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.utils import (StatisticsCollector, DisposableContext,
-                             get_default_session_or_error)
+from tfsnippet.utils import StatisticsCollector, DisposableContext
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -57,11 +56,13 @@ class TrainLoop(DisposableContext):
 
     def __init__(self,
                  param_vars,
+                 var_groups=None,
                  print_func=print,
                  summary_dir=None,
                  summary_writer=None,
                  summary_graph=None,
                  summary_skip_pattern=re.compile(r'.*(time|timer)$'),
+                 summary_commit_freqs=None,
                  metric_formatter=DefaultMetricFormatter(),
                  valid_metric_name='valid_loss',
                  initial_valid_metric=None,
@@ -77,6 +78,9 @@ class TrainLoop(DisposableContext):
         Args:
             param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
                 dict of variables, optimized during training.
+            var_groups (None or list[str]): Variable groups, the prefixes of
+                variable scopes.  A hint for printing the variables summary.
+                (default :obj:`None`)
             print_func ((str) -> None): Function for printing log messages
                 (calling ``print`` by default). An alternative of this argument
                 may be ``getLogger(__name__).info``, such that the log messages
@@ -88,6 +92,9 @@ class TrainLoop(DisposableContext):
             summary_skip_pattern (str or regex): Metrics matching this pattern
                 will be excluded from `summary_writer`.
                 (default ".*(time|timer)$")
+            summary_commit_freqs (dict[str, int] or None): If specified,
+                a metric will be committed to `summary_writer` no more frequent
+                than ``summary_commit_freqs[metric]``. (default :obj:`None`)
             metric_formatter (MetricFormatter): The training metrics formatter.
             valid_metric_name (str): Name of the validation metric.
             initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
@@ -147,6 +154,7 @@ class TrainLoop(DisposableContext):
 
         # memorize the parameters
         self._param_vars = copy.copy(param_vars)
+        self._var_groups = list(var_groups) if var_groups else None
         self._print_func = print_func
         self._metric_formatter = metric_formatter
         self._use_early_stopping = early_stopping
@@ -157,6 +165,7 @@ class TrainLoop(DisposableContext):
         self._summary_writer = summary_writer
         self._summary_graph = summary_graph
         self._summary_skip_pattern = summary_skip_pattern
+        self._summary_commit_freqs = dict(summary_commit_freqs or ())
         self._own_summary_writer = own_summary_writer
 
         # train loop states
@@ -254,6 +263,11 @@ class TrainLoop(DisposableContext):
     def param_vars(self):
         """Get the trainable parameter variables."""
         return self._param_vars
+
+    @property
+    def var_groups(self):
+        """Get the variable groups."""
+        return self._var_groups
 
     @property
     def epoch(self):
@@ -517,8 +531,12 @@ class TrainLoop(DisposableContext):
         2.   Parameters to be optimized during training.
         """
         self._require_entered()
-        self.println(summarize_variables(variables=self._param_vars,
-                                         title='Trainable Parameters'))
+        self.println(summarize_variables(
+            variables=self._param_vars,
+            title='Trainable Parameters',
+            other_variables_title='Other Parameters',
+            groups=self.var_groups
+        ))
         self.println('')
 
     def print_logs(self):
