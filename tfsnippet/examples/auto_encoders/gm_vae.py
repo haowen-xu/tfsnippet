@@ -2,6 +2,7 @@
 import codecs
 import functools
 import logging
+import warnings
 
 import numpy as np
 import tensorflow as tf
@@ -39,7 +40,7 @@ class ExpConfig(Config):
     n_clusters = 16
     l2_reg = 0.0001
     use_concrete_distribution = False
-    gaussian_mixture_prior = 'learnt_std'  # {'unit', 'learnt', 'learnt_std'}
+    gaussian_mixture_prior = 'learnt_mean'  # {'unit', 'learnt', 'learnt_mean'}
     mean_field_assumption_for_q = False
 
     # training parameters
@@ -102,7 +103,7 @@ def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
             z_logstd = tf.nn.embedding_lookup(prior_logstd, y)
         return Normal(mean=z_mean, logstd=z_logstd)
 
-    elif config.gaussian_mixture_prior == 'learnt_std':
+    elif config.gaussian_mixture_prior == 'learnt_mean':
         prior_mean = tf.get_variable(
             'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
             initializer=tf.random_normal_initializer()
@@ -185,7 +186,12 @@ def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_samples=None, tau=None, is_training=True):
+def p_net(observed=None, n_y=None, n_z=None, tau=None, is_training=True,
+          n_samples=None):
+    if n_samples is not None:
+        warnings.warn('`n_samples` is deprecated, use `n_y` instead.')
+        n_y = n_samples
+
     use_concrete = config.use_concrete_distribution and tau is not None
     logging.info('p_net builder: %r', locals())
 
@@ -195,18 +201,19 @@ def p_net(observed=None, n_samples=None, tau=None, is_training=True):
     if use_concrete:
         y = net.add('y',
                     ExpConcrete(tau, tf.zeros([1, config.n_clusters])),
-                    n_samples=n_samples,
+                    n_samples=n_y,
                     is_reparameterized=True)
     else:
         y = net.add('y',
                     Categorical(tf.zeros([1, config.n_clusters])),
-                    n_samples=n_samples)
+                    n_samples=n_y)
 
     # sample z ~ p(z|y)
     z = net.add('z',
                 gaussian_mixture_prior(y, config.z_dim, config.n_clusters,
                                        use_concrete=use_concrete),
                 group_ndims=1,
+                n_samples=n_z,
                 is_reparameterized=use_concrete)
 
     # compute the hidden features for x
@@ -364,14 +371,16 @@ def main():
 
     # derive the plotting function
     with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
-        plot_p_net = p_net(n_samples=100, is_training=is_training)
-        x_plots = tf.reshape(
-            tf.cast(
-                255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
-                dtype=tf.uint8
-            ),
-            [-1, 28, 28]
+        plot_p_net = p_net(
+            observed={'y': tf.range(config.n_clusters, dtype=tf.int32)},
+            n_z=10,
+            is_training=is_training
         )
+        x = tf.cast(
+            255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
+            dtype=tf.uint8
+        )
+        x_plots = tf.reshape(tf.transpose(x, [1, 0, 2]), [-1, 28, 28])
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
@@ -381,7 +390,7 @@ def main():
                 images=images,
                 filename=results.prepare_parent('plotting/{}.png'.
                                                 format(loop.epoch)),
-                grid_size=(10, 10)
+                grid_size=(config.n_clusters, 10)
             )
 
     # derive the final un-supervised classifier

@@ -124,7 +124,8 @@ def save_images_collection(images, filename, grid_size, border_size=0,
             img = np.reshape(img, img.shape + (1,))
         elif len(images[0].shape) == 3:
             if img.shape[2 if channels_last else 0] not in (1, 3, 4):
-                raise ValueError('Unexpected image shape: {!r}'.format(img))
+                raise ValueError('Unexpected image shape: {!r}'.
+                                 format(img.shape))
             if not channels_last:
                 img = np.transpose(img, (1, 2, 0))
         else:

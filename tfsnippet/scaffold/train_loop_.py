@@ -200,6 +200,7 @@ class TrainLoop(DisposableContext):
         self._epoch_metrics = MetricLogger(
             summary_writer=self._summary_writer,
             summary_skip_pattern=self._summary_skip_pattern,
+            summary_commit_freqs=self._summary_commit_freqs,
             formatter=self._metric_formatter
         )
 
