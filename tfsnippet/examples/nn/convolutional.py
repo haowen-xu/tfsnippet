@@ -43,11 +43,16 @@ def global_average_pooling(inputs, channels_last=False):
 
 
 def _resnet_block(conv_fn, inputs, input_shape, output_shape,
-                  kernel_size, strides, channels_last, resize_last,
-                  activation_fn, normalizer_fn, dropout_fn):
+                  kernel_size, strides, shortcut_kernel_size, channels_last,
+                  resize_last, activation_fn, normalizer_fn, dropout_fn):
     # check the arguments
     kernel_size = validate_strides_or_kernel_size('kernel_size', kernel_size)
     strides = validate_strides_or_kernel_size('strides', strides)
+    if shortcut_kernel_size is None:
+        shortcut_kernel_size = strides
+    else:
+        shortcut_kernel_size = validate_strides_or_kernel_size(
+            'shortcut_kernel_size', shortcut_kernel_size)
 
     # normalization and activation functions
     def add_scope(method):
@@ -73,7 +78,8 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
 
     # build the shortcut path
     if strides != (1, 1):
-        shortcut = resize_conv(output_shape)(inputs, (1, 1), 'shortcut')
+        shortcut = resize_conv(output_shape) \
+            (inputs, shortcut_kernel_size, 'shortcut')
     else:
         shortcut = inputs
 
@@ -126,6 +132,7 @@ def resnet_block(inputs,
                  output_dims,
                  kernel_size=(3, 3),
                  strides=(1, 1),
+                 shortcut_kernel_size=None,  # use `strides` if None
                  channels_last=False,
                  activation_fn=None,
                  normalizer_fn=None,
@@ -159,6 +166,7 @@ def resnet_block(inputs,
         output_shape=output_shape,
         kernel_size=kernel_size,
         strides=strides,
+        shortcut_kernel_size=shortcut_kernel_size,
         channels_last=channels_last,
         resize_last=True,
         activation_fn=activation_fn,
@@ -173,6 +181,7 @@ def deconv_resnet_block(inputs,
                         output_dims,
                         kernel_size=(3, 3),
                         strides=(1, 1),
+                        shortcut_kernel_size=None,  # use `strides` if None
                         channels_last=False,
                         activation_fn=None,
                         normalizer_fn=None,
@@ -206,6 +215,7 @@ def deconv_resnet_block(inputs,
         output_shape=output_shape,
         kernel_size=kernel_size,
         strides=strides,
+        shortcut_kernel_size=shortcut_kernel_size,
         channels_last=channels_last,
         resize_last=False,
         activation_fn=activation_fn,

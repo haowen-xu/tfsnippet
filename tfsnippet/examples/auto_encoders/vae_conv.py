@@ -229,6 +229,7 @@ def main():
 
         # train the network
         with TrainLoop(params,
+                       var_groups=['h_for_q_z', 'h_for_p_x'],
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
                        summary_graph=tf.get_default_graph(),
