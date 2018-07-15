@@ -28,6 +28,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       int_shape,
                                       collect_outputs,
                                       ClusteringClassifier)
+from tfsnippet.nn import tfops, log_mean_exp
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
 from tfsnippet.utils import global_reuse, get_default_session_or_error
@@ -40,7 +41,11 @@ class ExpConfig(Config):
     n_clusters = 16
     l2_reg = 0.0001
     use_concrete_distribution = False
-    gaussian_mixture_prior = 'learnt_mean'  # {'unit', 'learnt', 'learnt_mean'}
+    p_z_given_y = 'learnt'  # {'unit', 'learnt'}
+    p_z_given_y_std = 'one_plus_softplus_std'
+    # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
+    p_z_given_y_reg = None  # {None, 'kl_p_z', 'kl_p_z_given_y'}
+    p_z_given_y_reg_factor = 0.01
     mean_field_assumption_for_q = False
 
     # training parameters
@@ -48,6 +53,7 @@ class ExpConfig(Config):
     batch_size = 128
     train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
     train_n_samples_for_concrete = 25  # use "sgvb" if None, otherwise "iwae"
+    p_z_given_y_reg_samples = 100
 
     initial_lr = 0.001
     lr_anneal_factor = 0.5
@@ -72,7 +78,7 @@ class ExpConfig(Config):
 
 @global_reuse
 def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
-    if config.gaussian_mixture_prior == 'unit':
+    if config.p_z_given_y == 'unit':
         if None not in int_shape(y):
             data_shape = int_shape(y)
             if use_concrete:
@@ -85,41 +91,53 @@ def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
             z_shape = tf.concat([data_shape, [z_dim]], axis=0)
         return Normal(mean=tf.zeros(z_shape), std=tf.ones(z_shape))
 
-    elif config.gaussian_mixture_prior == 'learnt':
+    elif config.p_z_given_y == 'learnt':
+        # derive the learnt z_mean
         prior_mean = tf.get_variable(
             'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
             initializer=tf.random_normal_initializer()
         )
-        prior_logstd = tf.get_variable(
-            'z_prior_logstd', dtype=tf.float32, shape=[n_clusters, z_dim],
-            initializer=tf.zeros_initializer()
-        )
         if use_concrete:
             y, s1, s2 = flatten(tf.exp(y), 2)
             z_mean = unflatten(tf.matmul(y, prior_mean), s1, s2)
-            z_logstd = unflatten(tf.matmul(y, prior_logstd), s1, s2)
         else:
             z_mean = tf.nn.embedding_lookup(prior_mean, y)
-            z_logstd = tf.nn.embedding_lookup(prior_logstd, y)
-        return Normal(mean=z_mean, logstd=z_logstd)
 
-    elif config.gaussian_mixture_prior == 'learnt_mean':
-        prior_mean = tf.get_variable(
-            'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
-            initializer=tf.random_normal_initializer()
-        )
-        if use_concrete:
-            y, s1, s2 = flatten(tf.exp(y), 2)
-            z_mean = unflatten(tf.matmul(y, prior_mean), s1, s2)
+        # derive the learnt z_std
+        z_logstd = z_std = None
+        if config.p_z_given_y_std == 'one':
+            z_logstd = tf.zeros_like(z_mean)
         else:
-            z_mean = tf.nn.embedding_lookup(prior_mean, y)
-        z_logstd = tf.zeros_like(z_mean)
-        return Normal(mean=z_mean, logstd=z_logstd)
+            prior_std_or_logstd = tf.get_variable(
+                'z_prior_std_or_logstd',
+                dtype=tf.float32,
+                shape=[n_clusters, z_dim],
+                initializer=tf.zeros_initializer()
+            )
+            if use_concrete:
+                z_std_or_logstd = unflatten(
+                    tf.matmul(y, prior_std_or_logstd), s1, s2)
+            else:
+                z_std_or_logstd = tf.nn.embedding_lookup(prior_std_or_logstd, y)
+
+            if config.p_z_given_y_std == 'one_plus_softplus_std':
+                z_std = 1. + tf.nn.softplus(z_std_or_logstd)
+            elif config.p_z_given_y_std == 'softplus_logstd':
+                z_logstd = tf.nn.softplus(z_std_or_logstd)
+            elif config.p_z_given_y_std == 'unbound_logstd':
+                z_logstd = z_std_or_logstd
+            else:
+                raise ValueError(
+                    'Unexpected value for config `p_z_given_y_std`: {}'.
+                    format(config.p_z_given_y_std)
+                )
+
+        return Normal(mean=z_mean, std=z_std, logstd=z_logstd)
 
     else:
         raise ValueError(
-            'Unexpected value for config `gaussian_mixture_prior`: {}'.
-            format(config.gaussian_mixture_prior)
+            'Unexpected value for config `p_z_given_y`: {}'.
+            format(config.p_z_given_y)
         )
 
 
@@ -250,6 +268,41 @@ def sample_from_probs(x):
     return tf.cast(tf.less(uniform_samples, x), dtype=tf.int32)
 
 
+def add_p_z_given_y_reg_loss(loss):
+    if not config.p_z_given_y_reg:
+        return loss
+    n_z = config.p_z_given_y_reg_samples
+    y = tf.range(config.n_clusters, dtype=tf.int32)
+    prior = gaussian_mixture_prior(
+        y=y, z_dim=config.z_dim, n_clusters=config.n_clusters,
+        use_concrete=False
+    )
+    prior0 = Normal(mean=0., logstd=0.)
+    z = prior.sample(n_z, is_reparameterized=True)
+
+    # Note: p(y) = 1/n_clusters, which simplies the
+    #       following duduction.
+    if config.p_z_given_y_reg == 'kl_p_z_given_y':
+        # :math:`E_{y}[KL(p(z|y)\|p_0(z))] =
+        #        E_{y,z \sim p(z|y)}[\log p(z|y) - \log p_0(z)]`
+        reg_loss = tf.reduce_mean(prior.log_prob(z, group_ndims=1) -
+                                  prior0.log_prob(z, group_ndims=1))
+    elif config.p_z_given_y_reg == 'kl_p_z':
+        # :math:`KL(E_{y}(p(z|y))\|p_0(z)) =
+        #        E_{y,z \sim p(z|y)}[\log \E_{y}(p(z|y)) - \log p_0(z)]`
+        log_p_z = log_mean_exp(tfops, prior.log_prob(z, group_ndims=1),
+                               axis=-1)
+        log_p0_z = prior0.log_prob(z, group_ndims=1)
+        reg_loss = tf.reduce_mean(log_p_z) - tf.reduce_mean(log_p0_z)
+    else:
+        raise ValueError(
+            'Unexpected value for config `p_z_given_y_reg`: {}'.
+            format(config.p_z_given_y_reg)
+        )
+
+    return loss + config.p_z_given_y_reg_factor * reg_loss
+
+
 def main():
     logging.basicConfig(
         level='INFO',
@@ -334,6 +387,7 @@ def main():
                             dev_vae_loss = tf.reduce_mean(
                                 train_chain.vi.training.vimco())
                     dev_loss = dev_vae_loss + regularization_loss()
+                    dev_loss = add_p_z_given_y_reg_loss(dev_loss)
                     losses.append(dev_loss)
 
                     # derive the nll and logits output for testing

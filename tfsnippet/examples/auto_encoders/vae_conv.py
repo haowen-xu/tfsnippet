@@ -36,11 +36,11 @@ class ExpConfig(Config):
     x_dim = 784
     batch_norm = True
     dropout = True
+    l2_reg = 0.0001
 
     # training parameters
     max_epoch = 3000
     batch_size = 128
-    l2_reg = 0.0001
     initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
@@ -157,7 +157,7 @@ def main():
 
             else:
                 with arg_scope([h_for_q_z, h_for_p_x],
-                               channels_last=dev in multi_gpu.gpu_devices):
+                               channels_last=dev not in multi_gpu.gpu_devices):
                     # derive the loss and lower-bound for training
                     dev_vae_loss = vae.get_training_loss(dev_input_x)
                     dev_loss = dev_vae_loss + regularization_loss()
@@ -232,6 +232,7 @@ def main():
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
                        summary_graph=tf.get_default_graph(),
+                       summary_commit_freqs={'loss': 10},
                        early_stopping=False) as loop:
             trainer = LossTrainer(
                 loop, loss, train_op, [input_x], train_flow,
