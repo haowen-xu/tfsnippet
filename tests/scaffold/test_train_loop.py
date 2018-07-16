@@ -37,13 +37,16 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(loop.step, 0)
             self.assertIsNone(loop.max_epoch)
             self.assertIsNone(loop.max_step)
+            self.assertEqual(loop.summary_metric_prefix, 'metrics/')
 
         with TrainLoop([], initial_epoch=1, initial_step=3,
-                       max_epoch=2, max_step=10) as loop:
+                       max_epoch=2, max_step=10, summary_metric_prefix='123/'
+                       ) as loop:
             self.assertEqual(loop.epoch, 1)
             self.assertEqual(loop.step, 3)
             self.assertEqual(loop.max_epoch, 2)
             self.assertEqual(loop.max_step, 10)
+            self.assertEqual(loop.summary_metric_prefix, '123/')
             loop.max_epoch = 20
             loop.max_step = 100
             self.assertEqual(loop.max_epoch, 20)
@@ -322,10 +325,10 @@ class TrainLoopTestCase(tf.test.TestCase):
             for e in tf.train.summary_iterator(event_file_path):
                 for v in e.summary.value:
                     tags.add(v.tag)
-                    if v.tag == 'loss':
+                    if v.tag == 'metrics/loss':
                         loss_steps.append(e.step)
                         loss_values.append(v.simple_value)
-                    elif v.tag == 'valid_loss':
+                    elif v.tag == 'metrics/valid_loss':
                         valid_loss_steps.append(e.step)
                         valid_loss_values.append(v.simple_value)
                     elif v.tag == 'x':
@@ -353,7 +356,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             obj = read_summary(tempdir)
             self.assertEqual(
-                ['loss', 'valid_loss', 'x'],
+                ['metrics/loss', 'metrics/valid_loss', 'x'],
                 sorted(obj[0])
             )
             np.testing.assert_equal(obj[1], [1, 2, 3, 4, 5, 6])
@@ -380,7 +383,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['loss', 'valid_loss']
+                ['metrics/loss', 'metrics/valid_loss']
             )
 
         with TemporaryDirectory() as tempdir:
@@ -395,7 +398,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['loss', 'valid_loss']
+                ['metrics/loss', 'metrics/valid_loss']
             )
 
     def test_early_stopping(self):

@@ -129,13 +129,17 @@ class MetricLogger(object):
             logger.clear()
     """
 
-    def __init__(self, summary_writer=None, summary_skip_pattern=None,
-                 summary_commit_freqs=None, formatter=None):
+    def __init__(self, summary_writer=None, summary_metric_prefix='',
+                 summary_skip_pattern=None, summary_commit_freqs=None,
+                 formatter=None):
         """
         Construct the :class:`MetricLogger`.
 
         Args:
             summary_writer: TensorFlow summary writer.
+            summary_metric_prefix (str): The prefix for the metrics committed
+                to `summary_writer`.  This will not affect the summaries
+                added via :meth:`add_summary`. (default "")
             summary_skip_pattern (str or regex): Metrics matching this pattern
                 will be excluded from `summary_writer`. (default :obj:`None`)
             summary_commit_freqs (dict[str, int] or None): If specified,
@@ -150,8 +154,9 @@ class MetricLogger(object):
         if summary_skip_pattern is not None:
             summary_skip_pattern = re.compile(summary_skip_pattern)
         self._formatter = formatter
-        self._summary_skip_pattern = summary_skip_pattern
         self._summary_writer = summary_writer
+        self._summary_metric_prefix = summary_metric_prefix
+        self._summary_skip_pattern = summary_skip_pattern
         self._summary_commit_freqs = dict(summary_commit_freqs or ())
 
         # accumulators for various metrics
@@ -202,8 +207,12 @@ class MetricLogger(object):
                 freq_limit = self._summary_commit_freqs.get(k, 1)
                 if skip_count + 1 >= freq_limit:
                     self._metrics_skip_counter[k] = 0
+                    tag = self._summary_metric_prefix + k
                     tf_summary_values.append(
-                        tf.summary.Summary.Value(tag=k, simple_value=v.mean()))
+                        tf.summary.Summary.Value(
+                            tag=tag, simple_value=v.mean()
+                        )
+                    )
                 else:
                     self._metrics_skip_counter[k] = skip_count + 1
 
@@ -248,14 +257,11 @@ class _VarDict(object):
         else:
             self.all = dict(variables)
 
-    def select(self, predicate=None, strip_prefix=0):
-        if predicate:
-            return _VarDict({
-                k[strip_prefix:]: v for k, v in six.iteritems(self.all)
-                if predicate(k, v)
-            })
-        else:
-            return self
+    def select(self, predicate, strip_prefix=0):
+        return _VarDict({
+            k[strip_prefix:]: v for k, v in six.iteritems(self.all)
+            if predicate(k, v)
+        })
 
     def empty(self):
         return not self.all

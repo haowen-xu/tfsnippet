@@ -61,6 +61,7 @@ class TrainLoop(DisposableContext):
                  summary_dir=None,
                  summary_writer=None,
                  summary_graph=None,
+                 summary_metric_prefix='metrics/',
                  summary_skip_pattern=re.compile(r'.*(time|timer)$'),
                  summary_commit_freqs=None,
                  metric_formatter=DefaultMetricFormatter(),
@@ -88,6 +89,9 @@ class TrainLoop(DisposableContext):
             summary_dir (str): Directory for writing TensorFlow summaries.
                 Ignored if `summary_writer` is specified.
             summary_writer: TensorFlow summary writer for writing metrics.
+            summary_metric_prefix (str): The prefix for the metrics committed
+                to `summary_writer`.  This will not affect the summaries
+                added via :meth:`add_summary`. (default "")
             summary_graph: If specified, log the graph via `summary_writer`.
             summary_skip_pattern (str or regex): Metrics matching this pattern
                 will be excluded from `summary_writer`.
@@ -163,6 +167,7 @@ class TrainLoop(DisposableContext):
         self._valid_metric_smaller_is_better = smaller_is_better
         self._summary_dir = summary_dir
         self._summary_writer = summary_writer
+        self._summary_metric_prefix = summary_metric_prefix
         self._summary_graph = summary_graph
         self._summary_skip_pattern = summary_skip_pattern
         self._summary_commit_freqs = dict(summary_commit_freqs or ())
@@ -199,6 +204,7 @@ class TrainLoop(DisposableContext):
         self._step_metrics = MetricLogger(formatter=self._metric_formatter)
         self._epoch_metrics = MetricLogger(
             summary_writer=self._summary_writer,
+            summary_metric_prefix=self._summary_metric_prefix,
             summary_skip_pattern=self._summary_skip_pattern,
             summary_commit_freqs=self._summary_commit_freqs,
             formatter=self._metric_formatter
@@ -259,6 +265,11 @@ class TrainLoop(DisposableContext):
     def summary_writer(self):
         """Get the summary writer instance."""
         return self._summary_writer
+
+    @property
+    def summary_metric_prefix(self):
+        """Get the prefix for the metrics committed to `summary_writer`."""
+        return self._summary_metric_prefix
 
     @property
     def param_vars(self):
