@@ -197,7 +197,7 @@ class MultiGPU(object):
         after or before a convolutional layer will not work properly, unless
         special treatment is taken.
         """
-        return device in self._gpu_devices
+        return device not in self._gpu_devices
 
     def data_parallel(self, batch_size, inputs):
         """
