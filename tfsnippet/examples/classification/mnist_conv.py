@@ -107,7 +107,7 @@ def main():
                 dev_logits = model(
                     dev_input_x,
                     is_training=is_training,
-                    channels_last=dev not in multi_gpu.gpu_devices
+                    channels_last=multi_gpu.channels_last(dev)
                 )
                 dev_softmax_loss = \
                     softmax_classification_loss(dev_logits, dev_input_y)

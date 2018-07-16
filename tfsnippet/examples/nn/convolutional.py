@@ -48,18 +48,15 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
     # check the arguments
     kernel_size = validate_strides_or_kernel_size('kernel_size', kernel_size)
     strides = validate_strides_or_kernel_size('strides', strides)
-    if shortcut_kernel_size is None:
-        shortcut_kernel_size = strides
-    else:
-        shortcut_kernel_size = validate_strides_or_kernel_size(
-            'shortcut_kernel_size', shortcut_kernel_size)
+    shortcut_kernel_size = validate_strides_or_kernel_size(
+        'shortcut_kernel_size', shortcut_kernel_size)
 
     # normalization and activation functions
     def add_scope(method):
         @six.wraps(method)
-        def wrapper(inputs, name):
+        def wrapper(x, name):
             with tf.name_scope(name):
-                return method(inputs)
+                return method(x)
         return wrapper
 
     activation_fn = add_scope(activation_fn or (lambda x: x))
@@ -67,19 +64,19 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
     dropout_fn = add_scope(dropout_fn or (lambda x: x))
 
     # convolutional functions
-    resize_conv = lambda shape: (lambda inputs, kernel_size, name: conv_fn(
-        inputs, shape, kernel_size=kernel_size, strides=strides,
+    resize_conv = lambda shape: (lambda x, k_size, name: conv_fn(
+        x, shape, kernel_size=k_size, strides=strides,
         name=name
     ))
-    keep_conv = lambda shape: (lambda inputs, kernel_size, name: conv_fn(
-        inputs, shape, kernel_size=kernel_size, strides=(1, 1),
+    keep_conv = lambda shape: (lambda x, k_size, name: conv_fn(
+        x, shape, kernel_size=k_size, strides=(1, 1),
         name=name
     ))
 
     # build the shortcut path
     if strides != (1, 1):
-        shortcut = resize_conv(output_shape) \
-            (inputs, shortcut_kernel_size, 'shortcut')
+        shortcut_conv = resize_conv(output_shape)
+        shortcut = shortcut_conv(inputs, shortcut_kernel_size, 'shortcut')
     else:
         shortcut = inputs
 
@@ -132,7 +129,7 @@ def resnet_block(inputs,
                  output_dims,
                  kernel_size=(3, 3),
                  strides=(1, 1),
-                 shortcut_kernel_size=None,  # use `strides` if None
+                 shortcut_kernel_size=(1, 1),
                  channels_last=False,
                  activation_fn=None,
                  normalizer_fn=None,
@@ -181,7 +178,7 @@ def deconv_resnet_block(inputs,
                         output_dims,
                         kernel_size=(3, 3),
                         strides=(1, 1),
-                        shortcut_kernel_size=None,  # use `strides` if None
+                        shortcut_kernel_size=(1, 1),
                         channels_last=False,
                         activation_fn=None,
                         normalizer_fn=None,
@@ -229,7 +226,7 @@ def reshape_conv2d_to_flat(inputs, name=None):
     Reshape the 2-d convolutional output `inputs` to flat vector.
 
     Args:
-        inputs: 4-d Tensor, 2-d convolutional output.
+        inputs: 4-d Tensor or higher dimensional Tensor.
         name (None or str): Name of this operation.
 
     Returns:
@@ -237,8 +234,14 @@ def reshape_conv2d_to_flat(inputs, name=None):
     """
     with tf.name_scope(name, default_name='reshape_conv_to_flat',
                        values=[inputs]):
-        out_shape = tf.concat(
-            [tf.shape(inputs)[:-3], [np.prod(int_shape(inputs)[-3:])]],
-            axis=0
-        )
+        if inputs.get_shape() is None or len(inputs.get_shape()) < 4:
+            raise ValueError('The rank of `inputs` must be known and >= 4: '
+                             '{!r}'.format(inputs.get_shape()))
+        out_shape = int_shape(inputs)[-4:] + (-1,) + \
+            (int(np.prod(int_shape(inputs)[-3:], dtype=np.int32)),)
+        if None in out_shape:
+            out_shape = tf.concat(
+                [tf.shape(inputs)[:-3], [np.prod(int_shape(inputs)[-3:])]],
+                axis=0
+            )
         return tf.reshape(inputs, out_shape)

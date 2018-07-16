@@ -23,7 +23,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       unflatten)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
-from tfsnippet.utils import global_reuse, get_default_session_or_error
+from tfsnippet.utils import global_reuse
 
 
 class ExpConfig(Config):
@@ -151,7 +151,10 @@ def main():
     )
 
     # derive the plotting function
-    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
+    work_dev = multi_gpu.work_devices[0]
+    with tf.device(work_dev), tf.name_scope('plot_x'), \
+            arg_scope([h_for_q_z, h_for_p_x],
+                      channels_last=multi_gpu.channels_last(work_dev)):
         x_plots = tf.reshape(
             tf.cast(
                 255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),
@@ -162,7 +165,6 @@ def main():
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            session = get_default_session_or_error()
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
@@ -173,8 +175,7 @@ def main():
 
     # prepare for training and testing data
     def input_x_sampler(x):
-        sess = get_default_session_or_error()
-        return sess.run([sampled_x], feed_dict={sample_input_x: x})
+        return session.run([sampled_x], feed_dict={sample_input_x: x})
 
     with tf.device('/device:CPU:0'):
         sample_input_x = tf.placeholder(
@@ -186,7 +187,8 @@ def main():
     test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
         map(input_x_sampler)
 
-    with create_session().as_default():
+    with create_session().as_default() as session, \
+            train_flow.threaded(5) as train_flow:
         # fix the testing flow, reducing the testing time
         test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
 

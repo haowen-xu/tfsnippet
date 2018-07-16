@@ -165,7 +165,10 @@ def main():
     )
 
     # derive the plotting function
-    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
+    work_dev = multi_gpu.work_devices[0]
+    with tf.device(work_dev), tf.name_scope('plot_x'), \
+            arg_scope([h_for_q_z, h_for_p_x],
+                      channels_last=multi_gpu.channels_last(work_dev)):
         x_plots = tf.reshape(
             tf.cast(
                 255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),

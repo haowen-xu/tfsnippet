@@ -8,7 +8,8 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 from tfsnippet.modules import VAE
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.examples.nn import (resnet_block,
+from tfsnippet.examples.nn import (dense,
+                                   resnet_block,
                                    deconv_resnet_block,
                                    reshape_conv2d_to_flat,
                                    l2_regularizer,
@@ -27,7 +28,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       unflatten)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
-from tfsnippet.utils import global_reuse, get_default_session_or_error
+from tfsnippet.utils import global_reuse
 
 
 class ExpConfig(Config):
@@ -37,6 +38,7 @@ class ExpConfig(Config):
     batch_norm = True
     dropout = True
     l2_reg = 0.0001
+    shortcut_kernel_size = 1
 
     # training parameters
     max_epoch = 3000
@@ -65,6 +67,7 @@ def h_for_q_z(x, is_training, channels_last):
     )
 
     with arg_scope([resnet_block],
+                   shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
                    dropout_fn=dropout_fn,
@@ -80,8 +83,8 @@ def h_for_q_z(x, is_training, channels_last):
         h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
     h_x = reshape_conv2d_to_flat(h_x)
     return {
-        'mean': tf.layers.dense(h_x, config.z_dim, name='z_mean'),
-        'logstd': tf.layers.dense(h_x, config.z_dim, name='z_logstd'),
+        'mean': dense(h_x, config.z_dim, name='z_mean'),
+        'logstd': dense(h_x, config.z_dim, name='z_logstd'),
     }
 
 
@@ -89,11 +92,12 @@ def h_for_q_z(x, is_training, channels_last):
 @add_arg_scope
 def h_for_p_x(z, is_training, channels_last):
     with arg_scope([deconv_resnet_block],
+                   shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
         h_z, s1, s2 = flatten(z, 2)
-        h_z = tf.reshape(tf.layers.dense(h_z, 64 * 7 * 7),
+        h_z = tf.reshape(dense(h_z, 64 * 7 * 7),
                          [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
         h_z = deconv_resnet_block(h_z, 64)  # output: (64, 7, 7)
         h_z = deconv_resnet_block(h_z, 32, strides=2)  # output: (32, 14, 14)
@@ -133,7 +137,7 @@ def main():
     # build the model
     vae = VAE(
         p_z=Normal(mean=tf.zeros([1, config.z_dim]),
-                   std=tf.ones([1, config.z_dim])),
+                   logstd=tf.zeros([1, config.z_dim])),
         p_x_given_z=Bernoulli,
         q_z_given_x=Normal,
         h_for_p_x=functools.partial(h_for_p_x, is_training=is_training),
@@ -157,7 +161,7 @@ def main():
 
             else:
                 with arg_scope([h_for_q_z, h_for_p_x],
-                               channels_last=dev not in multi_gpu.gpu_devices):
+                               channels_last=multi_gpu.channels_last(dev)):
                     # derive the loss and lower-bound for training
                     dev_vae_loss = vae.get_training_loss(dev_input_x)
                     dev_loss = dev_vae_loss + regularization_loss()
@@ -186,9 +190,10 @@ def main():
     )
 
     # derive the plotting function
-    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'), \
+    work_dev = multi_gpu.work_devices[0]
+    with tf.device(work_dev), tf.name_scope('plot_x'), \
             arg_scope([h_for_q_z, h_for_p_x],
-                      channels_last=multi_gpu.is_main_device_gpu()):
+                      channels_last=multi_gpu.channels_last(work_dev)):
         x_plots = tf.reshape(
             tf.cast(
                 255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),
@@ -199,7 +204,6 @@ def main():
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            session = get_default_session_or_error()
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
@@ -210,8 +214,7 @@ def main():
 
     # prepare for training and testing data
     def input_x_sampler(x):
-        sess = get_default_session_or_error()
-        return sess.run([sampled_x], feed_dict={sample_input_x: x})
+        return session.run([sampled_x], feed_dict={sample_input_x: x})
 
     with tf.device('/device:CPU:0'):
         sample_input_x = tf.placeholder(
@@ -223,7 +226,8 @@ def main():
     test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
         map(input_x_sampler)
 
-    with create_session().as_default():
+    with create_session().as_default() as session, \
+            train_flow.threaded(5) as train_flow:
         # fix the testing flow, reducing the testing time
         test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
 

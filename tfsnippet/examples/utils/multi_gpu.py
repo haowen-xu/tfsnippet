@@ -138,17 +138,15 @@ class MultiGPU(object):
         gpu_groups = detect_gpus()
         if not gpu_groups:
             self._main_device = '/device:CPU:0'
-            self._all_devices = [self._main_device]
         elif len(gpu_groups) != 1 and not disable_prebuild:
             self._main_device = '/device:CPU:0'
-            self._all_devices = [self._main_device]
         else:
             self._main_device = gpu_groups[0][0]
-            self._all_devices = []
 
         self._disable_prebuild = disable_prebuild
-        self._gpu_devices = sum(gpu_groups, [])
-        self._all_devices.extend(self._gpu_devices)
+        self._gpu_devices = tuple(sum(gpu_groups, []))
+        self._work_devices = self._gpu_devices \
+            if self._gpu_devices else [self._main_device]
 
     @property
     def disable_prebuild(self):
@@ -157,22 +155,49 @@ class MultiGPU(object):
 
     @property
     def main_device(self):
-        """Get the main device name."""
+        """
+        Get the main device name.
+
+        Main device is the device for storing variables, and for gathering
+        losses / gradients during training.  It may not be necessary one
+        of the `work_devices`.  Do not run the model computation graph on the
+        `main_device`, otherwise the `channels_last` parameter for convolutional
+        layers might result in undesired behaviors.
+        """
         return self._main_device
+
+    @property
+    def work_devices(self):
+        """
+        Get the names of the working devices.
+
+        The model computation graph should be run only on these devices.
+        Do not run them on the `main_device`, otherwise the `channels_last`
+        parameter for convolutional layers might result in undesired behaviors.
+        """
+        return self._work_devices
 
     @property
     def gpu_devices(self):
         """Get the names of GPU devices."""
         return self._gpu_devices
 
-    @property
-    def all_devices(self):
-        """Get the names of all used devices, with the main device at first."""
-        return self._all_devices
+    def is_gpu_device(self, device):
+        """Check whether or not `device` is a GPU device."""
+        return device in self._gpu_devices
 
-    def is_main_device_gpu(self):
-        """Check whether or not the main device is GPU."""
-        return self.main_device in self.gpu_devices
+    def channels_last(self, device):
+        """
+        Get the `channels_last` argument for `device`.
+
+        It will be :obj:`True` for non-GPU devices, :obj:`False` for GPUs.
+        Be careful if you want to build a model on both CPU and GPU devices,
+        with ``channels_last = multi_gpu.channels_last(device)``.
+        The convolutional layers will work as desired, but the dense layers
+        after or before a convolutional layer will not work properly, unless
+        special treatment is taken.
+        """
+        return device in self._gpu_devices
 
     def data_parallel(self, batch_size, inputs):
         """
@@ -193,19 +218,19 @@ class MultiGPU(object):
         inputs = list(inputs)
 
         # quick path: only one device, do not slice
-        if len(self.all_devices) == 1:
-            assert(self.main_device == self.all_devices[0])
+        if len(self.work_devices) == 1:
+            assert(self.main_device == self.work_devices[0])
             yield self.main_device, False, tuple(inputs)
 
         # slow path: multi-GPUs
         else:
             # the GPUs are not in the same group, place variables on CPU
-            if self.main_device not in self.gpu_devices:
+            if self.main_device not in self.work_devices:
                 yield self.main_device, True, tuple(inputs)
 
             # build the paralleled computation graph for each device
-            k = len(self.gpu_devices)
-            for i, device in enumerate(self.gpu_devices):
+            k = len(self.work_devices)
+            for i, device in enumerate(self.work_devices):
                 dev_inputs = []
                 for inp in inputs:
                     slice_len = (batch_size + k - 1) // k
@@ -226,11 +251,11 @@ class MultiGPU(object):
         """
         if device == self.main_device:
             yield
-        elif device not in self.gpu_devices:
+        elif device not in self._gpu_devices:
             with tf.name_scope('tower_cpu') as ns:
                 yield ns
         else:
-            gpu_id = self.gpu_devices.index(device)
+            gpu_id = self._gpu_devices.index(device)
             with tf.name_scope('tower_gpu_{}'.format(gpu_id)) as ns:
                 yield ns
 
@@ -246,9 +271,7 @@ class MultiGPU(object):
             averaged across all devices.
         """
         # quick path: only one device, just return the grads
-        if len(self.all_devices) == 1:
-            assert(len(grads) == 1)
-            assert(self.main_device == self.all_devices[0])
+        if len(grads) == 1:
             return grads[0]
 
         # slow path: multi-GPUs
@@ -314,7 +337,7 @@ class MultiGPU(object):
             if batch_size is None:
                 return [tf.reduce_mean(tf.stack(t), axis=0) for t in tensors]
 
-            k = len(self.gpu_devices)
+            k = len(self.work_devices)
             slice_len = (batch_size + k - 1) // k
             last_slice_size = batch_size - (k - 1) * slice_len
 

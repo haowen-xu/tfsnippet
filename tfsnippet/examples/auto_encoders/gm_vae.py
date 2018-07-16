@@ -424,7 +424,10 @@ def main():
     )
 
     # derive the plotting function
-    with tf.device(multi_gpu.main_device), tf.name_scope('plot_x'):
+    work_dev = multi_gpu.work_devices[0]
+    with tf.device(work_dev), tf.name_scope('plot_x'), \
+            arg_scope([h_for_q_z, h_for_p_x],
+                      channels_last=multi_gpu.channels_last(work_dev)):
         plot_p_net = p_net(
             observed={'y': tf.range(config.n_clusters, dtype=tf.int32)},
             n_z=10,
