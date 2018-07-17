@@ -30,8 +30,8 @@ from tfsnippet.examples.utils import (load_mnist,
                                       ClusteringClassifier)
 from tfsnippet.nn import tfops, log_mean_exp
 from tfsnippet.scaffold import TrainLoop
-from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
-from tfsnippet.utils import global_reuse, get_default_session_or_error
+from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
+from tfsnippet.utils import global_reuse
 
 
 class ExpConfig(Config):
@@ -504,12 +504,13 @@ def main():
                        summary_graph=tf.get_default_graph(),
                        summary_commit_freqs={'loss': 10},
                        early_stopping=False) as loop:
-            trainer = LossTrainer(
-                loop, loss, train_op, [input_x], train_flow,
+            trainer = Trainer(
+                loop, train_op, [input_x], train_flow,
                 feed_dict={learning_rate: learning_rate_var,
                            tau_p: tau_p_var,
                            tau_q: tau_q_var,
-                           is_training: True}
+                           is_training: True},
+                metrics={'loss': loss}
             )
             anneal_after(
                 trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,

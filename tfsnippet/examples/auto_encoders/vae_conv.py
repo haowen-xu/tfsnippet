@@ -27,7 +27,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       flatten,
                                       unflatten)
 from tfsnippet.scaffold import TrainLoop
-from tfsnippet.trainer import AnnealingDynamicValue, LossTrainer, Evaluator
+from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse
 
 
@@ -239,9 +239,10 @@ def main():
                        summary_graph=tf.get_default_graph(),
                        summary_commit_freqs={'loss': 10},
                        early_stopping=False) as loop:
-            trainer = LossTrainer(
-                loop, loss, train_op, [input_x], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True}
+            trainer = Trainer(
+                loop, train_op, [input_x], train_flow,
+                feed_dict={learning_rate: learning_rate_var, is_training: True},
+                metrics={'loss': loss}
             )
             anneal_after(
                 trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,

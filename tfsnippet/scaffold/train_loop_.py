@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
+from tfsnippet.dataflow import DataFlow
 from tfsnippet.utils import StatisticsCollector, DisposableContext
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
@@ -177,6 +178,9 @@ class TrainLoop(DisposableContext):
         self._step_metrics = None  # type: MetricLogger
         self._epoch_metrics = None  # type: MetricLogger
         self._early_stopping = None  # type: EarlyStopping
+
+        # the active data flow of current epoch
+        self._data_flow = None  # type: DataFlow
 
         # flag to track the context
         self._within_epoch = False
@@ -383,15 +387,26 @@ class TrainLoop(DisposableContext):
 
         try:
             if data_generator is not None:
-                data_generator = iter(data_generator)
+                if isinstance(data_generator, DataFlow):
+                    data_flow = data_generator
+                else:
+                    def iter_factory():
+                        if data_gen[0] is not None:
+                            for batch in data_gen[0]:
+                                yield batch
+                        data_gen[0] = None  # force to use data_generator once
+
+                    data_gen = [data_generator]
+                    data_flow = DataFlow.iterator_factory(iter_factory)
+                self._data_flow = data_flow
 
             while loop_condition():
                 # prepare for the step data
-                if data_generator is None:
+                if self._data_flow is None:
                     yield_obj = self._step + 1
                 else:
                     try:
-                        step_data = next(data_generator)
+                        step_data = self._data_flow.next_batch()
                     except StopIteration:
                         break
                     yield_obj = self._step + 1, step_data
@@ -400,11 +415,16 @@ class TrainLoop(DisposableContext):
                 self._step += 1
                 self._within_step = True
                 self._step_start_time = time.time()
-                yield yield_obj
+                try:
+                    yield yield_obj
+                except StopIteration:  # pragma: no cover
+                    # might be caused by call to ``data_flow.next_batch()``
+                    break
                 self._commit_step_start_time()
         finally:
             self._within_step = False
             self._step_start_time = None
+            self._data_flow = None
 
     def _require_context(self):
         self._require_entered()
