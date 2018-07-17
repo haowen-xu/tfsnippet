@@ -36,7 +36,7 @@ class ExpConfig(Config):
     z_dim = 40
     x_dim = 784
     batch_norm = True
-    dropout = True
+    dropout = False
     l2_reg = 0.0001
     shortcut_kernel_size = 1
 

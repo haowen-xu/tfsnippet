@@ -281,7 +281,7 @@ def add_p_z_given_y_reg_loss(loss):
     z = prior.sample(n_z, is_reparameterized=True)
 
     # Note: p(y) = 1/n_clusters, which simplies the
-    #       following duduction.
+    #       following deduction.
     if config.p_z_given_y_reg == 'kl_p_z_given_y':
         # :math:`E_{y}[KL(p(z|y)\|p_0(z))] =
         #        E_{y,z \sim p(z|y)}[\log p(z|y) - \log p_0(z)]`
@@ -425,9 +425,7 @@ def main():
 
     # derive the plotting function
     work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plot_x'), \
-            arg_scope([h_for_q_z, h_for_p_x],
-                      channels_last=multi_gpu.channels_last(work_dev)):
+    with tf.device(work_dev), tf.name_scope('plot_x'):
         plot_p_net = p_net(
             observed={'y': tf.range(config.n_clusters, dtype=tf.int32)},
             n_z=10,
@@ -441,7 +439,6 @@ def main():
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            session = get_default_session_or_error()
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
@@ -482,8 +479,7 @@ def main():
 
     # prepare for training and testing data
     def input_x_sampler(x):
-        sess = get_default_session_or_error()
-        return sess.run([sampled_x], feed_dict={sample_input_x: x})
+        return session.run([sampled_x], feed_dict={sample_input_x: x})
 
     with tf.device('/device:CPU:0'):
         sample_input_x = tf.placeholder(
@@ -495,7 +491,8 @@ def main():
     test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
         map(input_x_sampler)
 
-    with create_session().as_default():
+    with create_session().as_default() as session, \
+            train_flow.threaded(5) as train_flow:
         # fix the testing flow, reducing the testing time
         test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
 
