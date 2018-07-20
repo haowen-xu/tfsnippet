@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import copy
 import os
+import re
 import time
 import warnings
 from collections import OrderedDict
@@ -9,6 +10,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
+from tfsnippet.dataflow import DataFlow
 from tfsnippet.utils import StatisticsCollector, DisposableContext
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
@@ -55,9 +57,14 @@ class TrainLoop(DisposableContext):
 
     def __init__(self,
                  param_vars,
+                 var_groups=None,
                  print_func=print,
                  summary_dir=None,
                  summary_writer=None,
+                 summary_graph=None,
+                 summary_metric_prefix='metrics/',
+                 summary_skip_pattern=re.compile(r'.*(time|timer)$'),
+                 summary_commit_freqs=None,
                  metric_formatter=DefaultMetricFormatter(),
                  valid_metric_name='valid_loss',
                  initial_valid_metric=None,
@@ -73,14 +80,26 @@ class TrainLoop(DisposableContext):
         Args:
             param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
                 dict of variables, optimized during training.
+            var_groups (None or list[str]): Variable groups, the prefixes of
+                variable scopes.  A hint for printing the variables summary.
+                (default :obj:`None`)
             print_func ((str) -> None): Function for printing log messages
                 (calling ``print`` by default). An alternative of this argument
                 may be ``getLogger(__name__).info``, such that the log messages
                 will be printed via logging facilities.
             summary_dir (str): Directory for writing TensorFlow summaries.
                 Ignored if `summary_writer` is specified.
-            summary_writer:
-                TensorFlow summary writer for writing metrics onto disk.
+            summary_writer: TensorFlow summary writer for writing metrics.
+            summary_metric_prefix (str): The prefix for the metrics committed
+                to `summary_writer`.  This will not affect the summaries
+                added via :meth:`add_summary`. (default "")
+            summary_graph: If specified, log the graph via `summary_writer`.
+            summary_skip_pattern (str or regex): Metrics matching this pattern
+                will be excluded from `summary_writer`.
+                (default ".*(time|timer)$")
+            summary_commit_freqs (dict[str, int] or None): If specified,
+                a metric will be committed to `summary_writer` no more frequent
+                than ``summary_commit_freqs[metric]``. (default :obj:`None`)
             metric_formatter (MetricFormatter): The training metrics formatter.
             valid_metric_name (str): Name of the validation metric.
             initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
@@ -140,6 +159,7 @@ class TrainLoop(DisposableContext):
 
         # memorize the parameters
         self._param_vars = copy.copy(param_vars)
+        self._var_groups = list(var_groups) if var_groups else None
         self._print_func = print_func
         self._metric_formatter = metric_formatter
         self._use_early_stopping = early_stopping
@@ -148,12 +168,19 @@ class TrainLoop(DisposableContext):
         self._valid_metric_smaller_is_better = smaller_is_better
         self._summary_dir = summary_dir
         self._summary_writer = summary_writer
+        self._summary_metric_prefix = summary_metric_prefix
+        self._summary_graph = summary_graph
+        self._summary_skip_pattern = summary_skip_pattern
+        self._summary_commit_freqs = dict(summary_commit_freqs or ())
         self._own_summary_writer = own_summary_writer
 
         # train loop states
         self._step_metrics = None  # type: MetricLogger
         self._epoch_metrics = None  # type: MetricLogger
         self._early_stopping = None  # type: EarlyStopping
+
+        # the active data flow of current epoch
+        self._data_flow = None  # type: DataFlow
 
         # flag to track the context
         self._within_epoch = False
@@ -174,12 +201,18 @@ class TrainLoop(DisposableContext):
     def _enter(self):
         # open the summary writer if required
         if self._summary_dir is not None:
-            self._summary_writer = tf.summary.FileWriter(self._summary_dir)
+            self._summary_writer = tf.summary.FileWriter(
+                self._summary_dir, graph=self._summary_graph)
 
         # create the metric accumulators
         self._step_metrics = MetricLogger(formatter=self._metric_formatter)
-        self._epoch_metrics = MetricLogger(summary_writer=self._summary_writer,
-                                           formatter=self._metric_formatter)
+        self._epoch_metrics = MetricLogger(
+            summary_writer=self._summary_writer,
+            summary_metric_prefix=self._summary_metric_prefix,
+            summary_skip_pattern=self._summary_skip_pattern,
+            summary_commit_freqs=self._summary_commit_freqs,
+            formatter=self._metric_formatter
+        )
 
         # open the early-stopping if required
         if self.use_early_stopping:
@@ -238,9 +271,19 @@ class TrainLoop(DisposableContext):
         return self._summary_writer
 
     @property
+    def summary_metric_prefix(self):
+        """Get the prefix for the metrics committed to `summary_writer`."""
+        return self._summary_metric_prefix
+
+    @property
     def param_vars(self):
         """Get the trainable parameter variables."""
         return self._param_vars
+
+    @property
+    def var_groups(self):
+        """Get the variable groups."""
+        return self._var_groups
 
     @property
     def epoch(self):
@@ -344,15 +387,26 @@ class TrainLoop(DisposableContext):
 
         try:
             if data_generator is not None:
-                data_generator = iter(data_generator)
+                if isinstance(data_generator, DataFlow):
+                    data_flow = data_generator
+                else:
+                    def iter_factory():
+                        if data_gen[0] is not None:
+                            for batch in data_gen[0]:
+                                yield batch
+                        data_gen[0] = None  # force to use data_generator once
+
+                    data_gen = [data_generator]
+                    data_flow = DataFlow.iterator_factory(iter_factory)
+                self._data_flow = data_flow
 
             while loop_condition():
                 # prepare for the step data
-                if data_generator is None:
+                if self._data_flow is None:
                     yield_obj = self._step + 1
                 else:
                     try:
-                        step_data = next(data_generator)
+                        step_data = self._data_flow.next_batch()
                     except StopIteration:
                         break
                     yield_obj = self._step + 1, step_data
@@ -361,11 +415,16 @@ class TrainLoop(DisposableContext):
                 self._step += 1
                 self._within_step = True
                 self._step_start_time = time.time()
-                yield yield_obj
+                try:
+                    yield yield_obj
+                except StopIteration:  # pragma: no cover
+                    # might be caused by call to ``data_flow.next_batch()``
+                    break
                 self._commit_step_start_time()
         finally:
             self._within_step = False
             self._step_start_time = None
+            self._data_flow = None
 
     def _require_context(self):
         self._require_entered()
@@ -488,12 +547,9 @@ class TrainLoop(DisposableContext):
             if not self._within_step and not self._within_epoch:
                 self._require_context()
             tags = []
-            if self._within_epoch and self._max_epoch != 1:
+            if self._max_epoch != 1:
                 tags.append(format_tag(self._epoch, self._max_epoch, 'Epoch'))
-            if self._within_step:
-                tags.append(format_tag(self._step, self._max_step, 'Step'))
-            if not tags:
-                tags = ['Epoch']
+            tags.append(format_tag(self._step, self._max_step, 'Step'))
             message = '[{}] {}'.format(', '.join(tags), message)
         self._print_func(message)
 
@@ -507,8 +563,12 @@ class TrainLoop(DisposableContext):
         2.   Parameters to be optimized during training.
         """
         self._require_entered()
-        self.println(summarize_variables(variables=self._param_vars,
-                                         title='Trainable Parameters'))
+        self.println(summarize_variables(
+            variables=self._param_vars,
+            title='Trainable Parameters',
+            other_variables_title='Other Parameters',
+            groups=self.var_groups
+        ))
         self.println('')
 
     def print_logs(self):

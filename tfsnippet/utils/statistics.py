@@ -51,7 +51,7 @@ class StatisticsCollector(object):
         """
         Get the variance of the values, i.e., :math:`\\operatorname{Var}[X]`.
         """
-        return self._square - self._mean ** 2
+        return np.maximum(self._square - self._mean ** 2, 0.)
 
     @property
     def stddev(self):

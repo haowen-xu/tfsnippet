@@ -10,15 +10,15 @@ env:
   - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.8
 cache:
   directories:
-  - /tfsnippet/cache
-  - /keras/datasets
+  - /home/travis/.tfsnippet
+  - /home/travis/.keras
 install:
   - docker pull "haowenxu/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
 script:
   - docker run
       -v "$(pwd)":"$(pwd)"
-      -v "/tfsnippet/cache":"/root/.tfsnippet/cache"
-      -v "/keras/datasets":"/root/.keras/datasets"
+      -v "/home/travis/.tfsnippet":"/root/.tfsnippet"
+      -v "/home/travis/.keras":"/root/.keras"
       -w "$(pwd)"
       -e TRAVIS="${TRAVIS}"
       -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}"

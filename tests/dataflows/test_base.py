@@ -54,6 +54,21 @@ class DataFlowTestCase(unittest.TestCase):
         df2 = df.to_arrays_flow(batch_size=6)
         self.assertIsInstance(df2, ArrayFlow)
 
+    def test_implicit_iterator(self):
+        df = DataFlow.arrays([np.arange(3)], batch_size=2)
+        self.assertIsNone(df.current_batch)
+
+        np.testing.assert_equal([[0, 1]], df.next_batch())
+        np.testing.assert_equal([[0, 1]], df.current_batch)
+        np.testing.assert_equal([[2]], df.next_batch())
+        np.testing.assert_equal([[2]], df.current_batch)
+        with pytest.raises(StopIteration):
+            _ = df.next_batch()
+        self.assertIsNone(df.current_batch)
+
+        np.testing.assert_equal([[0, 1]], df.next_batch())
+        np.testing.assert_equal([[0, 1]], df.current_batch)
+
 
 if __name__ == '__main__':
     unittest.main()

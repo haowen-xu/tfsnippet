@@ -32,5 +32,5 @@ def l2_regularizer(lambda_):
             term for input tensor.
     """
     def regularizer(x):
-        return tf.reduce_sum(tf.square(x) * lambda_)
+        return tf.reduce_sum(tf.square(x)) * lambda_
     return regularizer

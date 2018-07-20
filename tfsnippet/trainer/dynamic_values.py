@@ -62,27 +62,24 @@ class AnnealingDynamicValue(SimpleDynamicValue):
     :meth:`anneal` is called.
     """
 
-    def __init__(self, initial_value, ratio):
+    def __init__(self, initial_value, ratio, min_value=None):
         """
         Construct a new :class:`AnnealingDynamicValue`.
 
         Args:
             initial_value: A number, the initial value.
             ratio: A number, the ratio of annealing at each time.
+            min_value: Optional, a number, the minimum value.
         """
+        if min_value is not None:
+            initial_value = max(initial_value, min_value)
         super(AnnealingDynamicValue, self).__init__(initial_value)
-        self._ratio = None
+        self.min_value = min_value
         self.ratio = ratio
-
-    @property
-    def ratio(self):
-        """Get the ratio of annealing at each time."""
-        return self._ratio
-
-    @ratio.setter
-    def ratio(self, ratio):
-        self._ratio = ratio
 
     def anneal(self):
         """Anneal the value."""
-        self._value *= self._ratio
+        if self.min_value is not None:
+            self._value = max(self.min_value, self._value * self.ratio)
+        else:
+            self._value *= self.ratio

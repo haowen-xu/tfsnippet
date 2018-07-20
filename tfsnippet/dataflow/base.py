@@ -24,6 +24,8 @@ class DataFlow(object):
     """
 
     _is_iter_entered = False
+    _implicit_iterator = None  # tracking the iterator for :meth:`next_batch()`
+    _current_batch = None  # tracking the result of last :meth:`next_batch()`
 
     def _minibatch_iterator(self):
         """
@@ -115,6 +117,41 @@ class DataFlow(object):
         return ArrayFlow(self.get_arrays(), batch_size=batch_size,
                          shuffle=shuffle, skip_incomplete=skip_incomplete,
                          random_state=random_state)
+
+    @property
+    def current_batch(self):
+        """
+        Get the the result of current batch (last call to :meth:`next_batch()`,
+        if the implicit iterator has been opened and the last call to
+        :meth:`next_batch()` does not raise a :class:`StopIteration`).
+
+        Returns:
+            tuple[np.ndarray] or None: The arrays of current batch.
+        """
+        return self._current_batch
+
+    def next_batch(self):
+        """
+        Get the arrays of next mini-batch from the implicit iterator.
+
+        Returns:
+            tuple[np.ndarray]: The arrays of mini-batch.
+
+        Raises:
+            StopIteration: If the implicit iterator is exhausted.
+                Note that this error will only be triggered once at the
+                end of an epoch.  The next time calling this method, a new
+                epoch will be opened.
+        """
+        if self._implicit_iterator is None:
+            self._implicit_iterator = iter(self)
+        try:
+            self._current_batch = next(self._implicit_iterator)
+            return self._current_batch
+        except StopIteration:
+            self._implicit_iterator = None
+            self._current_batch = None
+            raise
 
     # -------- here starts the transforming methods --------
     def map(self, mapper):

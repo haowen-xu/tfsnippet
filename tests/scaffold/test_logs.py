@@ -14,32 +14,86 @@ from tfsnippet.utils import TemporaryDirectory
 class LoggingUtilsTestCase(tf.test.TestCase):
 
     def test_summarize_variables(self):
-        # test variable summaries
+        def strip_summary(cnt):
+            return '\n'.join(l.lstrip() for l in cnt.strip().split('\n'))
+
         a = tf.get_variable('a', dtype=tf.int32, shape=[2])
         with tf.variable_scope('nested'):
             b = tf.get_variable('b', dtype=tf.float32, shape=(3, 4, 5))
-        c = tf.get_variable('c', dtype=tf.float32, shape=())
+        c = tf.get_variable('c', dtype=tf.float32, shape=(30000,))
 
         self.assertEqual(summarize_variables([]), '')
         self.assertEqual(summarize_variables([a]), (
             'Variables Summary (2 in total)\n'
             '------------------------------\n'
-            'a  (2,)  2'
+            'a                      (2,)  2'
         ))
         self.assertEqual(summarize_variables([a, b, c]), (
-            'Variables Summary (63 in total)\n'
-            '-------------------------------\n'
-            'a         (2,)       2\n'
-            'c         ()         1\n'
-            'nested/b  (3, 4, 5)  60'
+            'Variables Summary (30,062 in total)\n'
+            '-----------------------------------\n'
+            'a                 (2,)            2\n'
+            'c                 (30000,)   30,000\n'
+            'nested/b          (3, 4, 5)      60'
         ))
         self.assertEqual(summarize_variables({'a': a, 'b': b, 'c': c}), (
-            'Variables Summary (63 in total)\n'
-            '-------------------------------\n'
-            'a  (2,)       2\n'
-            'b  (3, 4, 5)  60\n'
-            'c  ()         1'
+            'Variables Summary (30,062 in total)\n'
+            '-----------------------------------\n'
+            'a                 (2,)            2\n'
+            'b                 (3, 4, 5)      60\n'
+            'c                 (30000,)   30,000'
         ))
+        self.assertEqual(
+            summarize_variables({'a': a, 'b': b, 'c': c},
+                                groups=['pfx1', 'pfx2']), (
+                'Variables Summary (30,062 in total)\n'
+                '-----------------------------------\n'
+                'a                 (2,)            2\n'
+                'b                 (3, 4, 5)      60\n'
+                'c                 (30000,)   30,000'
+            )
+        )
+        self.assertEqual(
+            summarize_variables(
+                {'pfx1/a': a, 'pfx1/b': b, 'pfx2/a': a, 'pfx2/b': b, 'c': c},
+                groups=['pfx1', 'pfx2']
+            ),
+            strip_summary("""
+                Variables Summary (30,124 in total)
+                ===================================
+                pfx1/                 (62 in total)
+                -----------------------------------
+                a                     (2,)        2
+                b                     (3, 4, 5)  60
+                
+                pfx2/                 (62 in total)
+                -----------------------------------
+                a                     (2,)        2
+                b                     (3, 4, 5)  60
+                
+                Other Variables   (30,000 in total)
+                -----------------------------------
+                c                  (30000,)  30,000
+            """)
+        )
+        self.assertEqual(
+            summarize_variables(
+                {'pfx1/a': a, 'pfx1/b': b, 'pfx2/a': a, 'pfx2/b': b},
+                groups=['pfx1', 'pfx2']
+            ),
+            strip_summary("""
+                Variables Summary (124 in total)
+                ================================
+                pfx1/              (62 in total)
+                --------------------------------
+                a                  (2,)        2
+                b                  (3, 4, 5)  60
+                
+                pfx2/              (62 in total)
+                --------------------------------
+                a                  (2,)        2
+                b                  (3, 4, 5)  60
+            """)
+        )
 
 
 class MetricLoggerTestCase(tf.test.TestCase):
@@ -57,10 +111,10 @@ class MetricLoggerTestCase(tf.test.TestCase):
             logger.format_logs(),
             'train time: 0.25 sec (±0.05 sec); '
             'valid timer: 0.1 sec; '
+            'other metric: 5; '
             'loss: 3.25 (±1.92029); '
             'valid loss: 3; '
-            'valid acc: 6 (±1); '
-            'other metric: 5'
+            'valid acc: 6 (±1)'
         )
 
         logger.clear()
@@ -73,12 +127,18 @@ class MetricLoggerTestCase(tf.test.TestCase):
         with TemporaryDirectory() as tempdir:
             # generate the metric summary
             with contextlib.closing(tf.summary.FileWriter(tempdir)) as sw:
-                logger = MetricLogger(sw)
+                logger = MetricLogger(
+                    sw,
+                    summary_skip_pattern=r'.*(time|timer)$',
+                    summary_commit_freqs={'every_two': 2}
+                )
                 step = 0
                 for epoch in range(1, 3):
                     for data in range(10):
                         step += 1
                         logger.collect_metrics({'acc': step * 100 + data}, step)
+                        logger.collect_metrics({'time': epoch}, step)
+                        logger.collect_metrics({'every_two': step * 2}, step)
 
                     with self.test_session(use_gpu=False):
                         logger.collect_metrics(
@@ -89,6 +149,8 @@ class MetricLoggerTestCase(tf.test.TestCase):
             acc_values = []
             valid_loss_steps = []
             valid_loss_values = []
+            every_two_steps = []
+            every_two_values = []
             tags = set()
 
             event_file_path = os.path.join(tempdir, os.listdir(tempdir)[0])
@@ -101,14 +163,22 @@ class MetricLoggerTestCase(tf.test.TestCase):
                     elif v.tag == 'valid_loss':
                         valid_loss_steps.append(e.step)
                         valid_loss_values.append(v.simple_value)
+                    elif v.tag == 'every_two':
+                        every_two_steps.append(e.step)
+                        every_two_values.append(v.simple_value)
 
-            self.assertEqual(sorted(tags), ['acc', 'valid_loss'])
+            self.assertEqual(sorted(tags), ['acc', 'every_two', 'valid_loss'])
             np.testing.assert_equal(acc_steps, np.arange(1, 21))
             np.testing.assert_almost_equal(
                 acc_values,
                 np.arange(1, 21) * 100 + np.concatenate([
                     np.arange(10), np.arange(10)
                 ])
+            )
+            np.testing.assert_equal(every_two_steps, np.arange(1, 21, 2))
+            np.testing.assert_almost_equal(
+                every_two_values,
+                np.arange(1, 21, 2) * 2
             )
             np.testing.assert_equal(valid_loss_steps, [10, 20])
             np.testing.assert_almost_equal(

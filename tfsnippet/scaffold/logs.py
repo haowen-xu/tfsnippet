@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import functools
+import re
 from collections import defaultdict
+from itertools import chain
 
 import numpy as np
 import six
@@ -62,10 +65,11 @@ class DefaultMetricFormatter(MetricFormatter):
     1.  The metrics are first divided into groups according to the suffices
         of their names as follows:
 
-        1.  names ending with "time" or "timer" should come first
-        2.  names ending with "loss" or "cost" should come the second
-        3.  names ending with "acc" or "accuracy" should come the third
-        4.  other names should all come afterwards
+        1.  names ending with "time" or "timer" should come the first
+        2.  other metrics should come the second
+        2.  names ending with "loss" or "cost" should come the third
+        3.  names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
+            should come the fourth
 
     2.  The metrics are then sorted according to their names, within each group.
 
@@ -74,14 +78,17 @@ class DefaultMetricFormatter(MetricFormatter):
     which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
+    METRIC_ORDERS = (
+        (-1, re.compile(r'.*timer?$')),
+        (998, re.compile(r'.*(loss|cost)$')),
+        (999, re.compile(r'(.*(acc(uracy)?|lower_bound))|((^|.*_)(nll|lb))$')),
+    )
+
     def sort_metrics(self, names):
         def sort_key(name):
-            if name.endswith('time') or name.endswith('timer'):
-                return -3, name
-            elif name.endswith('loss') or name.endswith('cost'):
-                return -2, name
-            elif name.endswith('acc') or name.endswith('accuracy'):
-                return -1, name
+            for priority, pattern in self.METRIC_ORDERS:
+                if pattern.match(name):
+                    return priority, name
             return 0, name
 
         return sorted(names, key=sort_key)
@@ -122,23 +129,40 @@ class MetricLogger(object):
             logger.clear()
     """
 
-    def __init__(self, summary_writer=None, formatter=None):
+    def __init__(self, summary_writer=None, summary_metric_prefix='',
+                 summary_skip_pattern=None, summary_commit_freqs=None,
+                 formatter=None):
         """
         Construct the :class:`MetricLogger`.
 
         Args:
             summary_writer: TensorFlow summary writer.
+            summary_metric_prefix (str): The prefix for the metrics committed
+                to `summary_writer`.  This will not affect the summaries
+                added via :meth:`add_summary`. (default "")
+            summary_skip_pattern (str or regex): Metrics matching this pattern
+                will be excluded from `summary_writer`. (default :obj:`None`)
+            summary_commit_freqs (dict[str, int] or None): If specified,
+                a metric will be committed to `summary_writer` no more frequent
+                than ``summary_commit_freqs[metric]``. (default :obj:`None`)
             formatter (MetricFormatter): Metric formatter for this logger.
                 If not specified, will use an instance of
                 :class:`DefaultMetricFormatter`.
         """
         if formatter is None:
             formatter = DefaultMetricFormatter()
+        if summary_skip_pattern is not None:
+            summary_skip_pattern = re.compile(summary_skip_pattern)
         self._formatter = formatter
         self._summary_writer = summary_writer
+        self._summary_metric_prefix = summary_metric_prefix
+        self._summary_skip_pattern = summary_skip_pattern
+        self._summary_commit_freqs = dict(summary_commit_freqs or ())
 
         # accumulators for various metrics
         self._metrics = defaultdict(StatisticsCollector)
+        self._metrics_skip_counter = {}
+        self.clear()
 
     def clear(self):
         """Clear all the metric statistics."""
@@ -147,6 +171,9 @@ class MetricLogger(object):
         # This may help reduce the time cost on GC.
         for k, v in six.iteritems(self._metrics):
             v.reset()
+        self._metrics_skip_counter.clear()
+        for k, v in six.iteritems(self._summary_commit_freqs):
+            self._metrics_skip_counter[k] = v - 1
 
     def collect_metrics(self, metrics, global_step=None):
         """
@@ -173,10 +200,21 @@ class MetricLogger(object):
             v = np.asarray(v)
             self._metrics[k].collect(v)
 
-            if self._summary_writer is not None:
-                mean_value = v.mean()
-                tf_summary_values.append(
-                    tf.summary.Summary.Value(tag=k, simple_value=mean_value))
+            if self._summary_writer is not None and \
+                    (self._summary_skip_pattern is None or
+                     not self._summary_skip_pattern.match(k)):
+                skip_count = self._metrics_skip_counter.get(k, 0)
+                freq_limit = self._summary_commit_freqs.get(k, 1)
+                if skip_count + 1 >= freq_limit:
+                    self._metrics_skip_counter[k] = 0
+                    tag = self._summary_metric_prefix + k
+                    tf_summary_values.append(
+                        tf.summary.Summary.Value(
+                            tag=tag, simple_value=v.mean()
+                        )
+                    )
+                else:
+                    self._metrics_skip_counter[k] = skip_count + 1
 
         if tf_summary_values:
             summary = tf.summary.Summary(value=tf_summary_values)
@@ -207,56 +245,133 @@ class MetricLogger(object):
         return '; '.join(buf)
 
 
-def summarize_variables(variables, title='Variables Summary'):
+def _var_size(v):
+    return int(np.prod(v.get_shape().as_list(), dtype=np.int32))
+
+
+class _VarDict(object):
+
+    def __init__(self, variables):
+        if isinstance(variables, list):
+            self.all = {v.name.rsplit(':', 1)[0]: v for v in variables}
+        else:
+            self.all = dict(variables)
+
+    def select(self, predicate, strip_prefix=0):
+        return _VarDict({
+            k[strip_prefix:]: v for k, v in six.iteritems(self.all)
+            if predicate(k, v)
+        })
+
+    def empty(self):
+        return not self.all
+
+    def total_size(self):
+        return sum(_var_size(v) for v in six.itervalues(self.all))
+
+
+def _format_title(title, var_size, min_hr_len):
+    title = str(title)
+    right = '({:,} in total)'.format(var_size)
+    length = max(min_hr_len, len(title) + len(right) + 1)
+    return '{}{}{}'.format(
+        title, ' ' * (length - len(title) - len(right)), right)
+
+
+def _format_var_table(var_dict, title=None, post_title_hr='-', min_hr_len=0):
+    names = sorted(var_dict.all)
+    var_size = var_dict.total_size()
+    if not names:
+        return ''
+    the_title = _format_title(title, var_size, min_hr_len)
+    title_len = len(the_title)
+    variables = [var_dict.all[n] for n in names]
+    shapes = ['{!r}'.format(tuple(v.get_shape().as_list())) for v in variables]
+    sizes = ['{:,}'.format(_var_size(v)) for v in variables]
+    name_len = max(map(len, names))
+    shape_len = max(map(len, shapes))
+    size_len = max(map(len, sizes))
+    hr_len = max(name_len + shape_len + size_len + 4, title_len, min_hr_len)
+    the_title = _format_title(title, var_size, hr_len)
+    pad_len = hr_len - (name_len + shape_len + size_len + 4)
+
+    ret = [the_title]
+    if post_title_hr:
+        ret.append(post_title_hr * hr_len)
+    for name, shape, size in zip(names, shapes, sizes):
+        ret.append(
+            '{name:<{name_len}}  {shape:<{shape_len}}  '
+            '{size:>{size_len}}'.format(
+                name=name, shape=shape, size=size,
+                name_len=name_len + pad_len,
+                shape_len=shape_len,
+                size_len=size_len
+            )
+        )
+    return '\n'.join(ret)
+
+
+def summarize_variables(variables,
+                        title='Variables Summary',
+                        other_variables_title='Other Variables',
+                        groups=None):
     """
     Get a formatted summary about the variables.
 
     Args:
         variables (list[tf.Variable] or dict[str, tf.Variable]): List or
             dict of variables to be summarized.
-        title (str): Optional title of this summary.
+        title (str): Title of this summary.
+        other_variables_title (str): Title of the "Other Variables".
+        groups (None or list[str]): List of separated variable groups, each
+            summarized in a table.  (default :obj:`None`)
 
     Returns:
         str: Formatted summary about the variables.
     """
-    if isinstance(variables, dict):
-        var_name, var_shape = list(zip(*sorted(six.iteritems(variables))))
-        var_shape = [s.get_shape() for s in var_shape]
-    else:
-        variables = sorted(variables, key=lambda v: v.name)
-        var_name = [v.name.rsplit(':', 1)[0] for v in variables]
-        var_shape = [v.get_shape() for v in variables]
+    if not groups:
+        return _format_var_table(_VarDict(variables), title=title)
+    var_dict = _VarDict(variables)
+    groups = [g.rstrip('/') + '/' for g in groups if g.rstrip('/')]
 
-    var_count = [int(np.prod(s.as_list(), dtype=np.int32)) for s in var_shape]
-    var_count_total = sum(var_count)
-    var_shape = [str(s) for s in var_shape]
-    var_count = [str(s) for s in var_count]
-
+    max_line_len = 0
     buf = []
-    if len(var_count) > 0:
-        var_title = '{} ({:d} in total)'.format(title, var_count_total)
 
-        var_name_len = max(map(len, var_name))
-        var_shape_len = max(map(len, var_shape))
-        var_count_len = max(map(len, var_count))
-        var_table = []
+    # do two-pass, so as to align the length of each group
+    for _ in range(2):
+        the_title = _format_title(title, var_dict.total_size(), max_line_len)
+        title_len = len(the_title)
+        buf = [the_title, '']
+        matched_k = set()
 
-        for name, shape, count in zip(var_name, var_shape, var_count):
-            var_table.append(
-                '{name:<{namelen}}  {shape:<{shapelen}}  '
-                '{count}'.format(
-                    name=name, shape=shape, count=count,
-                    namelen=var_name_len, shapelen=var_shape_len,
-                    countlen=var_count_len
-                )
-            )
+        def group_filter(k, v, g):
+            if not k.startswith(g):
+                return False
+            matched_k.add(k)
+            return True
 
-        max_line_length = max(
-            var_name_len + var_shape_len + var_count_len + 4,
-            len(var_title)
-        )
-        buf.append(var_title)
-        buf.append('-' * max_line_length)
-        buf.extend(var_table)
+        for j, g in enumerate(groups):
+            g_var_dict = var_dict.select(
+                functools.partial(group_filter, g=g), len(g))
+            if not g_var_dict.empty():
+                g_table = _format_var_table(g_var_dict,
+                                            title=g,
+                                            min_hr_len=title_len)
+                if j > 0:
+                    buf.append('')
+                buf.append(g_table)
+        if not matched_k:
+            return summarize_variables(var_dict.all, title=title, groups=None)
 
+        o_var_dict = var_dict.select(lambda k, v: k not in matched_k)
+        if not o_var_dict.empty():
+            o_table = _format_var_table(o_var_dict,
+                                        title=other_variables_title,
+                                        min_hr_len=title_len)
+            buf.append('')
+            buf.append(o_table)
+
+        max_line_len = max(*map(len, chain(*(b.split('\n') for b in buf))))
+
+    buf[1] = '=' * max_line_len
     return '\n'.join(buf)

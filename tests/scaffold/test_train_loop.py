@@ -37,13 +37,16 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(loop.step, 0)
             self.assertIsNone(loop.max_epoch)
             self.assertIsNone(loop.max_step)
+            self.assertEqual(loop.summary_metric_prefix, 'metrics/')
 
         with TrainLoop([], initial_epoch=1, initial_step=3,
-                       max_epoch=2, max_step=10) as loop:
+                       max_epoch=2, max_step=10, summary_metric_prefix='123/'
+                       ) as loop:
             self.assertEqual(loop.epoch, 1)
             self.assertEqual(loop.step, 3)
             self.assertEqual(loop.max_epoch, 2)
             self.assertEqual(loop.max_step, 10)
+            self.assertEqual(loop.summary_metric_prefix, '123/')
             loop.max_epoch = 20
             loop.max_step = 100
             self.assertEqual(loop.max_epoch, 20)
@@ -144,12 +147,12 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'x: 0\.5 \(±0\.5\)\n'
             r'\[Epoch 1, Step 4/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Epoch 1\] epoch time: 0\.0[456]\d* sec; '
+            r'\[Epoch 1, Step 4/6\] epoch time: 0\.0[456]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
             r'y: 1\n'
             r'\[Epoch 2, Step 6/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 0\.5 \(±0\.5\)\n'
-            r'\[Epoch 2\] epoch time: 0\.0[23]\d* sec; '
+            r'\[Epoch 2, Step 6/6\] epoch time: 0\.0[23]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 0\.5 \(±0\.5\); y: 2'
             r'$'
         ))
@@ -171,7 +174,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'x: 0\.5 \(±0\.5\)\n'
             r'\[Step 4\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Epoch\] epoch time: 0\.0[456]\d* sec; '
+            r'\[Step 4\] epoch time: 0\.0[456]\d* sec; '
             r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
             r'y: 1'
             r'$'
@@ -201,7 +204,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'valid loss: 0\.6 \(\*\)\n'
             r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
             r'valid loss: 0\.7\n'
-            r'\[Epoch 1\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
             r'\(±[^ ]+ sec\); valid loss: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
@@ -232,7 +235,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             r'y: 0\.6\n'
             r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
             r'y: 0\.8 \(\*\)\n'
-            r'\[Epoch 1\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
             r'\(±[^ ]+ sec\); y: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
@@ -259,8 +262,8 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertEqual('\n'.join(logs), (
             'Trainable Parameters (10 in total)\n'
             '----------------------------------\n'
-            'a  (2, 3)  6\n'
-            'b  (4,)    4\n'
+            'a                        (2, 3)  6\n'
+            'b                        (4,)    4\n'
         ))
 
         # test param variables in dict
@@ -272,8 +275,8 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertEqual('\n'.join(logs), (
             'Trainable Parameters (10 in total)\n'
             '----------------------------------\n'
-            'aa  (2, 3)  6\n'
-            'bb  (4,)    4\n'
+            'aa                       (2, 3)  6\n'
+            'bb                       (4,)    4\n'
         ))
 
     def test_timeit(self):
@@ -287,7 +290,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch\] epoch time: 0\.0[345]\d* sec; '
+            r'\[Step 0\] epoch time: 0\.0[345]\d* sec; '
             r'x timer: 0\.01\d* sec; y time: 0\.0[23]\d* sec'
             r'$'
         ))
@@ -302,7 +305,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch\] epoch time: [^ ]+ sec; x: 2\.75'
+            r'\[Step 0\] epoch time: [^ ]+ sec; x: 2\.75'
             r'$'
         ))
 
@@ -322,10 +325,10 @@ class TrainLoopTestCase(tf.test.TestCase):
             for e in tf.train.summary_iterator(event_file_path):
                 for v in e.summary.value:
                     tags.add(v.tag)
-                    if v.tag == 'loss':
+                    if v.tag == 'metrics/loss':
                         loss_steps.append(e.step)
                         loss_values.append(v.simple_value)
-                    elif v.tag == 'valid_loss':
+                    elif v.tag == 'metrics/valid_loss':
                         valid_loss_steps.append(e.step)
                         valid_loss_values.append(v.simple_value)
                     elif v.tag == 'x':
@@ -337,7 +340,8 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test enable summary with `summary_dir`
         with TemporaryDirectory() as tempdir:
-            with TrainLoop([], max_epoch=2, summary_dir=tempdir) as loop:
+            with TrainLoop([], max_epoch=2, summary_dir=tempdir,
+                           summary_graph=tf.get_default_graph()) as loop:
                 self.assertIsInstance(loop.summary_writer,
                                       tf.summary.FileWriter)
                 self.assertIsNone(loop._early_stopping)
@@ -352,7 +356,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             obj = read_summary(tempdir)
             self.assertEqual(
-                ['epoch_time', 'loss', 'step_time', 'valid_loss', 'x'],
+                ['metrics/loss', 'metrics/valid_loss', 'x'],
                 sorted(obj[0])
             )
             np.testing.assert_equal(obj[1], [1, 2, 3, 4, 5, 6])
@@ -379,7 +383,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['epoch_time', 'loss', 'step_time', 'valid_loss']
+                ['metrics/loss', 'metrics/valid_loss']
             )
 
         with TemporaryDirectory() as tempdir:
@@ -394,7 +398,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             sw.close()
             self.assertEqual(
                 sorted(read_summary(tempdir)[0]),
-                ['epoch_time', 'loss', 'step_time', 'valid_loss']
+                ['metrics/loss', 'metrics/valid_loss']
             )
 
     def test_early_stopping(self):

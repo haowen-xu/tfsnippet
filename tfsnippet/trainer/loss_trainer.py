@@ -1,68 +1,16 @@
 import warnings
 
 from tfsnippet.scaffold import TrainLoop
-from .base_trainer import BaseTrainer
-from .feed_dict import resolve_feed_dict, merge_feed_dict
+from .trainer import Trainer
+from .feed_dict import merge_feed_dict
 
 __all__ = ['LossTrainer']
 
 
-class LossTrainer(BaseTrainer):
+class LossTrainer(Trainer):
     """
     A subclass of :class:`BaseTrainer`, which optimizes a single loss.
-
-    This class does not derive the training operation that minimizes or
-    maximizes the loss.  Instead, the caller must derive the training
-    operation and pass it to the :class:`LossTrainer`.  For example::
-
-        from tfsnippet.scaffold import TrainLoop
-        from tfsnippet.trainer import (LossTrainer,
-                                       Validator,
-                                       AnnealingDynamicValue)
-
-        # build the model
-        input_x = tf.placeholder(...)
-        input_y = tf.placeholder(...)
-        learning_rate = tf.placeholder(...)  # learning rate annealing
-
-        # prepare for the data and
-        train_data = DataFlow.arrays(
-            [train_x, train_y], batch_size=128, shuffle=True,
-            skip_incomplete=True
-        )
-        valid_data = DataFlow.arrays(
-            [valid_x, valid_y], batch_size=512)
-        ...
-
-        # derive the training operation
-        optimizer = tf.train.AdamOptimizer(learning_rate)
-        train_op = optimizer.minimize(loss)
-
-        # run the trainer
-        learning_rate_var = AnnealingDynamicValue(0.001, ratio=0.75)
-
-        with TrainLoop(param_vars,
-                       max_epoch=10,
-                       early_stopping=True) as loop:
-            trainer = LossTrainer(
-                loop, loss, train_op, [input_x, input_y], train_data,
-                feed_dict={learning_rate: learning_rate_var}
-            )
-            validator = Validator(
-                loop, loss, [input_x, input_y], valid_data)
-
-            # validate after every epoch
-            trainer.validate_after_epochs(validator, freq=1)
-
-            # log after every epoch (and after validation, since
-            # ``HookPriority.VALIDATION < HookPriority.LOGGING``)
-            trainer.log_after_epochs(freq=1)
-
-            # anneal the learning rate after every 10 epochs
-            trainer.anneal_after_epochs(learning_rate_var, freq=10)
-
-            # run the main training loop
-            trainer.run()
+    This class is deprecated, use :class:`Trainer` instead.
     """
 
     def __init__(self, loop, loss, train_op, inputs, data_flow, feed_dict=None,
@@ -86,63 +34,22 @@ class LossTrainer(BaseTrainer):
                 (default :obj:`None`)
             metric_name (str): The metric name for collecting training loss.
         """
-        if loop.max_epoch is None and loop.max_step is None:
-            raise ValueError('At least one of `max_epoch`, `max_step` should '
-                             'be configured for `loop`.')
-        super(LossTrainer, self).__init__(loop=loop)
-
-        # memorize the arguments
-        self._inputs = tuple(inputs or ())
-        self._data_flow = data_flow
-        self._feed_dict = dict(feed_dict or ())
-        self._loss = loss
-        self._train_op = train_op
-        self._metric_name = metric_name
-
-    @property
-    def inputs(self):
-        """
-        Get the input placeholders.
-
-        Returns:
-            list[tf.Tensor]: The input placeholders.
-        """
-        return self._inputs
-
-    @property
-    def data_flow(self):
-        """
-        Get the training data flow.
-
-        Returns:
-            DataFlow: The training data flow.
-        """
-        return self._data_flow
-
-    @property
-    def feed_dict(self):
-        """
-        Get the feed dict for training.
-
-        Returns:
-            dict[tf.Tensor, any]: The feed dict for training.
-        """
-        return self._feed_dict
+        warnings.warn('`LossTrainer` is deprecated, use `Trainer` instead.',
+                      DeprecationWarning)
+        super(LossTrainer, self).__init__(
+            loop=loop, train_op=train_op, inputs=inputs, data_flow=data_flow,
+            feed_dict=feed_dict, metrics={metric_name: loss}
+        )
 
     @property
     def loss(self):
         """Get the training loss."""
-        return self._loss
-
-    @property
-    def train_op(self):
-        """Get the training operation."""
-        return self._train_op
+        return list(self.metrics.values())[0]
 
     @property
     def metric_name(self):
         """Get the metric name for collecting training loss."""
-        return self._metric_name
+        return list(self.metrics.keys())[0]
 
     def run(self, feed_dict=None):
         """
@@ -161,20 +68,3 @@ class LossTrainer(BaseTrainer):
             super(LossTrainer, self).run()
         finally:
             self._feed_dict = old_feed_dict
-
-    def _iter_steps(self):
-        return self.loop.iter_steps(self.data_flow)
-
-    def _run_step(self, session, payload):
-        # prepare for the feed dict of this step
-        step, batch_data = payload
-        feed_dict = resolve_feed_dict(
-            merge_feed_dict(
-                self.feed_dict,
-                zip(self.inputs, batch_data)
-            )
-        )
-
-        # run the training operation
-        _, loss = session.run([self._train_op, self.loss], feed_dict=feed_dict)
-        self.loop.collect_metrics({self._metric_name: loss})
