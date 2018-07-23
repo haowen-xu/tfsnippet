@@ -7,6 +7,7 @@ from itertools import chain
 import numpy as np
 import six
 import tensorflow as tf
+from natsort import natsorted
 
 from tfsnippet.utils import (humanize_duration,
                              StatisticsCollector,
@@ -279,7 +280,7 @@ def _format_title(title, var_size, min_hr_len):
 
 
 def _format_var_table(var_dict, title=None, post_title_hr='-', min_hr_len=0):
-    names = sorted(var_dict.all)
+    names = natsorted(var_dict.all)
     var_size = var_dict.total_size()
     if not names:
         return ''

@@ -42,10 +42,10 @@ class ExpConfig(Config):
     l2_reg = 0.0001
     use_concrete_distribution = False
     p_z_given_y = 'learnt'  # {'unit', 'learnt'}
-    p_z_given_y_std = 'one_plus_softplus_std'
+    p_z_given_y_std = 'unbound_logstd'
     # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
-    p_z_given_y_reg = None  # {None, 'kl_p_z', 'kl_p_z_given_y'}
-    p_z_given_y_reg_factor = 0.01
+    p_z_given_y_reg = 'kl_p_z'  # {None, 'kl_p_z', 'kl_p_z_given_y'}
+    p_z_given_y_reg_factor = 0.1
     mean_field_assumption_for_q = False
 
     # training parameters
