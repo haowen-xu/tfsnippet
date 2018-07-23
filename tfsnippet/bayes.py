@@ -22,7 +22,8 @@ class TransformedDistribution(Distribution):
     which is required for :class:`BayesianNet`.
     """
 
-    def __init__(self, origin, transformed, transformed_log_p):
+    def __init__(self, origin, transformed, transformed_log_p,
+                 is_reparameterized, is_continuous):
         """
         Construct a :class:`TransformedDistribution`.
 
@@ -30,10 +31,16 @@ class TransformedDistribution(Distribution):
             origin (StochasticTensor): The original sample or observation.
             transformed (tf.Tensor): The transformed sample or observation.
             transformed_log_p (tf.Tensor): The transformed log-likelihood.
+            is_reparameterized (bool): Whether the transformed distribution
+                is is_reparameterized?
+            is_continuous (bool): Whether the transformed distribution
+                is continuous?
         """
         self._origin = origin
         self._transformed = transformed
         self._transformed_log_p = transformed_log_p
+        self._is_reparameterized = is_reparameterized
+        self._is_continuous = is_continuous
 
     @property
     def origin(self):
@@ -68,6 +75,14 @@ class TransformedDistribution(Distribution):
     @property
     def dtype(self):
         return self.transformed.dtype
+
+    @property
+    def is_reparameterized(self):
+        return self._is_reparameterized
+
+    @property
+    def is_continuous(self):
+        return self._is_continuous
 
     def _check_given(self, given, group_ndims):
         if given is not self.transformed or \
@@ -240,8 +255,10 @@ class BayesianNet(object):
             StochasticTensor: The sampled stochastic tensor.
 
         Raises:
-            TypeError: If `name` is not a str.
+            TypeError: If `name` is not a str, or `distribution` is a
+                :class:`TransformedDistribution`.
             KeyError: If :class:`StochasticTensor` with `name` already exists.
+            ValueError: If `transform` cannot be applied.
 
         See Also:
             :meth:`tfsnippet.distributions.Distribution.sample`
@@ -252,10 +269,16 @@ class BayesianNet(object):
             raise KeyError('StochasticTensor with name {!r} already exists in '
                            'the BayesianNet.  Names must be unique.'.
                            format(name))
-        if transform is not None and (not distribution.is_reparameterized or
-                                      is_reparameterized is False):
-            raise ValueError('`transform` can only be applied on '
-                             're-parameterized variable.')
+        if isinstance(distribution, TransformedDistribution):
+            raise TypeError('Cannot add `TransformedDistribution`.')
+        if transform is not None and \
+                (not distribution.is_continuous or
+                 not distribution.is_reparameterized or
+                 is_reparameterized is False):
+            raise ValueError('`transform` can only be applied on continuous, '
+                             're-parameterized variables.')
+        if transform is not None and name in self._observed:
+            raise ValueError('`observed` variable cannot be transformed.')
 
         distribution = as_distribution(distribution)
         if name in self._observed:
@@ -274,20 +297,28 @@ class BayesianNet(object):
             )
             assert(isinstance(t, StochasticTensor))
 
-        # do transformation
-        if transform is not None:
-            t_log_p = t.log_prob()
-            ft, ft_log_p = transform(t, t_log_p)
-            ft = tf.convert_to_tensor(ft)
-            ft_log_p = tf.convert_to_tensor(ft_log_p)
-            t = StochasticTensor(
-                distribution=TransformedDistribution(
-                    origin=t, transformed=ft, transformed_log_p=ft_log_p),
-                tensor=ft,
-                n_samples=t.n_samples,
-                group_ndims=t.group_ndims,
-                is_reparameterized=t.is_reparameterized
-            )
+            # do transformation
+            if transform is not None:
+                t_log_p = t.log_prob()
+                ft, ft_log_p = transform(t, t_log_p)
+                ft = tf.convert_to_tensor(ft)
+                ft_log_p = tf.convert_to_tensor(ft_log_p)
+                if not ft.dtype.is_floating:
+                    raise ValueError('The transformed samples must be '
+                                     'continuous: got {!r}'.format(ft))
+                t = StochasticTensor(
+                    distribution=TransformedDistribution(
+                        origin=t,
+                        transformed=ft,
+                        transformed_log_p=ft_log_p,
+                        is_reparameterized=t.is_reparameterized,
+                        is_continuous=True
+                    ),
+                    tensor=ft,
+                    n_samples=t.n_samples,
+                    group_ndims=t.group_ndims,
+                    is_reparameterized=t.is_reparameterized
+                )
 
         self._stochastic_tensors[name] = t
         return t
