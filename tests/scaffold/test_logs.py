@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import contextlib
 import os
-import unittest
 
 import numpy as np
 import tensorflow as tf

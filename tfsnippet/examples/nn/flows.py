@@ -61,8 +61,10 @@ def planar_normalizing_flow(
     if n_units is None:
         raise ValueError('The last dimension of `z` must be deterministic.')
     if int_shape(z)[:-1] != int_shape(log_qz):
-        raise ValueError('The static shape mismatch between `z` and `log_qz`: '
-                         '{} vs {}'.format(z.get_shape(), log_qz.get_shape()))
+        raise ValueError(
+            'The static shape mismatch between `z` and `log_qz`: {} vs {}'.
+            format(z.get_shape()[:-1], log_qz.get_shape())
+        )
 
     # derive the normalizing flow
     with tf.variable_scope(scope, default_name=name):
@@ -92,7 +94,7 @@ def planar_normalizing_flow(
             trainable=trainable
         )
 
-        # derive the operations
+        # flatten z for better performance
         z, s1, s2 = flatten(z, 2)  # z.shape == [?, n_units]
 
         # enforce invertible mapping
@@ -109,13 +111,13 @@ def planar_normalizing_flow(
         # compute log(det|df/dz|)
         grad = 1. - tf.square(tanh_wzb)  # dtanh(x)/dx = 1 - tanh^2(x)
         phi = grad * w  # shape == [?, n_units]
-        u_phi = tf.matmul(phi, u, transpose_b=True)  # shape == [?, 1]
+        u_phi = tf.matmul(phi, u_hat, transpose_b=True)  # shape == [?, 1]
         det_jac = 1. + u_phi  # shape == [?, 1]
         log_det_jac = tf.log(tf.abs(det_jac))  # shape == [?, 1]
 
         # compute log q(f(z))
-        log_q_fz = log_qz - log_det_jac
-        log_q_fz = unflatten(log_q_fz, s1, s2)
+        log_q_fz = log_qz - \
+            unflatten(tf.squeeze(log_det_jac, -1), s1, s2)
 
         # now returns the transformed sample and log-prob
         return fz, log_q_fz

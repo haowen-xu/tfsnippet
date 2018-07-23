@@ -32,7 +32,7 @@ class ExpConfig(Config):
     # model parameters
     z_dim = 40
     x_dim = 784
-    nf_layers = 40
+    nf_layers = 20
 
     # training parameters
     max_epoch = 3000
@@ -67,7 +67,7 @@ def q_net(x, observed=None, n_z=None, is_training=True):
     z_mean = tf.layers.dense(h_z, config.z_dim, name='z_mean')
     z_logstd = tf.layers.dense(h_z, config.z_dim, name='z_logstd')
     z = net.add('z', Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1)
+                group_ndims=1, transform=posterior_flow)
 
     return net
 
@@ -150,7 +150,7 @@ def main():
                 with arg_scope([p_net, q_net], is_training=is_training):
                     _ = q_net(dev_input_x).chain(
                         p_net,
-                        latent_names=['y', 'z'],
+                        latent_names=['z'],
                         observed={'x': dev_input_x}
                     )
 
@@ -159,7 +159,7 @@ def main():
                     # derive the loss and lower-bound for training
                     train_q_net = q_net(dev_input_x)
                     train_chain = train_q_net.chain(
-                        p_net, latent_names=['y', 'z'], latent_axis=0,
+                        p_net, latent_names=['z'], latent_axis=0,
                         observed={'x': dev_input_x}
                     )
 
@@ -171,11 +171,9 @@ def main():
                     lower_bounds.append(dev_lower_bound)
 
                     # derive the nll and logits output for testing
-                    test_q_net = q_net(
-                        dev_input_x, n_samples=config.test_n_z
-                    )
+                    test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
                     test_chain = test_q_net.chain(
-                        p_net, latent_names=['y', 'z'], latent_axis=0,
+                        p_net, latent_names=['z'], latent_axis=0,
                         observed={'x': dev_input_x}
                     )
                     dev_test_nll = -tf.reduce_mean(
@@ -237,7 +235,7 @@ def main():
 
         # train the network
         with TrainLoop(params,
-                       var_groups=['p_net', 'q_net'],
+                       var_groups=['p_net', 'q_net', 'posterior_flow'],
                        max_epoch=config.max_epoch,
                        summary_dir=results.make_dir('train_summary'),
                        summary_graph=tf.get_default_graph(),
