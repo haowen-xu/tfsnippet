@@ -5,11 +5,12 @@ from contextlib import contextmanager
 import six
 import tensorflow as tf
 
-from .misc import is_dynamic_tensor
+from .misc import is_dynamic_tensor, cached
 
 __all__ = ['detect_gpus', 'average_gradients', 'MultiGPU']
 
 
+@cached
 def detect_gpus():
     """
     Detect the GPU devices and their interconnection on current machine.
@@ -134,7 +135,6 @@ class MultiGPU(object):
                 supported by CPUs for the time being, thus the pre-building on
                 CPUs might need to be disabled.
         """
-
         gpu_groups = detect_gpus()
         if not gpu_groups:
             self._main_device = '/device:CPU:0'
