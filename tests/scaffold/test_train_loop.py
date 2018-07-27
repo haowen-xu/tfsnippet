@@ -7,6 +7,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
+from tfsnippet.dataflow import DataFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.utils import (TemporaryDirectory,
                              ensure_variables_initialized,
@@ -61,7 +62,8 @@ class TrainLoopTestCase(tf.test.TestCase):
                 epoch_counter += 1
                 self.assertEqual(epoch, epoch_counter)
                 x_ans = 0
-                for step, x in loop.iter_steps(np.arange(4)):
+                for step, [x] in \
+                        loop.iter_steps(DataFlow.arrays([np.arange(4)], 1)):
                     self.assertEqual(step, loop.step)
                     self.assertEqual(epoch, loop.epoch)
                     self.assertEqual(x, x_ans)
@@ -130,6 +132,63 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(epoch_counter, 3)
             self.assertEqual(step_counter, 10)
 
+    def test_get_progress(self):
+        null_print = lambda x: None
+
+        # test no progress
+        with TrainLoop([], max_epoch=None, max_step=None) as loop:
+            self.assertIsNone(loop.get_progress())
+
+        # test infer progress from epoch
+        with TrainLoop([], max_epoch=10, max_step=None,
+                       print_func=null_print) as loop:
+            np.testing.assert_allclose(0., loop.get_progress())
+            for i in loop.iter_epochs():
+                np.testing.assert_allclose((i - 1) * .1, loop.get_progress())
+                loop.print_logs()
+                np.testing.assert_allclose(i * .1, loop.get_progress())
+            np.testing.assert_allclose(1., loop.get_progress())
+
+        # test infer progress from step
+        with TrainLoop([], max_epoch=None, max_step=100,
+                       print_func=null_print) as loop:
+            np.testing.assert_allclose(0., loop.get_progress())
+            for _ in loop.iter_epochs():
+                for _ in loop.iter_steps([0, 1, 2]):
+                    step = loop.step
+                    np.testing.assert_allclose(
+                        (step - 1) * .01, loop.get_progress())
+                    loop.print_logs()
+                    np.testing.assert_allclose(
+                        step * .01, loop.get_progress())
+            np.testing.assert_allclose(1., loop.get_progress())
+
+        # test infer progress from epoch & steps_per_epoch
+        with TrainLoop([], max_epoch=10, print_func=null_print) as loop:
+            np.testing.assert_allclose(0., loop.get_progress())
+            for i in loop.iter_epochs():
+                np.testing.assert_allclose((i - 1) * .1, loop.get_progress())
+                for _, j in loop.iter_steps([0, 1, 2, 3, 4]):
+                    if i == 1:
+                        np.testing.assert_allclose(0., loop.get_progress())
+                        loop.print_logs()
+                        np.testing.assert_allclose(0., loop.get_progress())
+                    else:
+                        np.testing.assert_allclose(
+                            (i - 1) * .1 + j * .02, loop.get_progress())
+                        loop.print_logs()
+                        np.testing.assert_allclose(
+                            (i - 1) * .1 + (j + 1) * .02, loop.get_progress())
+                if i == 1:
+                    np.testing.assert_allclose(0., loop.get_progress())
+                    loop.print_logs()
+                    np.testing.assert_allclose(.1, loop.get_progress())
+                else:
+                    np.testing.assert_allclose(i * .1, loop.get_progress())
+                    loop.print_logs()
+                    np.testing.assert_allclose(i * .1, loop.get_progress())
+            np.testing.assert_allclose(1., loop.get_progress())
+
     def test_logs(self):
         logs = []
         with TrainLoop([], max_step=6, print_func=logs.append) as loop:
@@ -143,23 +202,24 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch 1, Step 2/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'\[Epoch 1, Step 2/6, ETA \S+\] step time: 0\.01\d*s \(±[^ ]+s\); '
             r'x: 0\.5 \(±0\.5\)\n'
-            r'\[Epoch 1, Step 4/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'\[Epoch 1, Step 4/6, ETA \S+\] step time: 0\.01\d*s \(±[^ ]+s\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Epoch 1, Step 4/6\] epoch time: 0\.0[456]\d* sec; '
-            r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
+            r'\[Epoch 1, Step 4/6, ETA \S+\] epoch time: 0\.0[456]\d*s; '
+            r'step time: 0\.01\d*s \(±[^ ]+s\); x: 1\.5 \(±1\.11803\); '
             r'y: 1\n'
-            r'\[Epoch 2, Step 6/6\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'\[Epoch 2, Step 6/6, ETA \S+\] step time: 0\.01\d*s \(±[^ ]+s\); '
             r'x: 0\.5 \(±0\.5\)\n'
-            r'\[Epoch 2, Step 6/6\] epoch time: 0\.0[23]\d* sec; '
-            r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 0\.5 \(±0\.5\); y: 2'
+            r'\[Epoch 2, Step 6/6, ETA \S+\] epoch time: 0\.0[23]\d*s; '
+            r'step time: 0\.01\d*s \(±[^ ]+s\); x: 0\.5 \(±0\.5\); y: 2'
             r'$'
         ))
 
     def test_single_epoch_logs(self):
         logs = []
-        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
+        with TrainLoop([], max_epoch=1, print_func=logs.append,
+                       show_eta=False) as loop:
             for epoch in loop.iter_epochs():
                 for step, x in loop.iter_steps(np.arange(4)):
                     time.sleep(0.01)
@@ -170,19 +230,19 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Step 2\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'\[Step 2\] step time: 0\.01\d*s \(±[^ ]+s\); '
             r'x: 0\.5 \(±0\.5\)\n'
-            r'\[Step 4\] step time: 0\.01\d* sec \(±[^ ]+ sec\); '
+            r'\[Step 4\] step time: 0\.01\d*s \(±[^ ]+s\); '
             r'x: 2\.5 \(±0\.5\)\n'
-            r'\[Step 4\] epoch time: 0\.0[456]\d* sec; '
-            r'step time: 0\.01\d* sec \(±[^ ]+ sec\); x: 1\.5 \(±1\.11803\); '
+            r'\[Step 4\] epoch time: 0\.0[456]\d*s; '
+            r'step time: 0\.01\d*s \(±[^ ]+s\); x: 1\.5 \(±1\.11803\); '
             r'y: 1'
             r'$'
         ))
 
     def test_valid_metric_default_settings(self):
         logs = []
-        with TrainLoop([], print_func=logs.append) as loop:
+        with TrainLoop([], print_func=logs.append, show_eta=False) as loop:
             self.assertEqual(loop.valid_metric_name, 'valid_loss')
             self.assertTrue(loop.valid_metric_smaller_is_better)
             self.assertFalse(loop.use_early_stopping)
@@ -198,21 +258,21 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertAlmostEqual(loop.best_valid_metric, 0.6)
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch 1, Step 1\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 1\] step time: [^ ]+s; '
             r'valid loss: 0\.8 \(\*\)\n'
-            r'\[Epoch 1, Step 2\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 2\] step time: [^ ]+s; '
             r'valid loss: 0\.6 \(\*\)\n'
-            r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 3\] step time: [^ ]+s; '
             r'valid loss: 0\.7\n'
-            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
-            r'\(±[^ ]+ sec\); valid loss: 0\.7 \(±0\.0816497\)'
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+s; step time: [^ ]+s '
+            r'\(±[^ ]+s\); valid loss: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
 
     def test_valid_metric_with_custom_settings(self):
         logs = []
         v = tf.get_variable('a', shape=[1], dtype=tf.int32)
-        with TrainLoop([v], print_func=logs.append,
+        with TrainLoop([v], print_func=logs.append, show_eta=False,
                        valid_metric_name='y',
                        valid_metric_smaller_is_better=False) as loop:
             self.assertEqual(loop.valid_metric_name, 'y')
@@ -229,14 +289,14 @@ class TrainLoopTestCase(tf.test.TestCase):
         self.assertAlmostEqual(loop.best_valid_metric, 0.8)
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Epoch 1, Step 1\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 1\] step time: [^ ]+s; '
             r'y: 0\.7 \(\*\)\n'
-            r'\[Epoch 1, Step 2\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 2\] step time: [^ ]+s; '
             r'y: 0\.6\n'
-            r'\[Epoch 1, Step 3\] step time: [^ ]+ sec; '
+            r'\[Epoch 1, Step 3\] step time: [^ ]+s; '
             r'y: 0\.8 \(\*\)\n'
-            r'\[Epoch 1, Step 3\] epoch time: [^ ]+ sec; step time: [^ ]+ sec '
-            r'\(±[^ ]+ sec\); y: 0\.7 \(±0\.0816497\)'
+            r'\[Epoch 1, Step 3\] epoch time: [^ ]+s; step time: [^ ]+s '
+            r'\(±[^ ]+s\); y: 0\.7 \(±0\.0816497\)'
             r'$'
         ))
 
@@ -281,7 +341,8 @@ class TrainLoopTestCase(tf.test.TestCase):
 
     def test_timeit(self):
         logs = []
-        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
+        with TrainLoop([], max_epoch=1, print_func=logs.append,
+                       show_eta=False) as loop:
             for _ in loop.iter_epochs():
                 with loop.timeit('x_timer'):
                     time.sleep(0.01)
@@ -290,14 +351,15 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Step 0\] epoch time: 0\.0[345]\d* sec; '
-            r'x timer: 0\.01\d* sec; y time: 0\.0[23]\d* sec'
+            r'\[Step 0\] epoch time: 0\.0[345]\d*s; '
+            r'x timer: 0\.01\d*s; y time: 0\.0[23]\d*s'
             r'$'
         ))
 
     def test_metric_collector(self):
         logs = []
-        with TrainLoop([], max_epoch=1, print_func=logs.append) as loop:
+        with TrainLoop([], max_epoch=1, print_func=logs.append,
+                       show_eta=False) as loop:
             for _ in loop.iter_epochs():
                 with loop.metric_collector('x') as acc:
                     acc.collect(2)
@@ -305,7 +367,7 @@ class TrainLoopTestCase(tf.test.TestCase):
                 loop.print_logs()
         self.assertMatches('\n'.join(logs), re.compile(
             r'^'
-            r'\[Step 0\] epoch time: [^ ]+ sec; x: 2\.75'
+            r'\[Step 0\] epoch time: [^ ]+s; x: 2\.75'
             r'$'
         ))
 

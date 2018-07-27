@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from contextlib import contextmanager
 
 import numpy as np
@@ -7,19 +8,29 @@ import six
 
 __all__ = ['humanize_duration', 'camel_to_underscore', 'NOT_SET',
            'cached_property', 'clear_cached_property', 'maybe_close',
-           'iter_files']
+           'iter_files', 'ETA']
 
 
-def humanize_duration(seconds):
+def humanize_duration(seconds, short_units=True):
     """
     Format specified time duration as human readable text.
 
     Args:
         seconds: Number of seconds of the time duration.
+        short_units (bool): Whether or not to use short units
+            ("d", "h", "m", "s") instead of long units
+            ("day", "hour", "minute", "second")? (default :obj:`False`)
 
     Returns:
         str: The formatted time duration.
     """
+    if short_units:
+        units = [(86400, 'd', 'd'), (3600, 'h', 'h'),
+                 (60, 'm', 'm'), (1, 's', 's')]
+    else:
+        units = [(86400, ' day', ' days'), (3600, ' hour', ' hours'),
+                 (60, ' minute', ' minutes'), (1, ' second', ' seconds')]
+
     if seconds < 0:
         seconds = -seconds
         suffix = ' ago'
@@ -27,21 +38,19 @@ def humanize_duration(seconds):
         suffix = ''
 
     pieces = []
-    for uvalue, uname in [(86400, 'day'),
-                          (3600, 'hr'),
-                          (60, 'min')]:
+    for uvalue, uname, uname_plural in units[:-1]:
         if seconds >= uvalue:
             val = int(seconds // uvalue)
             if val > 0:
-                if val > 1:
-                    uname += 's'
-                pieces.append('{:d} {}'.format(val, uname))
+                pieces.append(
+                    '{:d}{}'.format(val, uname_plural if val > 1 else uname))
             seconds %= uvalue
+    uname, uname_plural = units[-1][1:]
     if seconds > np.finfo(np.float64).eps:
-        pieces.append('{:.4g} sec{}'.format(
-            seconds, 's' if seconds > 1 else ''))
+        pieces.append('{:.4g}{}'.format(
+            seconds, uname_plural if seconds > 1 else uname))
     elif not pieces:
-        pieces.append('0 sec')
+        pieces.append('0{}'.format(uname))
 
     return ' '.join(pieces) + suffix
 
@@ -155,3 +164,85 @@ def iter_files(root_dir, sep='/'):
                 yield x
         else:
             yield name
+
+
+class ETA(object):
+    """Class to help compute the Estimated Time Ahead (ETA)."""
+
+    def __init__(self, take_initial_snapshot=True):
+        """
+        Construct a new :class:`ETA`.
+
+        Args:
+            take_initial_snapshot (bool): Whether or not to take the initial
+                snapshot ``(0., time.time())``? (default :obj:`True`)
+        """
+        self._times = []
+        self._progresses = []
+        if take_initial_snapshot:
+            self.take_snapshot(0.)
+
+    def take_snapshot(self, progress, now=None):
+        """
+        Take a snapshot of ``(progress, now)``, for later computing ETA.
+
+        Args:
+            progress: The current progress, range in ``[0, 1]``.
+            now: The current timestamp in seconds.  If not specified, use
+                ``time.time()``.
+        """
+        if not self._progresses or progress - self._progresses[-1] > .001:
+            # we only record the time and corresponding progress if the
+            # progress has been advanced by 0.1%
+            if now is None:
+                now = time.time()
+            self._progresses.append(progress)
+            self._times.append(now)
+
+    def get_eta(self, progress, now=None, take_snapshot=True):
+        """
+        Get the Estimated Time Ahead (ETA).
+
+        Args:
+            progress: The current progress, range in ``[0, 1]``.
+            now: The current timestamp in seconds.  If not specified, use
+                ``time.time()``.
+            take_snapshot (bool): Whether or not to take a snapshot of
+                the specified ``(progress, now)``? (default :obj:`True`)
+
+        Returns:
+            float or None: The remaining seconds, or :obj:`None` if
+                the ETA cannot be estimated.
+        """
+        # TODO: Maybe we can have a better estimation algorithm here!
+        if now is None:
+            now = time.time()
+
+        if self._progresses:
+            # pick the instant ETA if progress is small (<5%)
+            if progress < .05:
+                i = len(self._progresses) - 1
+                while i > 0:
+                    if progress - self._progresses[i] < 0.001:
+                        i -= 1
+                    else:
+                        break
+                time_delta = now - self._times[i]
+                progress_delta = progress - self._progresses[i]
+
+            # otherwise pick the long-term ETA if progress is large (>=5%)
+            else:
+                time_delta = now - self._times[0]
+                progress_delta = progress - self._progresses[0]
+
+            progress_left = 1. - progress
+            if progress_delta < 1e-7:
+                return None
+            eta = time_delta / progress_delta * progress_left
+        else:
+            eta = None
+
+        if take_snapshot:
+            self.take_snapshot(progress, now)
+
+        return eta

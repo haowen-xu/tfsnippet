@@ -11,7 +11,8 @@ from contextlib import contextmanager
 import tensorflow as tf
 
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.utils import StatisticsCollector, DisposableContext
+from tfsnippet.utils import (StatisticsCollector, DisposableContext,
+                             humanize_duration, ETA)
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -58,6 +59,7 @@ class TrainLoop(DisposableContext):
     def __init__(self,
                  param_vars,
                  var_groups=None,
+                 show_eta=True,
                  print_func=print,
                  summary_dir=None,
                  summary_writer=None,
@@ -83,6 +85,7 @@ class TrainLoop(DisposableContext):
             var_groups (None or list[str]): Variable groups, the prefixes of
                 variable scopes.  A hint for printing the variables summary.
                 (default :obj:`None`)
+            show_eta (bool): Whether or not to show ETA? (default :obj:`True`)
             print_func ((str) -> None): Function for printing log messages
                 (calling ``print`` by default). An alternative of this argument
                 may be ``getLogger(__name__).info``, such that the log messages
@@ -161,6 +164,7 @@ class TrainLoop(DisposableContext):
         self._param_vars = copy.copy(param_vars)
         self._var_groups = list(var_groups) if var_groups else None
         self._print_func = print_func
+        self._show_eta = show_eta
         self._metric_formatter = metric_formatter
         self._use_early_stopping = early_stopping
         self._valid_metric_name = valid_metric_name
@@ -185,6 +189,8 @@ class TrainLoop(DisposableContext):
         # flag to track the context
         self._within_epoch = False
         self._within_step = False
+        self._steps_per_epoch = None  # average steps per epoch
+        self._eta = None
 
         # epoch and step counter
         self._epoch = initial_epoch
@@ -223,6 +229,9 @@ class TrainLoop(DisposableContext):
             )
             self._early_stopping.__enter__()
 
+        # initialize the eta flags
+        self._eta = ETA()
+
         # return self as the context object
         return self
 
@@ -238,17 +247,47 @@ class TrainLoop(DisposableContext):
             self._early_stopping.__exit__(exc_type, exc_val, exc_tb)
             self._early_stopping = None
 
-    def _commit_epoch_start_time(self):
+        # clear status
+        self._steps_per_epoch = None
+        self._eta = None
+
+    def _commit_epoch_stop_time(self):
         if self._epoch_start_time is not None:
             duration = time.time() - self._epoch_start_time
             self.collect_metrics(metrics={EPOCH_TIME_METRIC: duration})
             self._epoch_start_time = None
 
-    def _commit_step_start_time(self):
+    def _commit_step_stop_time(self):
         if self._step_start_time is not None:
             duration = time.time() - self._step_start_time
             self.collect_metrics(metrics={STEP_TIME_METRIC: duration})
             self._step_start_time = None
+
+    def get_progress(self):
+        """
+        Get the progress of training.
+
+        Returns:
+            float or None: The progress in range ``[0, 1]``, or None if
+                the progress cannot be estimated.
+        """
+        max_step = self.max_step
+        if max_step is None and self.max_epoch is not None and \
+                self._steps_per_epoch is not None:
+            max_step = self.max_epoch * self._steps_per_epoch
+
+        if max_step:
+            if self._within_step and self._step_start_time is not None:
+                # _step_start_time != None, indicating the step not finished
+                return (self.step - 1.) / max_step
+            else:
+                return float(self.step) / max_step
+        elif self.max_epoch is not None:
+            if self._within_epoch and self._epoch_start_time is not None:
+                # _epoch_start_time != None, indicating the epoch not finished
+                return (self.epoch - 1.) / self.max_epoch
+            else:
+                return float(self.epoch) / self.max_epoch
 
     @property
     def use_early_stopping(self):
@@ -346,7 +385,8 @@ class TrainLoop(DisposableContext):
                 self._within_epoch = True
                 self._epoch_start_time = time.time()
                 yield self._epoch
-                self._commit_epoch_start_time()
+                self._commit_epoch_stop_time()
+                self._steps_per_epoch = float(self._step) / self._epoch
         finally:
             self._within_epoch = False
             self._epoch_start_time = None
@@ -420,7 +460,7 @@ class TrainLoop(DisposableContext):
                 except StopIteration:  # pragma: no cover
                     # might be caused by call to ``data_flow.next_batch()``
                     break
-                self._commit_step_start_time()
+                self._commit_step_stop_time()
         finally:
             self._within_step = False
             self._step_start_time = None
@@ -550,6 +590,12 @@ class TrainLoop(DisposableContext):
             if self._max_epoch != 1:
                 tags.append(format_tag(self._epoch, self._max_epoch, 'Epoch'))
             tags.append(format_tag(self._step, self._max_step, 'Step'))
+            if self._show_eta:
+                progress = self.get_progress()
+                if progress is not None:
+                    eta = self._eta.get_eta(progress)
+                    if eta is not None:
+                        tags.append('ETA {}'.format(humanize_duration(eta)))
             message = '[{}] {}'.format(', '.join(tags), message)
         self._print_func(message)
 
@@ -589,10 +635,10 @@ class TrainLoop(DisposableContext):
         self._require_entered()
         metrics = None
         if self._within_step:
-            self._commit_step_start_time()
+            self._commit_step_stop_time()
             metrics = self._step_metrics
         elif self._within_epoch:
-            self._commit_epoch_start_time()
+            self._commit_epoch_stop_time()
             metrics = self._epoch_metrics
         else:
             self._require_context()
