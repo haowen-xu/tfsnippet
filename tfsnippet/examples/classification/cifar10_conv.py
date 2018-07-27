@@ -38,7 +38,7 @@ class ExpConfig(Config):
 
     initial_lr = 0.01
     lr_anneal_factor = 0.5
-    lr_anneal_epoch_freq = 100
+    lr_anneal_epoch_freq = 200
     lr_anneal_step_freq = None
 
 

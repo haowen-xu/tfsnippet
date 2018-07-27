@@ -229,17 +229,9 @@ class ETATestCase(unittest.TestCase):
         self.assertListEqual([0, 1], eta._times)
         self.assertListEqual([0., .01], eta._progresses)
 
-        np.testing.assert_allclose(188.47619047619045, eta.get_eta(.0105, 2))
-        self.assertListEqual([0, 1], eta._times)
-        self.assertListEqual([0., .01], eta._progresses)
-
-        np.testing.assert_allclose(19.2, eta.get_eta(.04, 1.6))
-        self.assertListEqual([0, 1, 1.6], eta._times)
-        self.assertListEqual([0., .01, .04], eta._progresses)
-
         np.testing.assert_allclose(57.0, eta.get_eta(.05, 3))
-        self.assertListEqual([0, 1, 1.6, 3], eta._times)
-        self.assertListEqual([0., .01, .04, .05], eta._progresses)
+        self.assertListEqual([0, 1, 3], eta._times)
+        self.assertListEqual([0., .01, .05], eta._progresses)
 
 
 if __name__ == '__main__':

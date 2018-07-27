@@ -219,22 +219,8 @@ class ETA(object):
             now = time.time()
 
         if self._progresses:
-            # pick the instant ETA if progress is small (<5%)
-            if progress < .05:
-                i = len(self._progresses) - 1
-                while i > 0:
-                    if progress - self._progresses[i] < 0.001:
-                        i -= 1
-                    else:
-                        break
-                time_delta = now - self._times[i]
-                progress_delta = progress - self._progresses[i]
-
-            # otherwise pick the long-term ETA if progress is large (>=5%)
-            else:
-                time_delta = now - self._times[0]
-                progress_delta = progress - self._progresses[0]
-
+            time_delta = now - self._times[0]
+            progress_delta = progress - self._progresses[0]
             progress_left = 1. - progress
             if progress_delta < 1e-7:
                 return None
