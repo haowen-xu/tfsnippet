@@ -38,20 +38,27 @@ class Config(object):
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
-        # Load config from ``env["MLTOOLKIT_EXPERIMENT_CONFIG"]`` if presents.
-        # The ``env["MLTOOLKIT_EXPERIMENT_CONFIG"]`` would be set if the
-        # program is run via `mlrun` from MLToolkit.
-        # See `MLToolkit <https://github.com/haowen-xu/mltoolkit>`_ for details.
-        self.from_env('MLTOOLKIT_EXPERIMENT_CONFIG')
+        # The ``env["MLSTORAGE_EXPERIMENT_ID"]`` would be set if the program
+        # is run via `mlrun` from MLStorage.
+        # See `MLStorage <https://github.com/haowen-xu/mlstorage>`_ for details.
+        if os.environ.get('MLSTORAGE_EXPERIMENT_ID'):
+            # save default config values to "config.defaults.json"
+            default_config_path = os.path.abspath(
+                os.path.join(os.getcwd(), 'config.defaults.json'))
+            default_config_json = json.dumps(self.to_dict())
+            with codecs.open(default_config_path, 'wb', 'utf-8') as f:
+                f.write(default_config_json)
 
-        # Save config to ``env["MLTOOLKIT_EXPERIMENT_MERGED_CONFIG_FILE"]``
-        # if presents.
-        merged_config_file = \
-            os.environ.get('MLTOOLKIT_EXPERIMENT_MERGED_CONFIG_FILE', None)
-        if merged_config_file:
-            config_str = json.dumps(self.to_dict())
-            with codecs.open(merged_config_file, 'wb', 'utf-8') as f:
-                f.write(config_str)
+            # load user specified config from "config.json"
+            config_path = os.path.abspath(
+                os.path.join(os.getcwd(), 'config.json'))
+            if os.path.isfile(config_path):
+                with codecs.open(config_path, 'rb', 'utf-8') as f:
+                    config_dict = json.load(f)
+                if not isinstance(config_dict, dict):
+                    raise ValueError('%s: expected a config dict, but got '
+                                     '%r'.format(config_path, config_dict))
+                self.from_dict(config_dict)
 
     def to_dict(self):
         """

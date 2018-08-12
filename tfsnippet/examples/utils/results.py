@@ -15,7 +15,7 @@ class Results(object):
     """
     Class to help save the results of an experiment.
 
-    If ``env["MLTOOLKIT_EXPERIMENT_ID"]`` does not present, the results
+    If ``env["MLSTORAGE_EXPERIMENT_ID"]`` does not present, the results
     will be saved to ``os.getcwd() + "/results/" + name``.  Otherwise the
     results will be saved directly in the current working directory.
     """
@@ -34,18 +34,14 @@ class Results(object):
                 raise ValueError('Failed to infer the name automatically.')
             name = os.path.splitext(os.path.split(main_script)[1])[0]
 
-        if os.environ.get('MLTOOLKIT_EXPERIMENT_ID'):
+        if os.environ.get('MLSTORAGE_EXPERIMENT_ID'):
             result_dir = os.path.abspath(os.getcwd())
         else:
             result_dir = os.path.abspath(os.path.join('./results', name))
 
-        result_json_file = os.environ.get('MLTOOLKIT_EXPERIMENT_RESULT_FILE')
-        if not result_json_file:
-            result_json_file = os.path.join(result_dir, 'result.json')
-
         self._name = name
         self._result_dir = result_dir
-        self._result_json_file = result_json_file
+        self._result_json_file = os.path.join(result_dir, 'result.json')
         self._result_dict = {}
 
     @property
@@ -70,11 +66,7 @@ class Results(object):
 
     def commit(self, result_dict):
         """
-        Write the `result_dict` to screen, and save to a JSON file.
-
-        If ``env["MLTOOLKIT_EXPERIMENT_RESULT_FILE"]`` presents, the results
-        will saved in the file specified by this environmental variable.
-        Otherwise the results will be saved in ``result_dir + "/result.json"``.
+        Write the `result_dict` to screen, and save to "result.json".
 
         Args:
             result_dict (dict):  JSON serializable result dict.
