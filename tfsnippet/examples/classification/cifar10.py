@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import functools
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
@@ -112,12 +114,14 @@ def main():
                 feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
+            evaluator.after_run.add_hook(
+                lambda: results.commit(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=5)
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
         # save test result
-        results.commit(evaluator.last_metrics_dict)
+        results.commit_and_print(evaluator.last_metrics_dict)
 
 
 if __name__ == '__main__':

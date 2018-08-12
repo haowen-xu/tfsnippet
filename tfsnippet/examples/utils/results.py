@@ -66,26 +66,36 @@ class Results(object):
 
     def commit(self, result_dict):
         """
-        Write the `result_dict` to screen, and save to "result.json".
+        Update the results with `result_dict`, and save the merged results
+        to "result.json".
 
         Args:
             result_dict (dict):  JSON serializable result dict.
                 It will be merged with ``self.result_dict``.
         """
         self.result_dict.update(result_dict)
-
-        print('')
-        print('Result Updated')
-        print('--------------')
-        for k in sorted(six.iterkeys(self.result_dict)):
-            print('{}: {}'.format(k, self.result_dict[k]))
-
         parent_dir = os.path.split(self.result_json_file)[0]
         makedirs(parent_dir, exist_ok=True)
         json_result = json.dumps(self.result_dict, sort_keys=True,
                                  cls=JsonEncoder)
         with codecs.open(self.result_json_file, 'wb', 'utf-8') as f:
             f.write(json_result)
+
+    def commit_and_print(self, result_dict):
+        """
+        Update the results with `result_dict`, save the merged results
+        to "result.json", and print the result to screen.
+
+        Args:
+            result_dict (dict):  JSON serializable result dict.
+                It will be merged with ``self.result_dict``.
+        """
+        self.commit(result_dict)
+        print('=======')
+        print('Results')
+        print('-------')
+        for k in sorted(six.iterkeys(self.result_dict)):
+            print('{}: {}'.format(k, self.result_dict[k]))
 
     def resolve_path(self, sub_path):
         """

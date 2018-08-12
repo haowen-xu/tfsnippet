@@ -532,6 +532,8 @@ class TrainLoop(DisposableContext):
             metrics = {}
         elif metrics is not None and not isinstance(metrics, dict):
             raise TypeError('`metrics` should be a dict')
+        else:
+            metrics = dict(metrics)
         metrics.update(kwargs)
 
         self._epoch_metrics.collect_metrics(metrics, global_step=self.step)

@@ -5,7 +5,9 @@ __all__ = [
 
 class HookPriority(object):
     """
-    Pre-defined hook priorities for :class:`~tfsnippet.trainer.BaseTrainer`.
+    Pre-defined hook priorities for :class:`~tfsnippet.trainer.BaseTrainer`
+    and :class:`~tfsnippet.trainer.Evaluator`.
+
     Smaller values take higher priorities.
     """
 
@@ -62,7 +64,8 @@ class HookEntry(object):
 
 class HookList(object):
     """
-    Class for managing hooks in :class:`~tfsnippet.trainer.BaseTrainer`.
+    Class for managing hooks in :class:`~tfsnippet.trainer.BaseTrainer`
+    and :class:`~tfsnippet.trainer.Evaluator`.
 
     A hook is a registered callback that the trainers will call at certain
     time, during the training process.  Apart from the callback method,

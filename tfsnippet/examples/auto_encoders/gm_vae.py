@@ -532,6 +532,8 @@ def main():
                 feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
+            evaluator.after_run.add_hook(
+                lambda: results.commit(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
@@ -547,7 +549,7 @@ def main():
     with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
         f.write(c_classifier.describe())
     test_metrics.update(evaluator.last_metrics_dict)
-    results.commit(test_metrics)
+    results.commit_and_print(test_metrics)
 
 
 if __name__ == '__main__':
