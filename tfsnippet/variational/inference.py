@@ -1,6 +1,11 @@
 import tensorflow as tf
 import zhusuan as zs
 
+from .estimators import *
+from .evaluation import *
+from .objectives import *
+from .utils import _require_multi_samples
+
 __all__ = [
     'VariationalInference',
     'VariationalLowerBounds',
@@ -9,38 +14,8 @@ __all__ = [
 ]
 
 
-def _require_multi_samples(vi, name):
-    if vi.axis is None:
-        raise ValueError('{} requires multi-samples of latent variables, '
-                         'thus the `axis` argument must be specified'.
-                         format(name))
-
-
 class VariationalInference(object):
-    """
-    Class for variational inference.
-
-    The interface of `ZhuSuan`_ for variational inference tightly binds
-    the construction of model and the deriving of lower-bounds / training
-    objectives together.  This causes the following two problems.
-
-    First, :class:`zhusuan.variational.VariationalObjective` requires a
-    `log_joint` function, which constructs the computation graph of the model,
-    only for obtaining the log-joint.  The :class:`BayesianNet` instance of
-    the model constructed in `log_joint` cannot be obtained by outside caller.
-    If we also need other statistics from the model, we shall have to build
-    the model again, which is very wasteful.
-
-    Second, such interface is not very friendly for implementation of a
-    Bayesian network as :class:`~tfsnippet.module.Module`.
-
-    We thus provide this class to separate the construction of model and the
-    variational inference stage.  It wraps the variational inference algorithms
-    from `ZhuSuan`_, providing a virtual `log_joint` function, which simply
-    returns the pre-computed log-joint :class:`tf.Tensor`.
-
-    .. _`ZhuSuan`: https://github.com/thu-ml/zhusuan
-    """
+    """Class for variational inference."""
 
     def __init__(self, log_joint, latent_log_probs, axis=None):
         """
@@ -58,6 +33,8 @@ class VariationalInference(object):
         self._log_joint = tf.convert_to_tensor(log_joint)
         self._latent_log_probs = tuple(tf.convert_to_tensor(t)
                                        for t in latent_log_probs)
+        self._latent_log_prob = tf.add_n(
+            self._latent_log_probs, name='latent_log_prob')
         self._axis = axis
         self._lower_bound = VariationalLowerBounds(self)
         self._training = VariationalTrainingObjectives(self)
@@ -82,6 +59,16 @@ class VariationalInference(object):
             tuple[tf.Tensor]: The log-probability densities of latent variables.
         """
         return self._latent_log_probs
+
+    @property
+    def latent_log_prob(self):
+        """
+        Get the summed log-probability density of latent variables.
+
+        Returns:
+            tf.Tensor: The summed log-probability density of latent variables.
+        """
+        return self._latent_log_prob
 
     @property
     def axis(self):
@@ -204,28 +191,38 @@ class VariationalLowerBounds(object):
             tf.Tensor: The evidence lower-bound.
 
         See Also:
-            :class:`zhusuan.variational.EvidenceLowerBoundObjective`
+            :func:`tfsnippet.variational.elbo_objective`
         """
-        with tf.name_scope(name, default_name='elbo'):
-            return self._vi.zs_elbo().tensor
+        return elbo_objective(
+            log_joint=self._vi.log_joint,
+            latent_log_prob=self._vi.latent_log_prob,
+            axis=self._vi.axis,
+            name=name or 'elbo'
+        )
 
-    def importance_weighted_objective(self, name=None):
+    def monte_carlo_objective(self, name=None):
         """
         Get the importance weighted lower-bound.
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                (default "importance_weighted_objective")
+                (default "monte_carlo_objective")
 
         Returns:
             tf.Tensor: The per-data importance weighted lower-bound.
 
         See Also:
-            :class:`zhusuan.variational.ImportanceWeightedObjective`
+            :func:`tfsnippet.variational.monte_carlo_objective`
         """
-        _require_multi_samples(self._vi, 'importance weighted lower-bound')
-        with tf.name_scope(name, default_name='importance_weighted_objective'):
-            return self._vi.zs_importance_weighted_objective().tensor
+        _require_multi_samples(self._vi.axis, 'monte carlo objective')
+        return monte_carlo_objective(
+            log_joint=self._vi.log_joint,
+            latent_log_prob=self._vi.latent_log_prob,
+            axis=self._vi.axis,
+            name=name or 'monte_carlo_objective'
+        )
+
+    importance_weighted_objective = monte_carlo_objective  # Legacy name
 
 
 class VariationalTrainingObjectives(object):
@@ -252,10 +249,13 @@ class VariationalTrainingObjectives(object):
             tf.Tensor: The per-data SGVB training objective.
 
         See Also:
-            :meth:`zhusuan.variational.EvidenceLowerBoundObjective.sgvb`
+            :func:`tfsnippet.variational.sgvb_estimator`
         """
         with tf.name_scope(name, default_name='sgvb'):
-            return self._vi.zs_elbo().sgvb()
+            return -sgvb_estimator(
+                values=self._vi.log_joint - self._vi.latent_log_prob,
+                axis=self._vi.axis
+            )
 
     def reinforce(self, variance_reduction=True, baseline=None, decay=0.8,
                   name=None):
@@ -298,11 +298,14 @@ class VariationalTrainingObjectives(object):
                 weighted objective.
 
         See Also:
-            :meth:`zhusuan.variational.ImportanceWeightedObjective.sgvb`
+            :func:`tfsnippet.variational.iwae_estimator`
         """
-        _require_multi_samples(self._vi, 'iwae training objective')
+        _require_multi_samples(self._vi.axis, 'iwae training objective')
         with tf.name_scope(name, default_name='iwae'):
-            return self._vi.zs_importance_weighted_objective().sgvb()
+            return -iwae_estimator(
+                log_values=self._vi.log_joint - self._vi.latent_log_prob,
+                axis=self._vi.axis
+            )
 
     def vimco(self, name=None):
         """
@@ -318,7 +321,7 @@ class VariationalTrainingObjectives(object):
         See Also:
             :meth:`zhusuan.variational.ImportanceWeightedObjective.vimco`
         """
-        _require_multi_samples(self._vi, 'vimco training objective')
+        _require_multi_samples(self._vi.axis, 'vimco training objective')
         with tf.name_scope(name, default_name='vimco'):
             return self._vi.zs_importance_weighted_objective().vimco()
 
@@ -337,7 +340,7 @@ class VariationalTrainingObjectives(object):
             :meth:`zhusuan.variational.InclusiveKLObjective.rws`
         """
         _require_multi_samples(
-            self._vi, 'reweighted wake-sleep training objective')
+            self._vi.axis, 'reweighted wake-sleep training objective')
         with tf.name_scope(name, default_name='rws_wake'):
             return self._vi.zs_klpq().rws()
 
@@ -360,7 +363,7 @@ class VariationalEvaluation(object):
 
         Args:
             name (str): Name of this operation in TensorFlow graph.
-                (default "sgvb")
+                (default "importance_sampling_log_likelihood")
 
         Returns:
             tf.Tensor: The per-data :math:`log p(x)`.
@@ -369,10 +372,13 @@ class VariationalEvaluation(object):
             :meth:`zhusuan.evaluation.is_loglikelihood`
         """
         _require_multi_samples(
-            self._vi, 'importance sampling log-likelihood')
-        with tf.name_scope(
-                name, default_name='importance_sampling_log_likelihood'):
-            return self._vi.zs_objective(zs.evaluation.is_loglikelihood)
+            self._vi.axis, 'importance sampling log-likelihood')
+        return importance_sampling_log_likelihood(
+            log_joint=self._vi.log_joint,
+            latent_log_prob=self._vi.latent_log_prob,
+            axis=self._vi.axis,
+            name=name or 'importance_sampling_log_likelihood'
+        )
 
     is_loglikelihood = importance_sampling_log_likelihood
     """Short-cut for :meth:`importance_sampling_log_likelihood`."""

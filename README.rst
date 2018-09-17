@@ -32,6 +32,20 @@ Documentation
 
 * `Tutorials and API docs <http://tfsnippet.readthedocs.io/>`_
 
+Examples
+--------
+
+* Classification:
+    `MNIST <tfsnippet/examples/classification/mnist.py>`_,
+    `Convolutional MNIST <tfsnippet/examples/classification/mnist_conv.py>`_.
+* Auto Encoders:
+    `VAE <tfsnippet/examples/auto_encoders/vae.py>`_,
+    `Convolutional VAE <tfsnippet/examples/auto_encoders/vae_conv.py>`_,
+    `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_,
+    `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_.
+* Normalizing Flows:
+    `Planar Normalizing Flow <tfsnippet/examples/normalizing_flows/planar_nf.py>`_.
+
 Quick Tutorial
 --------------
 
