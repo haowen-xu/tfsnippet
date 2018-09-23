@@ -79,7 +79,8 @@ def iwae_estimator(log_values, axis, keepdims=False, name=None):
         return estimator
 
 
-def nvil_estimator(values, baseline=None, variance_reduction=True, decay=.8,
+def nvil_estimator(values, latent_log_prob, baseline=None,
+                   variance_reduction=True, decay=.8,
                    axis=None, keepdims=False, name=None):
     """
     Derive the gradient estimator for
@@ -109,6 +110,7 @@ def nvil_estimator(values, baseline=None, variance_reduction=True, decay=.8,
     Args:
         values: Values of the target function given `z` and `x`, i.e.,
             :math:`f(\\mathbf{z},\\mathbf{x})`.
+        latent_log_prob: Values of :math:`q(\\mathbf{z}|\\mathbf{x})`.
         baseline: Values of the baseline function given `x`, i.e.,
             :math:`C_{\\psi}(\\mathbf{x})-c\\big)`.
         variance_reduction (bool): Whether to use
@@ -144,7 +146,8 @@ def nvil_estimator(values, baseline=None, variance_reduction=True, decay=.8,
                          'is specified.')
 
     values = tf.convert_to_tensor(values)
-    ns_args = [values]
+    latent_log_prob = tf.convert_to_tensor(latent_log_prob)
+    ns_args = [values, latent_log_prob]
     if baseline is not None:
         baseline = tf.convert_to_tensor(baseline)
         ns_args.append(baseline)
@@ -153,7 +156,8 @@ def nvil_estimator(values, baseline=None, variance_reduction=True, decay=.8,
         raise NotImplementedError()
 
 
-def vimco_estimator(log_values, axis, keepdims=False, name=None):
+def vimco_estimator(log_values, latent_log_prob, axis, keepdims=False,
+                    name=None):
     """
     Derive the gradient estimator for
     :math:`\\mathbb{E}_{q(\\mathbf{z}^{(1:K)}|\\mathbf{x})}\\Big[\\log \\frac{1}{K} \\sum_{k=1}^K f\\big(\\mathbf{x},\\mathbf{z}^{(k)}\\big)\\Big]`,
@@ -182,6 +186,7 @@ def vimco_estimator(log_values, axis, keepdims=False, name=None):
     Args:
         log_values: Log values of the target function given `z` and `x`, i.e.,
             :math:`\\log f(\\mathbf{z},\\mathbf{x})`.
+        latent_log_prob: Values of :math:`q(\\mathbf{z}|\\mathbf{x})`.
         axis: The sampling dimensions to be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
@@ -198,6 +203,7 @@ def vimco_estimator(log_values, axis, keepdims=False, name=None):
     """
     _require_multi_samples(axis, 'vimco estimator')
     log_values = tf.convert_to_tensor(log_values)
+    latent_log_prob = tf.convert_to_tensor(latent_log_prob)
     with tf.name_scope(name, default_name='vimco_estimator',
-                       values=[log_values]):
+                       values=[log_values, latent_log_prob]):
         raise NotImplementedError()
