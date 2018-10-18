@@ -236,7 +236,7 @@ class MultiGPU(object):
                     slice_len = (batch_size + k - 1) // k
                     low, high = slice_len * i, slice_len * (i + 1)
                     dev_inputs.append(inp[low: high])
-                    yield device, False, tuple(dev_inputs)
+                yield device, False, tuple(dev_inputs)
 
     @contextmanager
     def maybe_name_scope(self, device):
