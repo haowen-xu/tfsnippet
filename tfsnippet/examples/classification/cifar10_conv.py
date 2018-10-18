@@ -14,8 +14,8 @@ from tfsnippet.examples.nn import (dense,
                                    softmax_classification_output,
                                    l2_regularizer,
                                    regularization_loss,
-                                   classification_accuracy)
-from tfsnippet.examples.utils import (load_mnist,
+                                   classification_accuracy, conv2d)
+from tfsnippet.examples.utils import (load_cifar10,
                                       create_session,
                                       Config,
                                       Results,
@@ -30,19 +30,20 @@ from tfsnippet.utils import global_reuse
 class ExpConfig(Config):
     # model parameters
     l2_reg = 0.0001
+    dropout = 0.5
 
     # training parameters
     max_epoch = 1000
     batch_size = 64
 
-    initial_lr = 0.001
+    initial_lr = 0.01
     lr_anneal_factor = 0.5
-    lr_anneal_epoch_freq = 100
+    lr_anneal_epoch_freq = 200
     lr_anneal_step_freq = None
 
 
 @global_reuse
-def model(x, is_training, channels_last):
+def model(x, is_training, channels_last, k=4, n=2):
     with arg_scope([resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
@@ -52,20 +53,34 @@ def model(x, is_training, channels_last):
                    ),
                    dropout_fn=functools.partial(
                        tf.layers.dropout,
+                       rate=config.dropout,
                        training=is_training
                    ),
                    kernel_regularizer=l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        h_x = tf.reshape(
-            x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
+        if not channels_last:
+            h_x = x
+        else:
+            h_x = tf.transpose(x, [-1, 2, 3, 1])
+        h_x = conv2d(h_x, 16 * k, (1, 1), channels_last=channels_last)
+
+        # 1st group, (16 * k, 32, 32)
+        for i in range(n):
+            h_x = resnet_block(h_x, 16 * k)
+
+        # 2nd group, (32 * k, 16, 16)
+        h_x = resnet_block(h_x, 32 * k, strides=2)
+        for i in range(n):
+            h_x = resnet_block(h_x, 32 * k)
+
+        # 3rd group, (64 * k, 8, 8)
+        h_x = resnet_block(h_x, 64 * k, strides=2)
+        for i in range(n):
+            h_x = resnet_block(h_x, 64 * k)
+
         h_x = global_average_pooling(
-            h_x, channels_last=channels_last)  # output: (64, 1, 1)
-        h_x = tf.reshape(h_x, [-1, 64])
+            h_x, channels_last=channels_last)  # output: (64 * k, 1, 1)
+        h_x = tf.reshape(h_x, [-1, 64 * k])
     logits = dense(h_x, 10, name='logits')
     return logits
 
@@ -73,7 +88,8 @@ def model(x, is_training, channels_last):
 def main():
     # load mnist data
     (x_train, y_train), (x_test, y_test) = \
-        load_mnist(shape=[784], dtype=np.float32, normalize=True)
+        load_cifar10(dtype=np.float32, normalize=True)
+    print(x_train.shape)
 
     # input placeholders
     input_x = tf.placeholder(

@@ -33,6 +33,8 @@ class EvaluatorTestCase(tf.test.TestCase):
         self.assertEquals({}, v.feed_dict)
         self.assertEquals('eval_time', v.time_metric_name)
         self.assertIs(auto_batch_weight, v.batch_weight_func)
+        self.assertIsInstance(v.before_run, HookList)
+        self.assertIsInstance(v.after_run, HookList)
 
         batch_weight_func = Mock(return_value=123.)
         v = Evaluator(loop, {'valid_loss_x': 12}, [34, 56], df,

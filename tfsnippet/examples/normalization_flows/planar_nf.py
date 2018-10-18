@@ -257,6 +257,8 @@ def main():
                 feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
+            evaluator.after_run.add_hook(
+                lambda: results.commit(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
@@ -264,7 +266,7 @@ def main():
             trainer.run()
 
     # write the final test_nll and test_lb
-    results.commit(evaluator.last_metrics_dict)
+    results.commit_and_print(evaluator.last_metrics_dict)
 
 
 if __name__ == '__main__':

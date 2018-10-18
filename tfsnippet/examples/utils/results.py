@@ -15,7 +15,7 @@ class Results(object):
     """
     Class to help save the results of an experiment.
 
-    If ``env["MLTOOLKIT_EXPERIMENT_ID"]`` does not present, the results
+    If ``env["MLSTORAGE_EXPERIMENT_ID"]`` does not present, the results
     will be saved to ``os.getcwd() + "/results/" + name``.  Otherwise the
     results will be saved directly in the current working directory.
     """
@@ -34,18 +34,14 @@ class Results(object):
                 raise ValueError('Failed to infer the name automatically.')
             name = os.path.splitext(os.path.split(main_script)[1])[0]
 
-        if os.environ.get('MLTOOLKIT_EXPERIMENT_ID'):
+        if os.environ.get('MLSTORAGE_EXPERIMENT_ID'):
             result_dir = os.path.abspath(os.getcwd())
         else:
             result_dir = os.path.abspath(os.path.join('./results', name))
 
-        result_json_file = os.environ.get('MLTOOLKIT_EXPERIMENT_RESULT_FILE')
-        if not result_json_file:
-            result_json_file = os.path.join(result_dir, 'result.json')
-
         self._name = name
         self._result_dir = result_dir
-        self._result_json_file = result_json_file
+        self._result_json_file = os.path.join(result_dir, 'result.json')
         self._result_dict = {}
 
     @property
@@ -70,30 +66,36 @@ class Results(object):
 
     def commit(self, result_dict):
         """
-        Write the `result_dict` to screen, and save to a JSON file.
-
-        If ``env["MLTOOLKIT_EXPERIMENT_RESULT_FILE"]`` presents, the results
-        will saved in the file specified by this environmental variable.
-        Otherwise the results will be saved in ``result_dir + "/result.json"``.
+        Update the results with `result_dict`, and save the merged results
+        to "result.json".
 
         Args:
             result_dict (dict):  JSON serializable result dict.
                 It will be merged with ``self.result_dict``.
         """
         self.result_dict.update(result_dict)
-
-        print('')
-        print('Result Updated')
-        print('--------------')
-        for k in sorted(six.iterkeys(self.result_dict)):
-            print('{}: {}'.format(k, self.result_dict[k]))
-
         parent_dir = os.path.split(self.result_json_file)[0]
         makedirs(parent_dir, exist_ok=True)
         json_result = json.dumps(self.result_dict, sort_keys=True,
                                  cls=JsonEncoder)
         with codecs.open(self.result_json_file, 'wb', 'utf-8') as f:
             f.write(json_result)
+
+    def commit_and_print(self, result_dict):
+        """
+        Update the results with `result_dict`, save the merged results
+        to "result.json", and print the result to screen.
+
+        Args:
+            result_dict (dict):  JSON serializable result dict.
+                It will be merged with ``self.result_dict``.
+        """
+        self.commit(result_dict)
+        print('=======')
+        print('Results')
+        print('-------')
+        for k in sorted(six.iterkeys(self.result_dict)):
+            print('{}: {}'.format(k, self.result_dict[k]))
 
     def resolve_path(self, sub_path):
         """

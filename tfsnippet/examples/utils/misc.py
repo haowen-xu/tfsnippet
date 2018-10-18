@@ -21,6 +21,7 @@ __all__ = [
     'smart_apply',
     'flatten',
     'unflatten',
+    'cached',
 ]
 
 
@@ -329,3 +330,25 @@ def unflatten(x, static_front_shape, front_shape, name=None):
             x.set_shape(tf.TensorShape(list(static_front_shape) +
                                        list(static_back_shape)))
         return x
+
+
+def cached(method):
+    """
+    Decorate `method`, to cache its result.
+
+    Args:
+        method: The method whose result should be cached.
+
+    Returns:
+        The decorated method.
+    """
+    results = {}
+
+    @six.wraps(method)
+    def wrapper(*args, **kwargs):
+        cache_key = (args, tuple((k, kwargs[k]) for k, v in sorted(kwargs)))
+        if cache_key not in results:
+            results[cache_key] = method(*args, **kwargs)
+        return results[cache_key]
+
+    return wrapper

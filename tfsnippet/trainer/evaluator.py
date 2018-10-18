@@ -10,6 +10,7 @@ from tfsnippet.utils import get_default_session_or_error
 from tfsnippet.scaffold import TrainLoop
 
 from .feed_dict import resolve_feed_dict, merge_feed_dict
+from .hooks import HookList
 
 __all__ = ['auto_batch_weight', 'Evaluator']
 
@@ -84,6 +85,8 @@ class Evaluator(object):
                 raise ValueError('Metric is not a scalar tensor: {!r}'.
                                  format(v))
 
+        self._before_run = HookList()
+        self._after_run = HookList()
         self._loop = loop
         self._metrics = metrics
         self._inputs = list(inputs or ())
@@ -92,6 +95,26 @@ class Evaluator(object):
         self._time_metric_name = time_metric_name
         self._batch_weight_func = batch_weight_func
         self._last_metrics_dict = {}  # store the metrics of last evaluation
+
+    @property
+    def before_run(self):
+        """
+        Get the hooks run before evaluation.
+
+        Returns:
+            HookList: The hook list.
+        """
+        return self._before_run
+
+    @property
+    def after_run(self):
+        """
+        Get the hooks run after evaluation.
+
+        Returns:
+            HookList: The hook list.
+        """
+        return self._after_run
 
     @property
     def loop(self):
@@ -190,6 +213,9 @@ class Evaluator(object):
         metric_weights = []
 
         with timeit():
+            # run before evaluation hooks
+            self.before_run.call_hooks()
+
             for batch_data in self.data_flow:
                 # prepare for the batch feed dict
                 feed_dict = resolve_feed_dict(
@@ -219,14 +245,17 @@ class Evaluator(object):
                 # accumulate the metrics
                 metric_values.append(np.asarray(batch_values))
 
-        # now merge all batch metrics and do logging
-        metric_values = np.average(
-            np.stack(metric_values, axis=0),
-            axis=0,
-            weights=np.asarray(metric_weights),
-        )
-        assert(len(metric_names) == len(metric_values))
-        self._last_metrics_dict = metrics_dict = {
-            k: v for k, v in zip(metric_names, metric_values)
-        }
-        self.loop.collect_metrics(metrics_dict)
+            # now merge all batch metrics and do logging
+            metric_values = np.average(
+                np.stack(metric_values, axis=0),
+                axis=0,
+                weights=np.asarray(metric_weights),
+            )
+            assert(len(metric_names) == len(metric_values))
+            self._last_metrics_dict = metrics_dict = {
+                k: v for k, v in zip(metric_names, metric_values)
+            }
+            self.loop.collect_metrics(metrics_dict)
+
+            # run after evaluation hooks
+            self.after_run.call_hooks()

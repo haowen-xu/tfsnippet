@@ -12,7 +12,7 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import (load_mnist,
+from tfsnippet.examples.utils import (load_cifar10,
                                       create_session,
                                       Config,
                                       Results,
@@ -42,8 +42,9 @@ def model(x, is_training):
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x = x
-        h_x = dense(h_x, 500)
-        h_x = dense(h_x, 500)
+        h_x = dense(h_x, 1000)
+        h_x = dense(h_x, 1000)
+        h_x = dense(h_x, 1000)
     logits = dense(h_x, 10, name='logits')
     return logits
 
@@ -51,7 +52,7 @@ def model(x, is_training):
 def main():
     # load mnist data
     (x_train, y_train), (x_test, y_test) = \
-        load_mnist(shape=[784], dtype=np.float32, normalize=True)
+        load_cifar10(flatten=True, dtype=np.float32, normalize=True)
 
     # input placeholders
     input_x = tf.placeholder(
