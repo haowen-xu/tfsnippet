@@ -84,26 +84,5 @@ class IWAEEstimatorTestCase(tf.test.TestCase):
             ]))
 
 
-class NVILEstimatorTestCase(tf.test.TestCase):
-
-    def test_errors(self):
-        with pytest.raises(ValueError,
-                           match='`variance_reduction` must be True when '
-                                 '`baseline` is specified.'):
-            x, y, z, f, log_f = prepare_test_payload(is_reparameterized=False)
-            baseline = x * 10.
-            _ = nvil_estimator(f, baseline, variance_reduction=False)
-
-
-class VIMCOEstimatorTestCase(tf.test.TestCase):
-
-    def test_errors(self):
-        with pytest.raises(ValueError,
-                           match='vimco estimator requires multi-samples of '
-                                 'latent variables'):
-            x, y, z, f, log_f = prepare_test_payload(is_reparameterized=False)
-            _ = vimco_estimator(log_f, axis=None)
-
-
 if __name__ == '__main__':
     unittest.TestCase()
