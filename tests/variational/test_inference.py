@@ -151,7 +151,7 @@ class VariationalInferenceTestCase(tf.test.TestCase):
         vi = VariationalInference(tf.constant(0.), [tf.constant(0.)],
                                   axis=None)
         with pytest.raises(
-                ValueError, match='importance weighted lower-bound requires '
+                ValueError, match='monte carlo objective requires '
                                   'multi-samples'):
             _ = vi.lower_bound.importance_weighted_objective()
         with pytest.raises(
