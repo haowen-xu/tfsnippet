@@ -6,98 +6,10 @@ import tensorflow as tf
 from frozendict import frozendict
 
 from tfsnippet.distributions import Distribution, as_distribution
+from tfsnippet.flows import Flow, FlowDistribution
 from tfsnippet.stochastic import StochasticTensor
 
 __all__ = ['BayesianNet']
-
-
-class TransformedDistribution(Distribution):
-    """
-    Mimic the :class:`Distribution` interface for a transformed variable.
-
-    The :class:`BayesianNet` interface requires each :class:`StochasticTensor`
-    to be bound with a :class:`Distribution`, however, for the transformed
-    variables, the distribution is not fully defined.  Thus we provide
-    this class to mimic the basic interface of a :class:`Distribution`,
-    which is required for :class:`BayesianNet`.
-    """
-
-    def __init__(self, origin, transformed, transformed_log_p,
-                 is_reparameterized, is_continuous):
-        """
-        Construct a :class:`TransformedDistribution`.
-
-        Args:
-            origin (StochasticTensor): The original sample or observation.
-            transformed (tf.Tensor): The transformed sample or observation.
-            transformed_log_p (tf.Tensor): The transformed log-likelihood.
-            is_reparameterized (bool): Whether the transformed distribution
-                is is_reparameterized?
-            is_continuous (bool): Whether the transformed distribution
-                is continuous?
-        """
-        self._origin = origin
-        self._transformed = transformed
-        self._transformed_log_p = transformed_log_p
-        self._is_reparameterized = is_reparameterized
-        self._is_continuous = is_continuous
-
-    @property
-    def origin(self):
-        """
-        Get the original sample or observation.
-
-        Returns:
-            StochasticTensor: The original sample or observation.
-        """
-        return self._origin
-
-    @property
-    def transformed(self):
-        """
-        Get the transformed sample or observation.
-
-        Returns:
-            tf.Tensor: The transformed sample or observation.
-        """
-        return self._transformed
-
-    @property
-    def transformed_log_p(self):
-        """
-        Get the transformed log-likelihood.
-
-        Returns:
-            The transformed log-likelihood.
-        """
-        return self._transformed_log_p
-
-    @property
-    def dtype(self):
-        return self.transformed.dtype
-
-    @property
-    def is_reparameterized(self):
-        return self._is_reparameterized
-
-    @property
-    def is_continuous(self):
-        return self._is_continuous
-
-    def _check_given(self, given, group_ndims):
-        if given is not self.transformed or \
-                group_ndims != self.origin.group_ndims:
-            raise ValueError('`given` must be `self.transformed` and '
-                             '`group_ndims` must be `self.origin.group_ndims`.')
-
-    def log_prob(self, given, group_ndims=0, name=None):
-        self._check_given(given, group_ndims)
-        return self.transformed_log_p
-
-    def prob(self, given, group_ndims=0, name=None):
-        self._check_given(given, group_ndims)
-        with tf.name_scope(name=name, default_name='prob'):
-            return tf.exp(self.log_prob(given, group_ndims))
 
 
 class BayesianNet(object):
@@ -221,7 +133,7 @@ class BayesianNet(object):
         return names
 
     def add(self, name, distribution, n_samples=None, group_ndims=0,
-            is_reparameterized=None, transform=None):
+            is_reparameterized=None, flow=None):
         """
         Add a stochastic node to the network.
 
@@ -245,11 +157,7 @@ class BayesianNet(object):
             is_reparameterized: Whether or not the re-parameterization trick
                 should be applied? (default :obj:`None`, following the setting
                 of `distribution`)
-            transform ((Tensor, Tensor) -> (tf.Tensor, tf.Tensor)):
-                The function to transform (x, log_p) to (x', log_p').
-                If specified, a :class:`StochasticTensor` will be sampled,
-                then transformed, then wrapped by a :class:`StochasticTensor`
-                with :class:`TransformedDistribution`.
+            flow (Flow): If specified, transform `distribution` by the `flow`.
 
         Returns:
             StochasticTensor: The sampled stochastic tensor.
@@ -269,18 +177,16 @@ class BayesianNet(object):
             raise KeyError('StochasticTensor with name {!r} already exists in '
                            'the BayesianNet.  Names must be unique.'.
                            format(name))
-        if isinstance(distribution, TransformedDistribution):
-            raise TypeError('Cannot add `TransformedDistribution`.')
-        if transform is not None and \
-                (not distribution.is_continuous or
-                 not distribution.is_reparameterized or
-                 is_reparameterized is False):
-            raise ValueError('`transform` can only be applied on continuous, '
-                             're-parameterized variables.')
-        if transform is not None and name in self._observed:
-            raise ValueError('`observed` variable cannot be transformed.')
+        if flow is not None and name in self._observed and \
+                not flow.explicitly_invertible:
+            raise TypeError('An observed variable expects `flow` to be '
+                            'explicitly invertible, but it is not: {!r}.'.
+                            format(flow))
 
         distribution = as_distribution(distribution)
+        if flow is not None:
+            distribution = FlowDistribution(distribution, flow)
+
         if name in self._observed:
             t = StochasticTensor(
                 distribution=distribution,
@@ -296,29 +202,6 @@ class BayesianNet(object):
                 is_reparameterized=is_reparameterized,
             )
             assert(isinstance(t, StochasticTensor))
-
-            # do transformation
-            if transform is not None:
-                t_log_p = t.log_prob()
-                ft, ft_log_p = transform(t, t_log_p)
-                ft = tf.convert_to_tensor(ft)
-                ft_log_p = tf.convert_to_tensor(ft_log_p)
-                if not ft.dtype.is_floating:
-                    raise ValueError('The transformed samples must be '
-                                     'continuous: got {!r}'.format(ft))
-                t = StochasticTensor(
-                    distribution=TransformedDistribution(
-                        origin=t,
-                        transformed=ft,
-                        transformed_log_p=ft_log_p,
-                        is_reparameterized=t.is_reparameterized,
-                        is_continuous=True
-                    ),
-                    tensor=ft,
-                    n_samples=t.n_samples,
-                    group_ndims=t.group_ndims,
-                    is_reparameterized=t.is_reparameterized
-                )
 
         self._stochastic_tensors[name] = t
         return t
@@ -395,13 +278,13 @@ class BayesianNet(object):
 
     def local_log_probs(self, names):
         """
-        Get the log-probability densities of stochastic nodes.
+        Get the log-densities of stochastic nodes.
 
         Args:
             names (Iterable[str]): Names of the queried stochastic nodes.
 
         Returns:
-            list[tf.Tensor]: Log-probability densities of the queried stochastic
+            list[tf.Tensor]: Log-densities of the queried stochastic
                 nodes.
 
         Raises:
@@ -412,13 +295,13 @@ class BayesianNet(object):
 
     def local_log_prob(self, name):
         """
-        Get the log-probability density of a stochastic node.
+        Get the log-density of a stochastic node.
 
         Args:
             name (str): Name of the queried stochastic node.
 
         Returns:
-            tf.Tensor: Log-probability density of the queried stochastic node.
+            tf.Tensor: Log-density of the queried stochastic node.
 
         Raises:
             KeyError: If non-exist name is queried.
@@ -427,7 +310,7 @@ class BayesianNet(object):
 
     def query(self, names):
         """
-        Get the outputs and log-probability densities of stochastic node(s).
+        Get the outputs and log-densities of stochastic node(s).
 
         Args:
             names (Iterable[str]): Names of the queried stochastic nodes.

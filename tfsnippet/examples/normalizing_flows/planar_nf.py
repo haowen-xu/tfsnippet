@@ -11,8 +11,7 @@ from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
-                                   dense,
-                                   planar_normalizing_flow)
+                                   dense)
 from tfsnippet.examples.utils import (load_mnist,
                                       create_session,
                                       Config,
@@ -23,6 +22,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       get_batch_size,
                                       flatten,
                                       unflatten)
+from tfsnippet.flows import PlanarNormalizingFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse
@@ -55,6 +55,9 @@ def q_net(x, observed=None, n_z=None, is_training=True):
 
     net = BayesianNet(observed=observed)
 
+    # derive the posterior normalizing flow
+    posterior_flow = PlanarNormalizingFlow(config.z_dim, config.nf_layers)
+
     # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
@@ -67,7 +70,7 @@ def q_net(x, observed=None, n_z=None, is_training=True):
     z_mean = tf.layers.dense(h_z, config.z_dim, name='z_mean')
     z_logstd = tf.layers.dense(h_z, config.z_dim, name='z_logstd')
     z = net.add('z', Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1, transform=posterior_flow)
+                group_ndims=1, flow=posterior_flow)
 
     return net
 
@@ -97,13 +100,6 @@ def p_net(observed=None, n_z=None, is_training=True):
     x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
-
-
-@global_reuse
-def posterior_flow(z, log_qz):
-    for _ in range(config.nf_layers):
-        z, log_qz = planar_normalizing_flow(z, log_qz)
-    return z, log_qz
 
 
 def sample_from_probs(x):

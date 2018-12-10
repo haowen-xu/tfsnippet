@@ -6,7 +6,8 @@ import zhusuan as zs
 
 from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.trainer import BaseTrainer, Evaluator, AnnealingDynamicValue
-from tfsnippet.utils import is_integer
+from tfsnippet.utils import (is_integer, int_shape, is_tensor_object,
+                             flatten, unflatten)
 
 __all__ = [
     'validate_strides_or_kernel_size',
@@ -23,6 +24,9 @@ __all__ = [
     'unflatten',
     'cached',
 ]
+
+is_dynamic_tensor = is_tensor_object
+"""Alias to :func:`tfsnippet.utils.is_tensor_object`"""
 
 
 def validate_strides_or_kernel_size(arg_name, arg_value):
@@ -191,34 +195,6 @@ def get_batch_size(input):
     return batch_size
 
 
-def int_shape(tensor):
-    """
-    Get the int shape tuple of specified `tensor`.
-
-    Args:
-        tensor: The tensor object.
-
-    Returns:
-        tuple[int or None]: The int shape tuple.
-    """
-    shape = tensor.get_shape().as_list()
-    return tuple((int(v) if v is not None else None) for v in shape)
-
-
-def is_dynamic_tensor(tensor):
-    """
-    Check whether or not `tensor` is a dynamic tensor.
-
-    Args:
-        tensor: The tensor to be checked.
-
-    Returns:
-        bool: Whether the tensor is a dynamic tensor.
-    """
-    return isinstance(tensor, (tf.Tensor, tf.Variable, StochasticTensor,
-                               zs.StochasticTensor))
-
-
 def smart_apply(tensor, static_fn, dynamic_fn):
     """
     Apply transformation on `tensor`, with either `static_fn` for static
@@ -238,98 +214,6 @@ def smart_apply(tensor, static_fn, dynamic_fn):
         return dynamic_fn(tensor)
     else:
         return static_fn(tensor)
-
-
-def flatten(x, k, name=None):
-    """
-    Flatten the front dimensions of `x`, such that the resulting tensor
-    will have at most `k` dimensions.
-
-    Args:
-        x (Tensor): The tensor to be flatten.
-        k (int): The dimensions to keep.
-        name (str or None): Name of this operation.
-
-    Returns:
-        (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or
-        (tf.Tensor, None, None):
-            (The flatten tensor, the static front shape, and the front shape),
-            or (the original tensor, None, None)
-    """
-    if k < 1:
-        raise ValueError('`k` must be greater or equal to 1.')
-    if not x.get_shape():
-        raise ValueError('`x` is required to have known number of '
-                         'dimensions.')
-    shape = int_shape(x)
-    if len(shape) < k:
-        raise ValueError('`k` is {}, but `x` only has rank {}.'.
-                         format(k, len(shape)))
-    if len(shape) == k:
-        return x, None, None
-    with tf.name_scope(name, default_name='flatten', values=[x]):
-        if k == 1:
-            static_shape = shape
-            if None in shape:
-                shape = tf.shape(x)
-            return tf.reshape(x, [-1]), static_shape, shape
-        else:
-            front_shape, back_shape = shape[:-(k-1)], shape[-(k-1):]
-            static_front_shape = front_shape
-            static_back_shape = back_shape
-            if None in front_shape or None in back_shape:
-                dynamic_shape = tf.shape(x)
-                if None in front_shape:
-                    front_shape = dynamic_shape[:-(k-1)]
-                if None in back_shape:
-                    back_shape = dynamic_shape[-(k-1):]
-            if isinstance(back_shape, tuple):
-                x = tf.reshape(x, [-1] + list(back_shape))
-            else:
-                x = tf.reshape(x, tf.concat([[-1], back_shape], axis=0))
-                x.set_shape(tf.TensorShape([None] + list(static_back_shape)))
-            return x, static_front_shape, front_shape
-
-
-def unflatten(x, static_front_shape, front_shape, name=None):
-    """
-    The inverse transformation of :func:`flatten`.
-
-    If both `static_front_shape` is None and `front_shape` is None,
-    `x` will be returned without any change.
-
-    Args:
-        x (Tensor): The tensor to be unflatten.
-        static_front_shape (tuple[int or None] or None): The static front shape.
-        front_shape (tuple[int] or tf.Tensor or None): The front shape.
-        name (str or None): Name of this operation.
-
-    Returns:
-        tf.Tensor: The unflatten x.
-    """
-    if static_front_shape is None and front_shape is None:
-        return x
-    if not x.get_shape():
-        raise ValueError('`x` is required to have known number of '
-                         'dimensions.')
-    shape = int_shape(x)
-    if len(shape) < 1:
-        raise ValueError('`x` only has rank {}, required at least 1.'.
-                         format(len(shape)))
-    if not is_dynamic_tensor(front_shape):
-        front_shape = tuple(front_shape)
-    with tf.name_scope(name, default_name='unflatten', values=[x]):
-        back_shape = shape[1:]
-        static_back_shape = back_shape
-        if None in back_shape:
-            back_shape = tf.shape(x)[1:]
-        if isinstance(front_shape, tuple) and isinstance(back_shape, tuple):
-            x = tf.reshape(x, front_shape + back_shape)
-        else:
-            x = tf.reshape(x, tf.concat([front_shape, back_shape], axis=0))
-            x.set_shape(tf.TensorShape(list(static_front_shape) +
-                                       list(static_back_shape)))
-        return x
 
 
 def cached(method):

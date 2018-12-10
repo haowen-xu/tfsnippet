@@ -26,7 +26,7 @@ class OnehotCategorical(ZhuSuanDistribution):
         Args:
             logits: An N-D (N >= 1) `float` Tensor of shape
                 ``(..., n_categories)``.  Each slice `[i, j,..., k, :]`
-                represents the un-normalized log probabilities for all
+                represents the un-normalized log-probabilities for all
                 categories.  :math:`\\mathrm{logits} \\propto \\log p`
             dtype: The value type of samples from the distribution.
                 (default ``tf.int32``)

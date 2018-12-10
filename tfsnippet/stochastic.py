@@ -55,7 +55,7 @@ class StochasticTensor(TensorWrapper):
     """
 
     def __init__(self, distribution, tensor, n_samples=None,
-                 group_ndims=0, is_reparameterized=None):
+                 group_ndims=0, is_reparameterized=None, log_prob=None):
         """
         Construct the :class:`StochasticTensor`.
 
@@ -72,11 +72,15 @@ class StochasticTensor(TensorWrapper):
             is_reparameterized (bool): Whether or not the samples are
                 re-parameterized?  If not specified, will inherit from
                 :attr:`tfsnippet.distributions.Distribution.is_reparameterized`.
+            log_prob (tf.Tensor or None): Pre-computed log-density of `tensor`,
+                given `group_ndims`.
         """
         from tfsnippet.distributions import validate_group_ndims
 
         if is_reparameterized is None:
             is_reparameterized = distribution.is_reparameterized
+        if log_prob is not None:
+            log_prob = tf.convert_to_tensor(log_prob)
 
         n_samples = validate_n_samples(n_samples, 'n_samples')
         if n_samples is not None:
@@ -94,7 +98,7 @@ class StochasticTensor(TensorWrapper):
         self._self_n_samples = n_samples
         self._self_group_ndims = group_ndims
         self._self_is_reparameterized = is_reparameterized
-        self._self_log_prob = None
+        self._self_log_prob = log_prob
         self._self_prob = None
 
     def __repr__(self):
@@ -170,14 +174,14 @@ class StochasticTensor(TensorWrapper):
 
     def log_prob(self, group_ndims=None):
         """
-        Compute the log probability densities of this :class:`StochasticTensor`.
+        Compute the log-densities of this :class:`StochasticTensor`.
 
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
 
         Returns:
-            tf.Tensor: The log probability densities.
+            tf.Tensor: The log-densities.
         """
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._self_log_prob is None:
@@ -189,19 +193,19 @@ class StochasticTensor(TensorWrapper):
 
     def prob(self, group_ndims=None):
         """
-        Compute the probability densities of this :class:`StochasticTensor`.
+        Compute the densities of this :class:`StochasticTensor`.
 
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
 
         Returns:
-            tf.Tensor: The probability densities.
+            tf.Tensor: The densities.
         """
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._self_prob is None:
-                self._self_prob = \
-                    self.distribution.prob(self.tensor, self.group_ndims)
+                with tf.name_scope('StochasticTensor.prob'):
+                    self._self_prob = tf.exp(self.log_prob())
             return self._self_prob
         else:
             return self.distribution.prob(self.tensor, group_ndims)

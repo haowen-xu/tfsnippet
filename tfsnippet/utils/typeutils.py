@@ -4,6 +4,13 @@ import tensorflow as tf
 
 from .tensor_wrapper import TensorWrapper
 
+try:
+    import zhusuan as zs
+    _DYNAMIC_TENSOR_TYPES = (tf.Tensor, tf.Variable, TensorWrapper,
+                             zs.StochasticTensor)
+except ImportError:  # pragma: no cover
+    _DYNAMIC_TENSOR_TYPES = (tf.Tensor, tf.Variable, TensorWrapper)
+
 __all__ = ['is_integer', 'is_float', 'is_tensor_object', 'TensorArgValidator']
 
 __INTEGER_TYPES = (
@@ -55,8 +62,8 @@ def is_tensor_object(x):
     """
     Test whether or not `x` is a tensor object.
 
-    :class:`tf.Tensor`, :class:`tf.Variable` and :class:`TensorWrapper`
-    are considered to be tensor objects.
+    :class:`tf.Tensor`, :class:`tf.Variable`, :class:`TensorWrapper` and
+    :class:`zhusuan.StochasticTensor` are considered to be tensor objects.
 
     Args:
         x: The object to be tested.
@@ -64,7 +71,7 @@ def is_tensor_object(x):
     Returns:
         bool: A boolean indicating whether `x` is a tensor object.
     """
-    return isinstance(x, (tf.Tensor, tf.Variable, TensorWrapper))
+    return isinstance(x, _DYNAMIC_TENSOR_TYPES)
 
 
 class TensorArgValidator(object):

@@ -45,7 +45,7 @@ def reduce_group_ndims(operation, tensor, group_ndims, name=None):
     Reduce the last `group_ndims` dimensions in `tensor`, using `operation`.
 
     In :class:`~tfsnippet.distributions.Distribution`, when computing the
-    (log-)probability densities of certain `tensor`, the last few dimensions
+    (log-)densities of certain `tensor`, the last few dimensions
     may represent a group of events, thus should be accounted together.
     This method can be used to reduce these dimensions, for example:
 
