@@ -247,6 +247,7 @@ class VariationalTrainingObjectives(object):
 
         Returns:
             tf.Tensor: The per-data SGVB training objective.
+                It is the negative of ELBO, which should directly be minimized.
 
         See Also:
             :func:`tfsnippet.variational.sgvb_estimator`

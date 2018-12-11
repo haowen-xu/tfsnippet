@@ -11,7 +11,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.dataflow import DataFlow
-from tfsnippet.distributions import Normal, Bernoulli, Categorical, ExpConcrete
+from tfsnippet.distributions import Normal, Bernoulli, Categorical
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
@@ -25,7 +25,6 @@ from tfsnippet.examples.utils import (load_mnist,
                                       get_batch_size,
                                       flatten,
                                       unflatten,
-                                      int_shape,
                                       collect_outputs,
                                       ClusteringClassifier)
 from tfsnippet.mathops import tfops, log_mean_exp
@@ -40,8 +39,6 @@ class ExpConfig(Config):
     z_dim = 16
     n_clusters = 16
     l2_reg = 0.0001
-    use_concrete_distribution = False
-    p_z_given_y = 'learnt'  # {'unit', 'learnt'}
     p_z_given_y_std = 'unbound_logstd'
     # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
     p_z_given_y_reg = 'kl_p_z'  # {None, 'kl_p_z', 'kl_p_z_given_y'}
@@ -52,7 +49,6 @@ class ExpConfig(Config):
     max_epoch = 3000
     batch_size = 128
     train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
-    train_n_samples_for_concrete = 25  # use "sgvb" if None, otherwise "iwae"
     p_z_given_y_reg_samples = 100
 
     initial_lr = 0.001
@@ -60,91 +56,51 @@ class ExpConfig(Config):
     lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
 
-    initial_tau_p = 1.0
-    initial_tau_q = 1.0
-    min_tau_p = 0.5
-    min_tau_q = 0.666
-    tau_p_anneal_factor = 0.95
-    tau_p_anneal_epoch_freq = 25
-    tau_p_anneal_step_freq = None
-    tau_q_anneal_factor = 0.95
-    tau_q_anneal_epoch_freq = 25
-    tau_q_anneal_step_freq = None
-
     # evaluation parameters
     test_n_samples = 500
     test_batch_size = 128
 
 
 @global_reuse
-def gaussian_mixture_prior(y, z_dim, n_clusters, use_concrete):
-    if config.p_z_given_y == 'unit':
-        if None not in int_shape(y):
-            data_shape = int_shape(y)
-            if use_concrete:
-                data_shape = data_shape[:-1]
-            z_shape = data_shape + (z_dim,)
-        else:
-            data_shape = tf.shape(y)
-            if use_concrete:
-                data_shape = data_shape[:-1]
-            z_shape = tf.concat([data_shape, [z_dim]], axis=0)
-        return Normal(mean=tf.zeros(z_shape), std=tf.ones(z_shape))
+def gaussian_mixture_prior(y, z_dim, n_clusters):
+    # derive the learnt z_mean
+    prior_mean = tf.get_variable(
+        'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
+        initializer=tf.random_normal_initializer()
+    )
+    z_mean = tf.nn.embedding_lookup(prior_mean, y)
 
-    elif config.p_z_given_y == 'learnt':
-        # derive the learnt z_mean
-        prior_mean = tf.get_variable(
-            'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
-            initializer=tf.random_normal_initializer()
-        )
-        if use_concrete:
-            y, s1, s2 = flatten(tf.exp(y), 2)
-            z_mean = unflatten(tf.matmul(y, prior_mean), s1, s2)
-        else:
-            z_mean = tf.nn.embedding_lookup(prior_mean, y)
-
-        # derive the learnt z_std
-        z_logstd = z_std = None
-        if config.p_z_given_y_std == 'one':
-            z_logstd = tf.zeros_like(z_mean)
-        else:
-            prior_std_or_logstd = tf.get_variable(
-                'z_prior_std_or_logstd',
-                dtype=tf.float32,
-                shape=[n_clusters, z_dim],
-                initializer=tf.zeros_initializer()
-            )
-            if use_concrete:
-                z_std_or_logstd = unflatten(
-                    tf.matmul(y, prior_std_or_logstd), s1, s2)
-            else:
-                z_std_or_logstd = tf.nn.embedding_lookup(prior_std_or_logstd, y)
-
-            if config.p_z_given_y_std == 'one_plus_softplus_std':
-                z_std = 1. + tf.nn.softplus(z_std_or_logstd)
-            elif config.p_z_given_y_std == 'softplus_logstd':
-                z_logstd = tf.nn.softplus(z_std_or_logstd)
-            elif config.p_z_given_y_std == 'unbound_logstd':
-                z_logstd = z_std_or_logstd
-            else:
-                raise ValueError(
-                    'Unexpected value for config `p_z_given_y_std`: {}'.
-                    format(config.p_z_given_y_std)
-                )
-
-        return Normal(mean=z_mean, std=z_std, logstd=z_logstd)
-
+    # derive the learnt z_std
+    z_logstd = z_std = None
+    if config.p_z_given_y_std == 'one':
+        z_logstd = tf.zeros_like(z_mean)
     else:
-        raise ValueError(
-            'Unexpected value for config `p_z_given_y`: {}'.
-            format(config.p_z_given_y)
+        prior_std_or_logstd = tf.get_variable(
+            'z_prior_std_or_logstd',
+            dtype=tf.float32,
+            shape=[n_clusters, z_dim],
+            initializer=tf.zeros_initializer()
         )
+        z_std_or_logstd = tf.nn.embedding_lookup(prior_std_or_logstd, y)
+
+        if config.p_z_given_y_std == 'one_plus_softplus_std':
+            z_std = 1. + tf.nn.softplus(z_std_or_logstd)
+        elif config.p_z_given_y_std == 'softplus_logstd':
+            z_logstd = tf.nn.softplus(z_std_or_logstd)
+        elif config.p_z_given_y_std == 'unbound_logstd':
+            z_logstd = z_std_or_logstd
+        else:
+            raise ValueError(
+                'Unexpected value for config `p_z_given_y_std`: {}'.
+                format(config.p_z_given_y_std)
+            )
+
+    return Normal(mean=z_mean, std=z_std, logstd=z_logstd)
 
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
-    use_concrete = config.use_concrete_distribution and tau is not None
+def q_net(x, observed=None, n_samples=None, is_training=True):
     logging.info('q_net builder: %r', locals())
 
     net = BayesianNet(observed=observed)
@@ -159,13 +115,8 @@ def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
 
     # sample y ~ q(y|x)
     y_logits = dense(h_x, config.n_clusters, name='y_logits')
-    if use_concrete:
-        y = net.add('y', ExpConcrete(tau, y_logits), is_reparameterized=True,
-                    n_samples=n_samples)
-        y_one_hot = tf.exp(y)
-    else:
-        y = net.add('y', Categorical(y_logits), n_samples=n_samples)
-        y_one_hot = tf.one_hot(y, config.n_clusters, dtype=tf.float32)
+    y = net.add('y', Categorical(y_logits), n_samples=n_samples)
+    y_one_hot = tf.one_hot(y, config.n_clusters, dtype=tf.float32)
 
     # sample z ~ q(z|y,x)
     with arg_scope([dense],
@@ -196,7 +147,7 @@ def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
     z = net.add('z',
                 Normal(mean=unflatten(z_mean, s1, s2),
                        logstd=unflatten(z_logstd, s1, s2),
-                       is_reparameterized=use_concrete),
+                       is_reparameterized=False),
                 n_samples=z_n_samples, group_ndims=1)
 
     return net
@@ -204,35 +155,26 @@ def q_net(x, observed=None, n_samples=None, tau=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_y=None, n_z=None, tau=None, is_training=True,
-          n_samples=None):
+def p_net(observed=None, n_y=None, n_z=None, is_training=True, n_samples=None):
     if n_samples is not None:
         warnings.warn('`n_samples` is deprecated, use `n_y` instead.')
         n_y = n_samples
 
-    use_concrete = config.use_concrete_distribution and tau is not None
     logging.info('p_net builder: %r', locals())
 
     net = BayesianNet(observed=observed)
 
     # sample y
-    if use_concrete:
-        y = net.add('y',
-                    ExpConcrete(tau, tf.zeros([1, config.n_clusters])),
-                    n_samples=n_y,
-                    is_reparameterized=True)
-    else:
-        y = net.add('y',
-                    Categorical(tf.zeros([1, config.n_clusters])),
-                    n_samples=n_y)
+    y = net.add('y',
+                Categorical(tf.zeros([1, config.n_clusters])),
+                n_samples=n_y)
 
     # sample z ~ p(z|y)
     z = net.add('z',
-                gaussian_mixture_prior(y, config.z_dim, config.n_clusters,
-                                       use_concrete=use_concrete),
+                gaussian_mixture_prior(y, config.z_dim, config.n_clusters),
                 group_ndims=1,
                 n_samples=n_z,
-                is_reparameterized=use_concrete)
+                is_reparameterized=False)
 
     # compute the hidden features for x
     with arg_scope([dense],
@@ -274,9 +216,7 @@ def add_p_z_given_y_reg_loss(loss):
     n_z = config.p_z_given_y_reg_samples
     y = tf.range(config.n_clusters, dtype=tf.int32)
     prior = gaussian_mixture_prior(
-        y=y, z_dim=config.z_dim, n_clusters=config.n_clusters,
-        use_concrete=False
-    )
+        y=y, z_dim=config.z_dim, n_clusters=config.n_clusters)
     prior0 = Normal(mean=0., logstd=0.)
     z = prior.sample(n_z, is_reparameterized=True)
 
@@ -322,14 +262,6 @@ def main():
                                    name='learning_rate')
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
-    tau_p = tf.placeholder(shape=(), dtype=tf.float32, name='tau_p')
-    tau_p_var = AnnealingDynamicValue(config.initial_tau_p,
-                                      config.tau_p_anneal_factor,
-                                      config.min_tau_p)
-    tau_q = tf.placeholder(shape=(), dtype=tf.float32, name='tau_q')
-    tau_q_var = AnnealingDynamicValue(config.initial_tau_q,
-                                      config.tau_q_anneal_factor,
-                                      config.min_tau_q)
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
@@ -355,37 +287,24 @@ def main():
             else:
                 with arg_scope([q_net, p_net], is_training=is_training):
                     # derive the loss and lower-bound for training
-                    train_n_samples = (
-                        config.train_n_samples_for_concrete
-                        if config.use_concrete_distribution
-                        else config.train_n_samples
-                    )
                     train_q_net = q_net(
-                        dev_input_x, n_samples=train_n_samples, tau=tau_q
+                        dev_input_x, n_samples=config.train_n_samples
                     )
                     train_chain = train_q_net.chain(
                         p_net, latent_names=['y', 'z'], latent_axis=0,
-                        observed={'x': dev_input_x}, tau=tau_p
+                        observed={'x': dev_input_x}
                     )
 
-                    if config.use_concrete_distribution:
-                        if train_n_samples is None:
-                            dev_vae_loss = tf.reduce_mean(
-                                train_chain.vi.training.sgvb())
-                        else:
-                            dev_vae_loss = tf.reduce_mean(
-                                train_chain.vi.training.iwae())
-                    else:
-                        if train_n_samples is None:
-                            dev_baseline = reinforce_baseline_net(dev_input_x)
-                            dev_vae_loss = tf.reduce_mean(
-                                train_chain.vi.training.reinforce(
-                                    baseline=dev_baseline
-                                )
+                    if config.train_n_samples is None:
+                        dev_baseline = reinforce_baseline_net(dev_input_x)
+                        dev_vae_loss = tf.reduce_mean(
+                            train_chain.vi.training.reinforce(
+                                baseline=dev_baseline
                             )
-                        else:
-                            dev_vae_loss = tf.reduce_mean(
-                                train_chain.vi.training.vimco())
+                        )
+                    else:
+                        dev_vae_loss = tf.reduce_mean(
+                            train_chain.vi.training.vimco())
                     dev_loss = dev_vae_loss + regularization_loss()
                     dev_loss = add_p_z_given_y_reg_loss(dev_loss)
                     losses.append(dev_loss)
@@ -506,23 +425,12 @@ def main():
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x], train_flow,
-                feed_dict={learning_rate: learning_rate_var,
-                           tau_p: tau_p_var,
-                           tau_q: tau_q_var,
-                           is_training: True},
+                feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss}
             )
             anneal_after(
                 trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
-            )
-            anneal_after(
-                trainer, tau_p_var, epochs=config.tau_p_anneal_epoch_freq,
-                steps=config.tau_p_anneal_step_freq
-            )
-            anneal_after(
-                trainer, tau_q_var, epochs=config.tau_q_anneal_epoch_freq,
-                steps=config.tau_q_anneal_step_freq
             )
             evaluator = Evaluator(
                 loop,

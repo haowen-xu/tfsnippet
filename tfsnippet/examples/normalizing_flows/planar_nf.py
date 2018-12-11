@@ -55,22 +55,19 @@ def q_net(x, observed=None, n_z=None, is_training=True):
 
     net = BayesianNet(observed=observed)
 
-    # derive the posterior normalizing flow
-    posterior_flow = PlanarNormalizingFlow(config.z_dim, config.nf_layers)
-
     # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_z = tf.to_float(x)
-        h_z = dense(h_z, 500)
-        h_z = dense(h_z, 500)
+        h_x = tf.to_float(x)
+        h_x = dense(h_x, 500)
+        h_x = dense(h_x, 500)
 
     # sample z ~ q(z|x)
-    z_mean = tf.layers.dense(h_z, config.z_dim, name='z_mean')
-    z_logstd = tf.layers.dense(h_z, config.z_dim, name='z_logstd')
+    z_mean = dense(h_x, config.z_dim, name='z_mean')
+    z_logstd = dense(h_x, config.z_dim, name='z_logstd')
     z = net.add('z', Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1, flow=posterior_flow)
+                group_ndims=1, flow=posterior_flow())
 
     return net
 
@@ -91,15 +88,20 @@ def p_net(observed=None, n_z=None, is_training=True):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_x, s1, s2 = flatten(z, 2)
-        h_x = dense(h_x, 500)
-        h_x = dense(h_x, 500)
+        h_z, s1, s2 = flatten(z, 2)
+        h_z = dense(h_z, 500)
+        h_z = dense(h_z, 500)
 
     # sample x ~ p(x|z)
-    x_logits = unflatten(dense(h_x, config.x_dim, name='x_logits'), s1, s2)
+    x_logits = unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
     x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
+
+
+@global_reuse
+def posterior_flow():
+    return PlanarNormalizingFlow(config.z_dim, config.nf_layers)
 
 
 def sample_from_probs(x):
