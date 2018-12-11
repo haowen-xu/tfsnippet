@@ -26,15 +26,15 @@ def flatten(x, k, name=None):
 
     Args:
         x (Tensor): The tensor to be flatten.
-        k (int): The dimensions to keep.
+        k (int): The maximum number of dimensions for the resulting tensor.
         name (str or None): Name of this operation.
 
     Returns:
         (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or
-        (tf.Tensor, None, None):
-            (The flatten tensor, the static front shape, and the front shape),
-            or (the original tensor, None, None)
+        (tf.Tensor, None, None): (The flatten tensor, the static front shape,
+            and the front shape), or (the original tensor, None, None)
     """
+    x = tf.convert_to_tensor(x)
     if k < 1:
         raise ValueError('`k` must be greater or equal to 1.')
     if not x.get_shape():
@@ -46,6 +46,7 @@ def flatten(x, k, name=None):
                          format(k, len(shape)))
     if len(shape) == k:
         return x, None, None
+
     with tf.name_scope(name, default_name='flatten', values=[x]):
         if k == 1:
             static_shape = shape
@@ -86,6 +87,7 @@ def unflatten(x, static_front_shape, front_shape, name=None):
     Returns:
         tf.Tensor: The unflatten x.
     """
+    x = tf.convert_to_tensor(x)
     if static_front_shape is None and front_shape is None:
         return x
     if not x.get_shape():
@@ -97,6 +99,7 @@ def unflatten(x, static_front_shape, front_shape, name=None):
                          format(len(shape)))
     if not is_tensor_object(front_shape):
         front_shape = tuple(front_shape)
+
     with tf.name_scope(name, default_name='unflatten', values=[x]):
         back_shape = shape[1:]
         static_back_shape = back_shape

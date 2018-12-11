@@ -134,4 +134,4 @@ class ZhuSuanDistribution(Distribution):
         default_name = '{}.prob'.format(
             self._distribution.__class__.__name__)
         with tf.name_scope(name, default_name=default_name):
-            return tf.exp(self.log_prob(given, group_ndims=0))
+            return tf.exp(self.log_prob(given, group_ndims=group_ndims))

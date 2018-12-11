@@ -15,19 +15,23 @@ def ensure_axis_arg(axis):
 int32 = tf.int32
 identity = tf.identity
 
+abs = tf.abs
+sign = tf.sign
+log = tf.log
+log1p = tf.log1p
+exp = tf.exp
+clip_by_value = tf.clip_by_value
+
 convert_to_tensor = tf.convert_to_tensor
 reduce_mean = tf.reduce_mean
 reduce_sum = tf.reduce_sum
 reduce_max = tf.reduce_max
 reduce_min = tf.reduce_min
 squeeze = tf.squeeze
-log = tf.log
-log1p = tf.log1p
-exp = tf.exp
-clip_by_value = tf.clip_by_value
+
+range = tf.range
 shape = tf.shape
 rank = tf.rank
-range = tf.range
 reshape = tf.reshape
 
 

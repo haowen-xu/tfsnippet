@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.nn import tfops, log_mean_exp
+from tfsnippet.mathops import tfops, log_mean_exp
 from .utils import _require_multi_samples
 
 __all__ = [

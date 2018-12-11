@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.nn import *
+from tfsnippet.mathops import *
 from .utils import assert_op_result, naive_softmax
 
 

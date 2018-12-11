@@ -32,8 +32,10 @@ API Docs
    api/tfsnippet.dataflow
    api/tfsnippet.distributions
    api/tfsnippet.evaluation
+   api/tfsnippet.examples
+   api/tfsnippet.flows
+   api/tfsnippet.mathops
    api/tfsnippet.modules
-   api/tfsnippet.nn
    api/tfsnippet.scaffold
    api/tfsnippet.stochastic
    api/tfsnippet.trainer

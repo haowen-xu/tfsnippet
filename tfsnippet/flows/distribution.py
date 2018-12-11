@@ -11,10 +11,6 @@ __all__ = ['FlowDistribution']
 class FlowDistribution(Distribution):
     """
     Transform a :class:`Distribution` by a :class:`Flow`, as a new distribution.
-
-    If transformed by a :class:`NormalizingFlow`, then the new distribution
-    can be sampled, and the log-density of such samples can be obtained.
-    However, the log-densities of arbitrary given tensors cannot be computed.
     """
 
     def __init__(self, distribution, flow):
@@ -91,7 +87,7 @@ class FlowDistribution(Distribution):
         group_ndims = validate_group_ndims(group_ndims)
         if not compute_density and compute_density is not None:
             raise RuntimeError('`FlowDistribution` requires `compute_prob` '
-                               'to be True.')
+                               'not to be False.')
 
         with tf.name_scope(
                 name, default_name='FlowDistribution.sample'):

@@ -208,7 +208,9 @@ class StochasticTensor(TensorWrapper):
                     self._self_prob = tf.exp(self.log_prob())
             return self._self_prob
         else:
-            return self.distribution.prob(self.tensor, group_ndims)
+            with tf.name_scope('StochasticTensor.prob'):
+                log_p = self.distribution.log_prob(self.tensor, group_ndims)
+                return tf.exp(log_p)
 
 
 register_tensor_wrapper_class(StochasticTensor)

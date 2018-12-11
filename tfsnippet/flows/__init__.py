@@ -1,8 +1,8 @@
-from . import base, distribution, planar_nf
+from . import base, distribution, planar_nf, sequential
 
 __all__ = sum(
     [m.__all__ for m in [
-         base, distribution, planar_nf
+         base, distribution, planar_nf, sequential
     ]],
     []
 )
@@ -10,3 +10,4 @@ __all__ = sum(
 from .base import *
 from .distribution import *
 from .planar_nf import *
+from .sequential import *

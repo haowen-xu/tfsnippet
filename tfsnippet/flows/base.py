@@ -88,7 +88,9 @@ class Flow(VarScopeObject):
         if not compute_y and not compute_log_det:
             raise RuntimeError('At least one of `compute_y` and '
                                '`compute_log_det` should be True.')
-        x = tf.convert_to_tensor(x, self.dtype)
+        x = tf.convert_to_tensor(x)
+        if x.dtype != self.dtype:
+            x = tf.cast(x, self.dtype)
         def_name = '{}.transform'.format(self.__class__.__name__)
         with tf.name_scope(name, default_name=def_name, values=[x]):
             return self._transform(x, compute_y, compute_log_det)
@@ -127,7 +129,9 @@ class Flow(VarScopeObject):
         if not compute_x and not compute_log_det:
             raise RuntimeError('At least one of `compute_x` and '
                                '`compute_log_det` should be True.')
-        y = tf.convert_to_tensor(y, self.dtype)
+        y = tf.convert_to_tensor(y)
+        if y.dtype != self.dtype:
+            y = tf.cast(y, self.dtype)
         def_name = '{}.inverse_transform'.format(self.__class__.__name__)
         with tf.name_scope(name, default_name=def_name, values=[y]):
             return self._inverse_transform(y, compute_x, compute_log_det)
@@ -215,12 +219,12 @@ class MultiLayerFlow(Flow):
             log_det_list.append(log_det)
 
         # merge the log-determinants
+        log_det = None
         if compute_log_det:
             log_det = tf.add_n(log_det_list)
-        else:
-            log_det = None
 
-        return x, log_det
+        y = x if compute_y else None
+        return y, log_det
 
     def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det):
         raise NotImplementedError()
@@ -239,9 +243,9 @@ class MultiLayerFlow(Flow):
             log_det_list.append(log_det)
 
         # merge the log-determinants
+        log_det = None
         if compute_log_det:
             log_det = tf.add_n(log_det_list)
-        else:
-            log_det = None
 
-        return y, log_det
+        x = y if compute_x else None
+        return x, log_det

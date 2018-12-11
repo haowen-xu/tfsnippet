@@ -84,7 +84,7 @@ class VariationalInference(object):
         pre-computed log-joint, by specified algorithm.
 
         Args:
-            func: The variational algorithm from `ZhuSuan`_. Supported
+            func: The variational algorithm from ZhuSuan. Supported
                 functions are: 1. :func:`zhusuan.variational.elbo`
                 2. :func:`zhusuan.variational.importance_weighted_objective`
                 3. :func:`zhusuan.variational.klpq`

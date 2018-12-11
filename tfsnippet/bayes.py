@@ -179,9 +179,9 @@ class BayesianNet(object):
                            format(name))
         if flow is not None and name in self._observed and \
                 not flow.explicitly_invertible:
-            raise TypeError('An observed variable expects `flow` to be '
+            raise TypeError('The observed variable {!r} expects `flow` to be '
                             'explicitly invertible, but it is not: {!r}.'.
-                            format(flow))
+                            format(name, flow))
 
         distribution = as_distribution(distribution)
         if flow is not None:

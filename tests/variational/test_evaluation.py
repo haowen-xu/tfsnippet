@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.nn import log_mean_exp, tfops
+from tfsnippet.mathops import log_mean_exp, tfops
 from tfsnippet.variational import *
 
 

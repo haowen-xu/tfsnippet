@@ -81,10 +81,6 @@ class PlanarNormalizingFlow(MultiLayerFlow):
         """
         return self._n_units
 
-    @property
-    def explicitly_invertible(self):
-        return False
-
     def _create_layer_params(self, layer_id):
         w = tf.get_variable(
             'w',
@@ -104,7 +100,7 @@ class PlanarNormalizingFlow(MultiLayerFlow):
         )
         u = tf.get_variable(
             'u',
-            shape=[1,self._n_units],
+            shape=[1, self._n_units],
             dtype=self._dtype,
             initializer=self._u_initializer,
             regularizer=self._u_regularizer,
@@ -125,13 +121,13 @@ class PlanarNormalizingFlow(MultiLayerFlow):
         tanh_wxb = tf.tanh(wxb)  # shape == [?, 1]
 
         # compute y = f(x)
+        y = None
         if compute_y:
             y = x + u_hat * tanh_wxb  # shape == [?, n_units]
             y = unflatten(y, s1, s2)
-        else:
-            y = None
 
         # compute log(det|df/dz|)
+        log_det = None
         if compute_log_det:
             grad = 1. - tf.square(tanh_wxb)  # dtanh(x)/dx = 1 - tanh^2(x)
             phi = grad * w  # shape == [?, n_units]
@@ -139,11 +135,14 @@ class PlanarNormalizingFlow(MultiLayerFlow):
             det_jac = 1. + u_phi  # shape == [?, 1]
             log_det = tf.log(tf.abs(det_jac))  # shape == [?, 1]
             log_det = unflatten(tf.squeeze(log_det, -1), s1, s2)
-        else:
-            log_det = None
 
         # now returns the transformed sample and log-determinant
         return y, log_det
 
+    @property
+    def explicitly_invertible(self):
+        return False
+
+    # provide this method to avoid abstract class warning
     def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det):
-        pass
+        pass  # pragma: no cover

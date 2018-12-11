@@ -1,5 +1,6 @@
 import pytest
 import six
+import numpy as np
 import tensorflow as tf
 from mock import Mock
 
@@ -138,20 +139,21 @@ class StochasticTensorTestCase(tf.test.TestCase):
         )
         t = StochasticTensor(distrib, tf.constant(0.))
         given = t.tensor
+        exp_1 = np.exp(1.).astype(np.float32)
         with self.test_session():
             self.assertEqual(t.log_prob().eval(), 1.)
             self.assertEqual(t.log_prob().eval(), 1.)
-            self.assertEqual(t.prob().eval(), 2.)
-            self.assertEqual(t.prob().eval(), 2.)
+            np.testing.assert_allclose(t.prob().eval(), exp_1)
+            np.testing.assert_allclose(t.prob().eval(), exp_1)
         self.assertEqual(distrib.log_prob.call_args_list, [((given, 0),)])
-        self.assertEqual(distrib.prob.call_args_list, [((given, 0),)])
+        self.assertEqual(distrib.prob.call_args_list, [])
 
         # test group_ndims equal to default
         distrib.log_prob.reset_mock()
         distrib.prob.reset_mock()
         with self.test_session():
             self.assertEqual(t.log_prob(group_ndims=0).eval(), 1.)
-            self.assertEqual(t.prob(group_ndims=0).eval(), 2.)
+            np.testing.assert_allclose(t.prob(group_ndims=0).eval(), exp_1)
         distrib.log_prob.assert_not_called()
         distrib.prob.assert_not_called()
 
@@ -160,9 +162,10 @@ class StochasticTensorTestCase(tf.test.TestCase):
         distrib.prob.reset_mock()
         with self.test_session():
             self.assertEqual(t.log_prob(group_ndims=1).eval(), 1.)
-            self.assertEqual(t.prob(group_ndims=2).eval(), 2.)
-        self.assertEqual(distrib.log_prob.call_args_list, [((given, 1),)])
-        self.assertEqual(distrib.prob.call_args_list, [((given, 2),)])
+            np.testing.assert_allclose(t.prob(group_ndims=2).eval(), exp_1)
+        self.assertEqual(distrib.log_prob.call_args_list,
+                         [((given, 1),), ((given, 2),)])
+        self.assertEqual(distrib.prob.call_args_list, [])
 
         # test use dynamic group_ndims
         t = StochasticTensor(distrib, tf.constant(0.),
@@ -173,12 +176,13 @@ class StochasticTensorTestCase(tf.test.TestCase):
         with self.test_session():
             self.assertEqual(t.log_prob(group_ndims=t.group_ndims).eval(), 1.)
             self.assertEqual(t.log_prob(group_ndims=t.group_ndims).eval(), 1.)
-            self.assertEqual(t.prob(group_ndims=t.group_ndims).eval(), 2.)
-            self.assertEqual(t.prob(group_ndims=t.group_ndims).eval(), 2.)
+            np.testing.assert_allclose(
+                t.prob(group_ndims=t.group_ndims).eval(), exp_1)
+            np.testing.assert_allclose(
+                t.prob(group_ndims=t.group_ndims).eval(), exp_1)
         self.assertEqual(distrib.log_prob.call_args_list,
                          [((given, t.group_ndims),)])
-        self.assertEqual(distrib.prob.call_args_list,
-                         [((given, t.group_ndims),)])
+        self.assertEqual(distrib.prob.call_args_list, [])
 
     def test_repr(self):
         t = StochasticTensor(

@@ -19,6 +19,8 @@ def ensure_axis_arg(axis):
 int32 = np.int32
 identity = lambda x: x
 
+abs = np.abs
+sign = np.sign
 log = np.log
 log1p = np.log1p
 exp = np.exp
@@ -30,6 +32,7 @@ reduce_sum = np.sum
 reduce_max = np.max
 reduce_min = np.min
 squeeze = np.squeeze
+
 range = np.arange
 shape = np.shape
 rank = np.ndim

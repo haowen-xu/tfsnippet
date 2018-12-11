@@ -194,16 +194,17 @@ and use pre-trained models (among which most are third-party models).
 Math Operations
 ~~~~~~~~~~~~~~~
 
-The ``tfsnippet.nn`` package provides numerical stable implementations for
+The ``tfsnippet.mathops`` package provides numerical stable implementations for
 lots of advanced neural network math operations.  Also, it supports both
 NumPy and TensorFlow.  You may obtain the math operation for a particular
-backend by passing ``tfsnippet.nn.npyos`` (for NumPy) or ``tfsnippet.nn.tfops``
-(for TensorFlow) as the first argument ``ops`` of every math operation function.
+backend by passing ``tfsnippet.mathops.npyos`` (for NumPy) or
+``tfsnippet.mathops.tfops`` (for TensorFlow) as the first argument ``ops``
+of every math operation function.
 
 .. code-block:: python
 
-    from tfsnippet.nn import npyops, tfops
-    from tfsnippet.nn import log_sum_exp, log_softmax
+    from tfsnippet.mathops import npyops, tfops
+    from tfsnippet.mathops import log_sum_exp, log_softmax
 
     # Compute :math:`\log \sum_{k=1}^K \exp(x_k)` by TensorFlow
     log_sum_exp(tfops, x, axis=-1)
