@@ -18,10 +18,10 @@ class Distribution(object):
     over those provided by :py:mod:`zhusuan.distributions`.
 
     A :class:`Distribution` object receives inputs as distribution parameters,
-    generating samples and computing probabilities according to these inputs.
+    generating samples and computing densities according to these inputs.
     The shape of the inputs can have more dimensions than the nature shape
     of the distribution parameters, since :class:`Distribution` is designed
-    to work with batch parameters, samples and probabilities.
+    to work with batch parameters, samples and densities.
 
     The shape of the parameters of a :class:`Distribution` object would be
     decomposed into ``batch_shape + param_shape``, with `param_shape` being
@@ -37,13 +37,13 @@ class Distribution(object):
     is ``()``, such that the sample shape would be ``(3, 4)``, provided the
     shape of class probabilities is ``(3, 4, 5)``.
 
-    Computing the probabilities (i.e., `prob(x)` or `log_prob(x)`) of samples
+    Computing the densities (i.e., `prob(x)` or `log_prob(x)`) of samples
     involves broadcasting these samples against the distribution parameters.
     These samples should be broadcastable against ``batch_shape + value_shape``.
     Suppose the shape of the samples can be decomposed into
     ``sample_shape + batch_shape + value_shape``, then by default, the shape of
-    the probabilities should be ``sample_shape + batch_shape``, i.e., each
-    individual sample resulting in an individual probability value.
+    the densities should be ``sample_shape + batch_shape``, i.e., each
+    individual sample resulting in an individual density value.
 
     .. _`ZhuSuan`: https://github.com/thu-ml/zhusuan
     """
@@ -123,7 +123,7 @@ class Distribution(object):
         raise NotImplementedError()
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
-               name=None):
+               compute_density=None, name=None):
         """
         Generate samples from the distribution.
 
@@ -142,6 +142,9 @@ class Distribution(object):
                 re-parameterized.  If :obj:`False`, disable re-parameterization
                 even if the distribution is re-parameterized.
                 (default :obj:`None`, following the setting of distribution)
+            compute_density (bool): Whether or not to immediately compute the
+                log-density for the samples? (default :obj:`None`, determine by
+                the distribution class itself)
             name (str): TensorFlow name scope of the graph nodes.
                 (default "sample").
 
@@ -153,37 +156,38 @@ class Distribution(object):
 
     def log_prob(self, given, group_ndims=0, name=None):
         """
-        Compute the log probability densities of `x` against the distribution.
+        Compute the log-densities of `x` against the distribution.
 
         Args:
-            given (tf.Tensor): The samples to be tested.
+            given (Tensor): The samples to be tested.
             group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
-                dimensions of the log probability densities will be summed up.
+                dimensions of the log-densities will be summed up.
                 (default 0)
             name (str): TensorFlow name scope of the graph nodes.
                 (default "log_prob").
 
         Returns:
-            tf.Tensor: The log probability densities of `given`.
+            tf.Tensor: The log-densities of `given`.
         """
         raise NotImplementedError()
 
     def prob(self, given, group_ndims=0, name=None):
         """
-        Compute the probability densities of `x` against the distribution.
+        Compute the densities of `x` against the distribution.
 
         Args:
-            given (tf.Tensor): The samples to be tested.
+            given (Tensor): The samples to be tested.
             group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
-                dimensions of the log probability densities will be summed up.
-                (default 0)
+                dimensions of the log-densities will be summed up. (default 0)
             name (str): TensorFlow name scope of the graph nodes.
                 (default "prob").
 
         Returns:
-            tf.Tensor: The probability densities of `given`.
+            tf.Tensor: The densities of `given`.
         """
-        raise NotImplementedError()
+        with tf.name_scope(
+                name, default_name='{}.prob'.format(self.__class__.__name__)):
+            return tf.exp(self.log_prob(given, group_ndims=0))
 
     @classmethod
     def factory(cls, **kwargs):

@@ -3,49 +3,11 @@ import numpy as np
 import tensorflow as tf
 from mock import Mock
 
-from tfsnippet.bayes import BayesianNet, TransformedDistribution
-from tfsnippet.distributions import Normal, Categorical, ExpConcrete
+from tfsnippet.bayes import BayesianNet
+from tfsnippet.distributions import Normal
+from tfsnippet.flows import Flow, FlowDistribution
 from tfsnippet.stochastic import StochasticTensor
-
-
-class TransformedDistributionTestCase(tf.test.TestCase):
-
-    def test_basic(self):
-        x = Normal(mean=[0., 1.], logstd=0.).sample(10, group_ndims=1)
-        log_p = x.log_prob()
-        self.assertListEqual([10, 2], x.get_shape().as_list())
-        self.assertListEqual([10], log_p.get_shape().as_list())
-
-        transformed = x * 2.
-        transformed_log_p = log_p * .5
-        d = TransformedDistribution(x, transformed, transformed_log_p,
-                                    is_reparameterized=True,
-                                    is_continuous=False)
-        self.assertIs(x, d.origin)
-        self.assertIs(transformed, d.transformed)
-        self.assertIs(transformed_log_p, d.transformed_log_p)
-        self.assertEquals(x.dtype, d.dtype)
-        self.assertTrue(d.is_reparameterized)
-        self.assertFalse(d.is_continuous)
-        self.assertIs(transformed_log_p, d.log_prob(transformed, group_ndims=1))
-
-        with self.test_session() as sess:
-            np.testing.assert_allclose(
-                *sess.run([tf.exp(log_p * .5),
-                           d.prob(transformed, group_ndims=1)]))
-
-        with_error = lambda: pytest.raises(
-            ValueError, match='`given` must be `self.transformed` and '
-                              '`group_ndims` must be `self.origin.group_'
-                              'ndims`.')
-        with with_error():
-            _ = d.log_prob(tf.constant(1.), group_ndims=1)
-        with with_error():
-            _ = d.log_prob(transformed, group_ndims=0)
-        with with_error():
-            _ = d.prob(tf.constant(1.), group_ndims=1)
-        with with_error():
-            _ = d.prob(transformed, group_ndims=0)
+from tests.flows.helper import QuadraticFlow
 
 
 class BayesianNetTestCase(tf.test.TestCase):
@@ -125,58 +87,32 @@ class BayesianNetTestCase(tf.test.TestCase):
         z = net.add('z', Normal(0., 1.))
         self.assertTrue(z.is_reparameterized)
 
-    def test_add_transform(self):
-        class PatchedNormal(Normal):
-            def sample(self, n_samples=None, group_ndims=0,
-                       is_reparameterized=None, name=None):
-                return StochasticTensor(
-                    self,
-                    x_samples,
-                    n_samples=n_samples,
-                    group_ndims=group_ndims,
-                    is_reparameterized=is_reparameterized,
-                )
+    def test_add_with_flow(self):
+        normal = Normal(mean=tf.constant([0., 1., 2.]), std=1.)
+        flow = QuadraticFlow(2., 5., dtype=tf.float32)
 
-        net = BayesianNet({'w': tf.constant(0.)})
-        x_samples = tf.reshape(tf.range(24, dtype=tf.float32), [2, 3, 4])
-        normal = PatchedNormal(tf.zeros([3, 4]), tf.ones([3, 4]))
+        # test add with sample
+        net = BayesianNet()
+        x = net.add('x', normal, flow=flow)
+        self.assertIsInstance(x.distribution, FlowDistribution)
+        self.assertIs(x.distribution.flow, flow)
 
-        # test success call
-        x = net.add('x', normal, n_samples=2, group_ndims=1,
-                    transform=lambda x, log_p: (x * 2., log_p * .5))
-        self.assertIsInstance(x.distribution, TransformedDistribution)
-        self.assertEquals(1, x.group_ndims)
-        self.assertEquals(2, x.n_samples)
-        self.assertTrue(x.is_reparameterized)
+        # ensure non-invertible flow cannot be added with observed var
+        class _Flow(Flow):
+            @property
+            def explicitly_invertible(self):
+                return False
 
-        with self.test_session() as sess:
-            np.testing.assert_allclose(
-                *sess.run([x_samples * 2., x]))
-            np.testing.assert_allclose(
-                *sess.run([normal.log_prob(x_samples, group_ndims=1) * .5,
-                           x.log_prob()]))
-
-        # test errors
-        I = lambda x, log_p: (x, log_p)
+        net = BayesianNet({'x': tf.zeros([5, 3])})
         with pytest.raises(TypeError,
-                           match='Cannot add `TransformedDistribution`'):
-            _ = net.add('y', x.distribution)
-        with pytest.raises(ValueError,
-                           match='`transform` can only be applied on '
-                                 'continuous, re-parameterized variables'):
-            _ = net.add('y', Categorical([0.], dtype=tf.int32), transform=I)
-        with pytest.raises(ValueError,
-                           match='`transform` can only be applied on '
-                                 'continuous, re-parameterized variables'):
-            _ = net.add('y', ExpConcrete(.5, [0.], is_reparameterized=False),
-                        transform=I)
-        with pytest.raises(ValueError,
-                           match='`observed` variable cannot be transformed.'):
-            _ = net.add('w', Normal(mean=0., std=0.), transform=I)
-        with pytest.raises(ValueError,
-                           match='The transformed samples must be continuous'):
-            T = lambda x, log_p: (tf.cast(x, dtype=tf.int32), log_p)
-            _ = net.add('y', normal, transform=T)
+                           match='The observed variable \'x\' expects `flow` '
+                                 'to be explicitly invertible, but it is not'):
+            _ = net.add('x', normal, flow=_Flow())
+
+        # test add observed with flow
+        x = net.add('x', normal, flow=flow)
+        self.assertIsInstance(x.distribution, FlowDistribution)
+        self.assertIs(x.distribution.flow, flow)
 
     def test_outputs(self):
         x_observed = np.arange(24, dtype=np.float32).reshape([2, 3, 4])

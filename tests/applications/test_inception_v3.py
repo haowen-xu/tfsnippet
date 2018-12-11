@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow import keras as K
 
 from tfsnippet.applications import InceptionV3
-from tfsnippet.nn import softmax, npyops
+from tfsnippet.mathops import softmax, npyops
 
 
 class InceptionV3TestCase(tf.test.TestCase):

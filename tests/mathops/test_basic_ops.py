@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.nn import npyops, tfops
+from tfsnippet.mathops import npyops, tfops
 from .utils import run_op, assert_op_result
 
 

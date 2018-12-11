@@ -162,7 +162,8 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
             )
             np.testing.assert_allclose(
                 distrib.prob(x, group_ndims=1).eval(),
-                normal1.prob(x).eval()
+                normal1.prob(x).eval(),
+                rtol=1e-5
             )
 
         # test with dynamic group_ndims
@@ -187,7 +188,8 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
             )
             np.testing.assert_allclose(
                 distrib.prob(x, group_ndims=group_ndims).eval(),
-                normal1d.prob(x).eval()
+                normal1d.prob(x).eval(),
+                rtol=1e-5
             )
 
         # test with bad dynamic group_ndims
@@ -210,4 +212,14 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
             np.testing.assert_allclose(distrib.log_prob(x).eval(),
                                        normal.log_prob(x).eval())
             np.testing.assert_allclose(distrib.prob(x).eval(),
-                                       normal.prob(x).eval())
+                                       normal.prob(x).eval(),
+                                       rtol=1e-5)
+
+        # test compute_density
+        distrib = ZhuSuanDistribution(normal1)
+        t = distrib.sample()
+        self.assertIsNone(t._self_log_prob)
+        t = distrib.sample(compute_density=False)
+        self.assertIsNone(t._self_log_prob)
+        t = distrib.sample(compute_density=True)
+        self.assertIsNotNone(t._self_log_prob)

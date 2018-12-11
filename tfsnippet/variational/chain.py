@@ -30,7 +30,7 @@ class VariationalChain(object):
             variational (BayesianNet): The variational net.
             model (BayesianNet): The model net.
             log_joint (tf.Tensor): The log-joint of the model net. If
-                :obj:`None`, the log-probability densities of all variables
+                :obj:`None`, the log-densities of all variables
                 within `model` net will be summed up as the log-joint.
                 (default :obj:`None`)
             latent_names (Iterable[str]): Names of the latent variables in

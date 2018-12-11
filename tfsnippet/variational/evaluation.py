@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.nn import log_mean_exp, tfops
+from tfsnippet.mathops import log_mean_exp, tfops
 from .utils import _require_multi_samples
 
 __all__ = ['importance_sampling_log_likelihood']

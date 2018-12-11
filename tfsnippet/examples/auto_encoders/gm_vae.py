@@ -28,7 +28,7 @@ from tfsnippet.examples.utils import (load_mnist,
                                       int_shape,
                                       collect_outputs,
                                       ClusteringClassifier)
-from tfsnippet.nn import tfops, log_mean_exp
+from tfsnippet.mathops import tfops, log_mean_exp
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse
