@@ -24,7 +24,6 @@ from tfsnippet.examples.utils import (load_mnist,
                                       MultiGPU,
                                       collect_outputs,
                                       ClusteringClassifier)
-from tfsnippet.mathops import tfops, log_mean_exp
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, flatten, unflatten
@@ -36,17 +35,14 @@ class ExpConfig(Config):
     z_dim = 16
     n_clusters = 16
     l2_reg = 0.0001
-    p_z_given_y_std = 'one_plus_softplus_std'
+    p_z_given_y_std = 'unbound_logstd'
     # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
-    p_z_given_y_reg = None  # {None, 'kl_p_z', 'kl_p_z_given_y'}
-    p_z_given_y_reg_factor = 0.1
     mean_field_assumption_for_q = False
 
     # training parameters
     max_epoch = 3000
     batch_size = 128
     train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
-    p_z_given_y_reg_samples = 100
 
     initial_lr = 0.001
     lr_anneal_factor = 0.5
@@ -207,39 +203,6 @@ def sample_from_probs(x):
     return tf.cast(tf.less(uniform_samples, x), dtype=tf.int32)
 
 
-def add_p_z_given_y_reg_loss(loss):
-    if not config.p_z_given_y_reg:
-        return loss
-    n_z = config.p_z_given_y_reg_samples
-    y = tf.range(config.n_clusters, dtype=tf.int32)
-    prior = gaussian_mixture_prior(
-        y=y, z_dim=config.z_dim, n_clusters=config.n_clusters)
-    prior0 = Normal(mean=0., logstd=0.)
-    z = prior.sample(n_z, is_reparameterized=True)
-
-    # Note: p(y) = 1/n_clusters, which simplies the
-    #       following deduction.
-    if config.p_z_given_y_reg == 'kl_p_z_given_y':
-        # :math:`E_{y}[KL(p(z|y)\|p_0(z))] =
-        #        E_{y,z \sim p(z|y)}[\log p(z|y) - \log p_0(z)]`
-        reg_loss = tf.reduce_mean(prior.log_prob(z, group_ndims=1) -
-                                  prior0.log_prob(z, group_ndims=1))
-    elif config.p_z_given_y_reg == 'kl_p_z':
-        # :math:`KL(E_{y}(p(z|y))\|p_0(z)) =
-        #        E_{y,z \sim p(z|y)}[\log \E_{y}(p(z|y)) - \log p_0(z)]`
-        log_p_z = log_mean_exp(tfops, prior.log_prob(z, group_ndims=1),
-                               axis=-1)
-        log_p0_z = prior0.log_prob(z, group_ndims=1)
-        reg_loss = tf.reduce_mean(log_p_z) - tf.reduce_mean(log_p0_z)
-    else:
-        raise ValueError(
-            'Unexpected value for config `p_z_given_y_reg`: {}'.
-            format(config.p_z_given_y_reg)
-        )
-
-    return loss + config.p_z_given_y_reg_factor * reg_loss
-
-
 def main():
     logging.basicConfig(
         level='INFO',
@@ -303,7 +266,6 @@ def main():
                         dev_vae_loss = tf.reduce_mean(
                             train_chain.vi.training.vimco())
                     dev_loss = dev_vae_loss + regularization_loss()
-                    dev_loss = add_p_z_given_y_reg_loss(dev_loss)
                     losses.append(dev_loss)
 
                     # derive the nll and logits output for testing
@@ -365,7 +327,6 @@ def main():
 
     # derive the final un-supervised classifier
     c_classifier = ClusteringClassifier(config.n_clusters, 10)
-    test_metrics = {}
 
     def train_classifier(loop):
         df = DataFlow.arrays([x_train], batch_size=config.batch_size). \
@@ -391,7 +352,7 @@ def main():
             y_pred = c_classifier.predict(c_pred)
             cls_metrics = {'test_acc': accuracy_score(y_test, y_pred)}
             loop.collect_metrics(cls_metrics)
-            test_metrics.update(cls_metrics)
+            results.commit(cls_metrics)
 
     # prepare for training and testing data
     def input_x_sampler(x):
@@ -453,8 +414,6 @@ def main():
     # write the final results
     with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
         f.write(c_classifier.describe())
-    test_metrics.update(evaluator.last_metrics_dict)
-    results.commit_and_print(test_metrics)
 
 
 if __name__ == '__main__':
