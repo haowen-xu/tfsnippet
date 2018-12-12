@@ -16,14 +16,12 @@ from tfsnippet.examples.nn import (dense,
                                    regularization_loss,
                                    classification_accuracy)
 from tfsnippet.examples.utils import (load_mnist,
-                                      create_session,
                                       Config,
                                       Results,
-                                      MultiGPU,
-                                      anneal_after)
+                                      MultiGPU)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse, get_batch_size
+from tfsnippet.utils import global_reuse, get_batch_size, create_session
 
 
 class ExpConfig(Config):
@@ -151,8 +149,9 @@ def main():
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss, 'acc': acc}
             )
-            anneal_after(
-                trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
+            trainer.anneal_after(
+                learning_rate_var,
+                epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
             evaluator = Evaluator(
