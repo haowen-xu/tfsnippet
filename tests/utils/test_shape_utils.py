@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.utils import flatten, unflatten, int_shape
+from tfsnippet.utils import flatten, unflatten, int_shape, get_batch_size
 
 
 class IntShapeTestCase(tf.test.TestCase):
@@ -11,6 +11,7 @@ class IntShapeTestCase(tf.test.TestCase):
         self.assertEqual(int_shape(tf.zeros([1, 2, 3])), (1, 2, 3))
         self.assertEqual(int_shape(tf.placeholder(tf.float32, [None, 2, 3])),
                          (None, 2, 3))
+        self.assertIsNone(int_shape(tf.placeholder(tf.float32, None)))
 
 
 class FlattenUnflattenTestCase(tf.test.TestCase):
@@ -81,3 +82,55 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
         with pytest.raises(ValueError,
                            match='`x` only has rank 0, required at least 1'):
             _ = unflatten(tf.constant(0.), (1,), (1,))
+
+
+class GetBatchSizeTestCase(tf.test.TestCase):
+
+    def test_get_batch_size(self):
+        def run_check(sess, x, axis, x_in=None, dynamic=True):
+            if x_in is None:
+                x_in = tf.constant(x)
+                dynamic = False
+            batch_size = get_batch_size(x_in, axis)
+            if dynamic:
+                self.assertIsInstance(batch_size, tf.Tensor)
+                self.assertEqual(sess.run(batch_size, feed_dict={x_in: x}),
+                                 x.shape[axis])
+            else:
+                self.assertEqual(batch_size, x.shape[axis])
+
+        with self.test_session() as sess:
+            x = np.zeros([2, 3, 4], dtype=np.float32)
+
+            # check when shape is totally static
+            run_check(sess, x, 0)
+            run_check(sess, x, 1)
+            run_check(sess, x, 2)
+            run_check(sess, x, -1)
+
+            # check when some shape is dynamic, but the batch axis is not
+            run_check(sess, x, 0, tf.placeholder(tf.float32, [2, None, None]),
+                      dynamic=False)
+            run_check(sess, x, 1, tf.placeholder(tf.float32, [None, 3, None]),
+                      dynamic=False)
+            run_check(sess, x, 2, tf.placeholder(tf.float32, [None, None, 4]),
+                      dynamic=False)
+            run_check(sess, x, -1, tf.placeholder(tf.float32, [None, None, 4]),
+                      dynamic=False)
+
+            # check when the batch axis is dynamic
+            run_check(sess, x, 0, tf.placeholder(tf.float32, [None, 3, 4]),
+                      dynamic=True)
+            run_check(sess, x, 1, tf.placeholder(tf.float32, [2, None, 4]),
+                      dynamic=True)
+            run_check(sess, x, 2, tf.placeholder(tf.float32, [2, 3, None]),
+                      dynamic=True)
+            run_check(sess, x, -1, tf.placeholder(tf.float32, [2, 3, None]),
+                      dynamic=True)
+
+            # check when the shape is totally dynamic
+            x_in = tf.placeholder(tf.float32, None)
+            run_check(sess, x, 0, x_in, dynamic=True)
+            run_check(sess, x, 1, x_in, dynamic=True)
+            run_check(sess, x, 2, x_in, dynamic=True)
+            run_check(sess, x, -1, x_in, dynamic=True)

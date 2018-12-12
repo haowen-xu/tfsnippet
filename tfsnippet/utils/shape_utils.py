@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from .typeutils import is_tensor_object
 
-__all__ = ['int_shape', 'flatten', 'unflatten']
+__all__ = ['int_shape', 'flatten', 'unflatten', 'get_batch_size']
 
 
 def int_shape(tensor):
@@ -13,10 +13,16 @@ def int_shape(tensor):
         tensor: The tensor object.
 
     Returns:
-        tuple[int or None]: The int shape tuple.
+        tuple[int or None] or None: The int shape tuple, or :obj:`None`
+            if the tensor shape is :obj:`None`.
     """
-    shape = tensor.get_shape().as_list()
-    return tuple((int(v) if v is not None else None) for v in shape)
+    shape = tensor.get_shape()
+    if shape.ndims is None:
+        shape = None
+    else:
+        shape = tuple((int(v) if v is not None else None)
+                      for v in shape.as_list())
+    return shape
 
 
 def flatten(x, k, name=None):
@@ -112,3 +118,27 @@ def unflatten(x, static_front_shape, front_shape, name=None):
             x.set_shape(tf.TensorShape(list(static_front_shape) +
                                        list(static_back_shape)))
         return x
+
+
+def get_batch_size(tensor, axis=0, name=None):
+    """
+    Infer the mini-batch size according to `tensor`.
+
+    Args:
+        tensor (tf.Tensor): The input placeholder.
+        axis (int): The axis of mini-batches.  Default is 0.
+        name (str or None): Name of this operation.
+
+    Returns:
+        int or tf.Tensor: The batch size.
+    """
+    tensor = tf.convert_to_tensor(tensor)
+    axis = int(axis)
+    with tf.name_scope(name, default_name='get_batch_size', values=[tensor]):
+        batch_size = None
+        shape = int_shape(tensor)
+        if shape is not None:
+            batch_size = shape[axis]
+        if batch_size is None:
+            batch_size = tf.shape(tensor)[axis]
+    return batch_size

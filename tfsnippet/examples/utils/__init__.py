@@ -1,10 +1,10 @@
 from . import (config, datasets, evaluation, graph, jsonutils, misc,
-               multi_gpu, results, session)
+               multi_gpu, results)
 
 __all__ = sum(
     [m.__all__ for m in [
         config, datasets, evaluation, graph, jsonutils, misc,
-        multi_gpu, results, session
+        multi_gpu, results
     ]],
     []
 )
@@ -17,4 +17,3 @@ from .jsonutils import *
 from .misc import *
 from .multi_gpu import *
 from .results import *
-from .session import *

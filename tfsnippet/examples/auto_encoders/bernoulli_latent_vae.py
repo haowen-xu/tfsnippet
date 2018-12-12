@@ -1,29 +1,26 @@
 # -*- coding: utf-8 -*-
 import functools
+import logging
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
+from tfsnippet.bayes import BayesianNet
 
-from tfsnippet.modules import VAE
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Bernoulli
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
 from tfsnippet.examples.utils import (load_mnist,
-                                      create_session,
                                       Config,
-                                      anneal_after,
                                       save_images_collection,
                                       Results,
-                                      MultiGPU,
-                                      get_batch_size,
-                                      flatten,
-                                      unflatten)
+                                      MultiGPU)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse, get_default_session_or_error
+from tfsnippet.utils import (global_reuse, get_default_session_or_error,
+                             get_batch_size, flatten, unflatten, create_session)
 
 
 class ExpConfig(Config):
@@ -47,21 +44,39 @@ class ExpConfig(Config):
 
 @global_reuse
 @add_arg_scope
-def h_for_q_z(x, is_training):
+def q_net(x, observed=None, n_z=None, is_training=True):
+    logging.info('q_net builder: %r', locals())
+
+    net = BayesianNet(observed=observed)
+
+    # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
         h_x = dense(h_x, 500)
         h_x = dense(h_x, 500)
-    return {
-        'logits': dense(h_x, config.z_dim, name='z_logits'),
-    }
+
+    # sample z ~ q(z|x)
+    z_logits = dense(h_x, config.z_dim, name='z_logits')
+    z = net.add('z', Bernoulli(logits=z_logits), n_samples=n_z,
+                group_ndims=1)
+
+    return net
 
 
 @global_reuse
 @add_arg_scope
-def h_for_p_x(z, is_training):
+def p_net(observed=None, n_z=None, is_training=True):
+    logging.info('p_net builder: %r', locals())
+
+    net = BayesianNet(observed=observed)
+
+    # sample z ~ p(z)
+    z = net.add('z', Bernoulli(tf.zeros([1, config.z_dim])),
+                group_ndims=1, n_samples=n_z)
+
+    # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
@@ -69,9 +84,12 @@ def h_for_p_x(z, is_training):
         h_z, s1, s2 = flatten(z, 2)
         h_z = dense(h_z, 500)
         h_z = dense(h_z, 500)
-    return {
-        'logits': unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
-    }
+
+    # sample x ~ p(x|z)
+    x_logits = unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
+    x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
+
+    return net
 
 
 @global_reuse
@@ -108,14 +126,6 @@ def main():
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
-    vae = VAE(
-        p_z=Bernoulli(tf.zeros([1, config.z_dim])),
-        p_x_given_z=Bernoulli,
-        q_z_given_x=Bernoulli,
-        h_for_p_x=functools.partial(h_for_p_x, is_training=is_training),
-        h_for_q_z=functools.partial(h_for_q_z, is_training=is_training),
-    )
-
     grads = []
     losses = []
     lower_bounds = []
@@ -128,32 +138,46 @@ def main():
             batch_size, [input_x]):
         with tf.device(dev), multi_gpu.maybe_name_scope(dev):
             if pre_build:
-                with arg_scope([h_for_q_z, h_for_p_x]):
-                    _ = vae.chain(dev_input_x)
+                with arg_scope([p_net, q_net], is_training=is_training):
+                    _ = q_net(dev_input_x).chain(
+                        p_net,
+                        latent_names=['z'],
+                        observed={'x': dev_input_x}
+                    )
 
             else:
-                # derive the loss and lower-bound for training
-                train_chain = vae.chain(dev_input_x)
-                dev_baseline = baseline_net(dev_input_x)
-                dev_cost, dev_baseline_cost = \
-                    train_chain.vi.training.reinforce(baseline=dev_baseline)
-                dev_loss = regularization_loss() + \
-                    tf.reduce_mean(dev_cost + dev_baseline_cost)
-                dev_lower_bound = \
-                    tf.reduce_mean(train_chain.vi.lower_bound.elbo())
-                losses.append(dev_loss)
-                lower_bounds.append(dev_lower_bound)
+                with arg_scope([q_net, p_net], is_training=is_training):
+                    # derive the loss and lower-bound for training
+                    train_q_net = q_net(dev_input_x)
+                    train_chain = train_q_net.chain(
+                        p_net, latent_names=['z'], latent_axis=0,
+                        observed={'x': dev_input_x}
+                    )
 
-                # derive the nll and logits output for testing
-                test_chain = vae.chain(dev_input_x, n_z=config.test_n_z)
-                dev_test_nll = -tf.reduce_mean(
-                    test_chain.vi.evaluation.is_loglikelihood())
-                test_nlls.append(dev_test_nll)
+                    dev_baseline = baseline_net(dev_input_x)
+                    dev_cost, dev_baseline_cost = \
+                        train_chain.vi.training.reinforce(baseline=dev_baseline)
+                    dev_loss = regularization_loss() + \
+                        tf.reduce_mean(dev_cost + dev_baseline_cost)
+                    dev_lower_bound = -tf.reduce_mean(
+                        train_chain.vi.lower_bound.elbo())
+                    losses.append(dev_loss)
+                    lower_bounds.append(dev_lower_bound)
 
-                # derive the optimizer
-                params = tf.trainable_variables()
-                grads.append(
-                    optimizer.compute_gradients(dev_loss, var_list=params))
+                    # derive the nll and logits output for testing
+                    test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
+                    test_chain = test_q_net.chain(
+                        p_net, latent_names=['z'], latent_axis=0,
+                        observed={'x': dev_input_x}
+                    )
+                    dev_test_nll = -tf.reduce_mean(
+                        test_chain.vi.evaluation.is_loglikelihood())
+                    test_nlls.append(dev_test_nll)
+
+                    # derive the optimizer
+                    params = tf.trainable_variables()
+                    grads.append(
+                        optimizer.compute_gradients(dev_loss, var_list=params))
 
     # merge multi-gpu outputs and operations
     [loss, lower_bound, test_nll] = \
@@ -166,16 +190,13 @@ def main():
 
     # derive the plotting function
     work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plot_x'), \
-            arg_scope([h_for_q_z, h_for_p_x],
-                      channels_last=multi_gpu.channels_last(work_dev)):
-        x_plots = tf.reshape(
-            tf.cast(
-                255 * tf.sigmoid(vae.model(n_z=100)['x'].distribution.logits),
-                dtype=tf.uint8
-            ),
-            [-1, 28, 28]
+    with tf.device(work_dev), tf.name_scope('plot_x'):
+        plot_p_net = p_net(n_z=100, is_training=is_training)
+        x = tf.cast(
+            255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
+            dtype=tf.uint8
         )
+        x_plots = tf.reshape(x, [-1, 28, 28])
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
@@ -218,8 +239,9 @@ def main():
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss}
             )
-            anneal_after(
-                trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
+            trainer.anneal_after(
+                learning_rate_var,
+                epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
             evaluator = Evaluator(
