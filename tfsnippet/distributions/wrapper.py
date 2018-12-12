@@ -3,6 +3,7 @@ import contextlib
 import tensorflow as tf
 import zhusuan
 
+from tfsnippet.utils import get_valid_scope_name
 from .base import Distribution
 from .utils import reduce_group_ndims
 
@@ -123,9 +124,8 @@ class ZhuSuanDistribution(Distribution):
                 return t
 
     def log_prob(self, given, group_ndims=0, name=None):
-        default_name = '{}.log_prob'.format(
-            self._distribution.__class__.__name__)
-        with tf.name_scope(name=name, default_name=default_name):
+        with tf.name_scope(name=name,
+                           default_name=get_valid_scope_name('log_prob', self)):
             given = self._distribution._check_input_shape(given)
             log_prob = self._distribution._log_prob(given)
             return reduce_group_ndims(tf.reduce_sum, log_prob, group_ndims)

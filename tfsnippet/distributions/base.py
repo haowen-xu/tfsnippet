@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-from tfsnippet.utils import DocInherit
+from tfsnippet.utils import DocInherit, get_valid_scope_name
 
 __all__ = ['Distribution']
 
@@ -185,9 +185,9 @@ class Distribution(object):
         Returns:
             tf.Tensor: The densities of `given`.
         """
-        with tf.name_scope(
-                name, default_name='{}.prob'.format(self.__class__.__name__)):
-            return tf.exp(self.log_prob(given, group_ndims=0))
+        with tf.name_scope(name,
+                           default_name=get_valid_scope_name('prob', self)):
+            return tf.exp(self.log_prob(given, group_ndims=group_ndims))
 
     @classmethod
     def factory(cls, **kwargs):
