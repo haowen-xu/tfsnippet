@@ -7,8 +7,7 @@ import numpy as np
 import six
 
 __all__ = ['humanize_duration', 'camel_to_underscore', 'get_valid_scope_name',
-           'NOT_SET', 'cached_property', 'clear_cached_property', 'maybe_close',
-           'iter_files', 'ETA']
+           'NOT_SET', 'maybe_close', 'iter_files', 'ETA']
 
 
 def humanize_duration(seconds, short_units=True):
@@ -93,49 +92,6 @@ class NotSet(object):
 
 
 NOT_SET = NotSet()
-
-
-def cached_property(cache_key):
-    """
-    Decorator to cache the return value of an instance property.
-
-    .. code-block:: python
-
-        class MyClass(object):
-
-            @cached_property('_cached_property'):
-            def cached_property(self):
-                return ...
-
-        # usage
-        o = MyClass()
-        print(o.cached_property)  # fetch the cached value
-
-    Args:
-        cache_key (str): Attribute name to store the cached value.
-    """
-    def wrapper(method):
-        @property
-        @six.wraps(method)
-        def inner(self, *args, **kwargs):
-            if not hasattr(self, cache_key):
-                setattr(self, cache_key, method(self, *args, **kwargs))
-            return getattr(self, cache_key)
-        return inner
-
-    return wrapper
-
-
-def clear_cached_property(instance, cache_key):
-    """
-    Clear the cached values of specified property.
-
-    Args:
-        instance: The owner instance of the cached property.
-        cache_key (str): Attribute name to store the cached value.
-    """
-    if hasattr(instance, cache_key):
-        delattr(instance, cache_key)
 
 
 @contextmanager

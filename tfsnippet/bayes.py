@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 import six
-import zhusuan
 import tensorflow as tf
 from frozendict import frozendict
 
@@ -18,8 +17,7 @@ class BayesianNet(object):
 
     :class:`BayesianNet` is a class which helps to construct Bayesian
     networks and to derive the variational lower-bounds.
-    It re-implements similar interfaces as :class:`zhusuan.BayesianNet`,
-    but is more friendly to :class:`~tfsnippet.modules.Module` interface.
+    It is inspired by :class:`zhusuan.BayesianNet`.
 
     Due to the expressive limitations of TensorFlow, it is hard to build
     :class:`BayesianNet` with the concept of `random variables`.

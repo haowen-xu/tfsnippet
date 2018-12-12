@@ -136,39 +136,6 @@ class NotSetTestCase(unittest.TestCase):
         self.assertEqual(repr(NOT_SET), 'NOT_SET')
 
 
-class _CachedPropertyHelper(object):
-
-    def __init__(self, value):
-        self.value = value
-
-    @cached_property('_cached_value')
-    def cached_value(self):
-        return self.value
-
-
-class CachedPropertyTestCase(unittest.TestCase):
-
-    def test_cached_property(self):
-        o = _CachedPropertyHelper(0)
-        self.assertFalse(hasattr(o, '_cached_value'))
-        o.value = 123
-        self.assertEqual(o.cached_value, 123)
-        self.assertTrue(hasattr(o, '_cached_value'))
-        self.assertEqual(o._cached_value, 123)
-        o.value = 456
-        self.assertEqual(o.cached_value, 123)
-        self.assertEqual(o._cached_value, 123)
-
-    def test_clear_cached_property(self):
-        o = _CachedPropertyHelper(123)
-        _ = o.cached_value
-        clear_cached_property(o, '_cached_value')
-        o.value = 456
-        self.assertFalse(hasattr(o, '_cached_value'))
-        self.assertEqual(o.cached_value, 456)
-        self.assertEqual(o._cached_value, 456)
-
-
 class MaybeCloseTestCase(unittest.TestCase):
 
     def test_maybe_close(self):

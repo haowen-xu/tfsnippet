@@ -11,12 +11,6 @@ class Distribution(object):
     """
     Base class for probability distributions.
 
-    We heavily rely on `ZhuSuan`_ for its Variational Inference and sampling
-    algorithms.  However, its :class:`zhusuan.distributions.Distribution`
-    interface does not fits :class:`~tfsnippet.modules.Module` concept well.
-    So we maintain our own :class:`Distribution` interface, with thin wrappers
-    over those provided by :py:mod:`zhusuan.distributions`.
-
     A :class:`Distribution` object receives inputs as distribution parameters,
     generating samples and computing densities according to these inputs.
     The shape of the inputs can have more dimensions than the nature shape
@@ -44,8 +38,6 @@ class Distribution(object):
     ``sample_shape + batch_shape + value_shape``, then by default, the shape of
     the densities should be ``sample_shape + batch_shape``, i.e., each
     individual sample resulting in an individual density value.
-
-    .. _`ZhuSuan`: https://github.com/thu-ml/zhusuan
     """
 
     @property
