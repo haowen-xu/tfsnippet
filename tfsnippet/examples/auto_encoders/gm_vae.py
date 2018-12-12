@@ -22,15 +22,12 @@ from tfsnippet.examples.utils import (load_mnist,
                                       save_images_collection,
                                       Results,
                                       MultiGPU,
-                                      get_batch_size,
-                                      flatten,
-                                      unflatten,
                                       collect_outputs,
                                       ClusteringClassifier)
 from tfsnippet.mathops import tfops, log_mean_exp
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse
+from tfsnippet.utils import global_reuse, get_batch_size, flatten, unflatten
 
 
 class ExpConfig(Config):
@@ -39,9 +36,9 @@ class ExpConfig(Config):
     z_dim = 16
     n_clusters = 16
     l2_reg = 0.0001
-    p_z_given_y_std = 'unbound_logstd'
+    p_z_given_y_std = 'one_plus_softplus_std'
     # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
-    p_z_given_y_reg = 'kl_p_z'  # {None, 'kl_p_z', 'kl_p_z_given_y'}
+    p_z_given_y_reg = None  # {None, 'kl_p_z', 'kl_p_z_given_y'}
     p_z_given_y_reg_factor = 0.1
     mean_field_assumption_for_q = False
 

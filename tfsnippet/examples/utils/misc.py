@@ -1,13 +1,9 @@
 import imageio
 import numpy as np
 import six
-import tensorflow as tf
-import zhusuan as zs
 
-from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.trainer import BaseTrainer, Evaluator, AnnealingDynamicValue
-from tfsnippet.utils import (is_integer, int_shape, is_tensor_object,
-                             flatten, unflatten)
+from tfsnippet.utils import is_integer
 
 __all__ = [
     'validate_strides_or_kernel_size',
@@ -15,18 +11,8 @@ __all__ = [
     'validate_after',
     'anneal_after',
     'save_images_collection',
-    'isolate_graph',
-    'get_batch_size',
-    'int_shape',
-    'is_dynamic_tensor',
-    'smart_apply',
-    'flatten',
-    'unflatten',
     'cached',
 ]
-
-is_dynamic_tensor = is_tensor_object
-"""Alias to :func:`tfsnippet.utils.is_tensor_object`"""
 
 
 def validate_strides_or_kernel_size(arg_name, arg_value):
@@ -157,63 +143,6 @@ def save_images_collection(images, filename, grid_size, border_size=0,
     if n_channels == 1:
         buf = np.reshape(buf, (buf_h, buf_w))
     imageio.imsave(filename, buf)
-
-
-def isolate_graph(method):
-    """
-    Create an isolated :class:`tf.Graph` for the `method`.
-
-    Args:
-        method: The method to decorate.
-
-    Returns:
-        The decorated method.
-    """
-    @six.wraps(method)
-    def wrapper(*args, **kwargs):
-        with tf.Graph().as_default():
-            return method(*args, **kwargs)
-    return wrapper
-
-
-def get_batch_size(input):
-    """
-    Infer the mini-batch size according to `input`.
-
-    Args:
-        input (tf.Tensor): The input placeholder.
-
-    Returns:
-        int or tf.Tensor: The batch size.
-    """
-    if input.get_shape() is None:
-        batch_size = tf.shape(input)[0]
-    else:
-        batch_size = int_shape(input)[0]
-        if batch_size is None:
-            batch_size = tf.shape(input)[0]
-    return batch_size
-
-
-def smart_apply(tensor, static_fn, dynamic_fn):
-    """
-    Apply transformation on `tensor`, with either `static_fn` for static
-    tensors (e.g., Numpy arrays, numbers) or `dynamic_fn` for dynamic
-    tensors.
-
-    Args:
-        tensor: The tensor to be transformed.
-        static_fn: Static transformation function.
-        dynamic_fn: Dynamic transformation function.
-
-    Returns:
-        Tensor: The transformed tensor.
-    """
-    if isinstance(tensor, (tf.Tensor, tf.Variable, StochasticTensor,
-                           zs.StochasticTensor)):
-        return dynamic_fn(tensor)
-    else:
-        return static_fn(tensor)
 
 
 def cached(method):

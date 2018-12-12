@@ -18,13 +18,10 @@ from tfsnippet.examples.utils import (load_mnist,
                                       anneal_after,
                                       save_images_collection,
                                       Results,
-                                      MultiGPU,
-                                      get_batch_size,
-                                      flatten,
-                                      unflatten)
+                                      MultiGPU)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse
+from tfsnippet.utils import global_reuse, get_batch_size, flatten, unflatten
 
 
 class ExpConfig(Config):

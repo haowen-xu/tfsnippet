@@ -5,7 +5,8 @@ from contextlib import contextmanager
 import six
 import tensorflow as tf
 
-from .misc import is_dynamic_tensor, cached
+from tfsnippet.utils import is_tensor_object
+from .misc import cached
 
 __all__ = ['detect_gpus', 'average_gradients', 'MultiGPU']
 
@@ -341,7 +342,7 @@ class MultiGPU(object):
             slice_len = (batch_size + k - 1) // k
             last_slice_size = batch_size - (k - 1) * slice_len
 
-            if is_dynamic_tensor(batch_size):
+            if is_tensor_object(batch_size):
                 to_float = tf.to_float
             else:
                 to_float = float
