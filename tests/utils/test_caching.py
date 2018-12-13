@@ -8,7 +8,7 @@ from threading import Thread
 
 import six
 import pytest
-from mock import Mock, mock
+from mock import mock
 
 from tfsnippet.utils import *
 
@@ -187,7 +187,8 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEquals(1, server.counter[0])
 
                 # having cache
-                path = cache_dir.download(url + 'payload.zip')
+                path = cache_dir.download(url + 'payload.zip',
+                                          show_progress=True)
                 self.assertEquals(
                     os.path.join(cache_dir.path, 'payload.zip'), path)
                 self.assertTrue(os.path.isfile(path))
@@ -238,7 +239,8 @@ class CacheDirTestCase(unittest.TestCase):
             # having cache
             log_file = LogIO()
             path = cache_dir.extract_file(get_asset_path('payload.tgz'),
-                                          progress_file=log_file)
+                                          progress_file=log_file,
+                                          show_progress=True)
             self.assertEquals(1, PatchedExtractor.call_count)
             self.assertEquals(
                 os.path.join(cache_dir.path, 'payload'), path)

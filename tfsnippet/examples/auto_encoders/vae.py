@@ -15,12 +15,10 @@ from tfsnippet.examples.nn import (l2_regularizer,
 from tfsnippet.examples.utils import (load_mnist,
                                       Config,
                                       save_images_collection,
-                                      Results,
-                                      MultiGPU)
+                                      Results)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
-                             create_session)
+from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
 
 
 class ExpConfig(Config):
@@ -119,71 +117,34 @@ def main():
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
-    multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
-    grads = []
-    losses = []
-    lower_bounds = []
-    test_nlls = []
-    batch_size = get_batch_size(input_x)
-    params = None
+    with arg_scope([q_net, p_net], is_training=is_training):
+        # derive the loss and lower-bound for training
+        train_q_net = q_net(input_x)
+        train_chain = train_q_net.chain(
+            p_net, latent_names=['z'], latent_axis=0, observed={'x': input_x})
+
+        vae_loss = tf.reduce_mean(train_chain.vi.training.sgvb())
+        loss = vae_loss + regularization_loss()
+        lower_bound = -vae_loss
+
+        # derive the nll and logits output for testing
+        test_q_net = q_net(input_x, n_z=config.test_n_z)
+        test_chain = test_q_net.chain(
+            p_net, latent_names=['z'], latent_axis=0, observed={'x': input_x})
+        test_nll = -tf.reduce_mean(test_chain.vi.evaluation.is_loglikelihood())
+
+    # derive the optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
-
-    for dev, pre_build, [dev_input_x] in multi_gpu.data_parallel(
-            batch_size, [input_x]):
-        with tf.device(dev), multi_gpu.maybe_name_scope(dev):
-            if pre_build:
-                with arg_scope([p_net, q_net], is_training=is_training):
-                    _ = q_net(dev_input_x).chain(
-                        p_net,
-                        latent_names=['z'],
-                        observed={'x': dev_input_x}
-                    )
-
-            else:
-                with arg_scope([q_net, p_net], is_training=is_training):
-                    # derive the loss and lower-bound for training
-                    train_q_net = q_net(dev_input_x)
-                    train_chain = train_q_net.chain(
-                        p_net, latent_names=['z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
-
-                    dev_vae_loss = tf.reduce_mean(
-                        train_chain.vi.training.sgvb())
-                    dev_loss = dev_vae_loss + regularization_loss()
-                    dev_lower_bound = -dev_vae_loss
-                    losses.append(dev_loss)
-                    lower_bounds.append(dev_lower_bound)
-
-                    # derive the nll and logits output for testing
-                    test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
-                    test_chain = test_q_net.chain(
-                        p_net, latent_names=['z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
-                    dev_test_nll = -tf.reduce_mean(
-                        test_chain.vi.evaluation.is_loglikelihood())
-                    test_nlls.append(dev_test_nll)
-
-                    # derive the optimizer
-                    params = tf.trainable_variables()
-                    grads.append(
-                        optimizer.compute_gradients(dev_loss, var_list=params))
-
-    # merge multi-gpu outputs and operations
-    [loss, lower_bound, test_nll] = \
-        multi_gpu.average([losses, lower_bounds, test_nlls], batch_size)
-    train_op = multi_gpu.apply_grads(
-        grads=multi_gpu.average_grads(grads),
-        optimizer=optimizer,
-        control_inputs=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    )
+    params = tf.trainable_variables()
+    grads = optimizer.compute_gradients(loss, var_list=params)
+    with tf.control_dependencies(
+            tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+        train_op = optimizer.apply_gradients(grads)
 
     # derive the plotting function
-    work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plot_x'):
+    with tf.name_scope('plot_x'):
         plot_p_net = p_net(n_z=100, is_training=is_training)
         x = tf.cast(
             255 * tf.sigmoid(plot_p_net['x'].distribution.logits),

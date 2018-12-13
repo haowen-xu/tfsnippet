@@ -210,13 +210,14 @@ class MultiLayerFlow(Flow):
 
         # apply transformation of each layer
         for i in range(self._n_layers):
-            x, log_det = self._transform_layer(
-                layer_id=i,
-                x=x,
-                compute_y=True if i < self._n_layers - 1 else compute_y,
-                compute_log_det=compute_log_det
-            )
-            log_det_list.append(log_det)
+            with tf.name_scope('_{}'.format(i)):
+                x, log_det = self._transform_layer(
+                    layer_id=i,
+                    x=x,
+                    compute_y=True if i < self._n_layers - 1 else compute_y,
+                    compute_log_det=compute_log_det
+                )
+                log_det_list.append(log_det)
 
         # merge the log-determinants
         log_det = None
@@ -234,13 +235,14 @@ class MultiLayerFlow(Flow):
 
         # apply transformation of each layer
         for i in range(self._n_layers - 1, -1, -1):
-            y, log_det = self._inverse_transform_layer(
-                layer_id=i,
-                y=y,
-                compute_x=True if i > 0 else compute_x,
-                compute_log_det=compute_log_det
-            )
-            log_det_list.append(log_det)
+            with tf.name_scope('_{}'.format(i)):
+                y, log_det = self._inverse_transform_layer(
+                    layer_id=i,
+                    y=y,
+                    compute_x=True if i > 0 else compute_x,
+                    compute_log_det=compute_log_det
+                )
+                log_det_list.append(log_det)
 
         # merge the log-determinants
         log_det = None

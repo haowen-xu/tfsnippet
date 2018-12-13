@@ -63,9 +63,6 @@ def main():
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
 
-    # build the model
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-
     # derive the loss, output and accuracy
     logits = model(input_x, is_training=is_training)
     softmax_loss = softmax_classification_loss(logits, input_y)
@@ -74,6 +71,7 @@ def main():
     acc = classification_accuracy(y, input_y)
 
     # derive the optimizer
+    optimizer = tf.train.AdamOptimizer(learning_rate)
     params = tf.trainable_variables()
     grads = optimizer.compute_gradients(loss, var_list=params)
     with tf.control_dependencies(

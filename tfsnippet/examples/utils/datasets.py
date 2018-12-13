@@ -1,9 +1,144 @@
+import gzip
 from functools import partial
 
+import idx2numpy
 import numpy as np
 from tensorflow import keras as K
 
+from tfsnippet.dataflow import DataFlow
+from tfsnippet.utils import CacheDir, DocInherit
+
 __all__ = ['load_mnist', 'load_cifar', 'load_cifar10', 'load_cifar100']
+
+
+@DocInherit
+class Dataset(object):
+    """Base class for a dataset."""
+
+    def __init__(self, cache_name):
+        """
+        Construct a new :class:`MNIST` instance.
+
+        Args:
+            cache_name (str): The name of the caching directory.
+        """
+        self._cache_dir = CacheDir(cache_name)
+
+    def train_arrays(self):
+        """
+        Get the training data as arrays.
+
+        Returns:
+            tuple[np.ndarray]: The training data arrays.
+        """
+        raise NotImplementedError()
+
+    def test_arrays(self):
+        """
+        Get the testing data as arrays.
+
+        Returns:
+            tuple[np.ndarray]: The testing data arrays.
+        """
+        raise NotImplementedError()
+
+    def train_flow(self, batch_size, shuffle=True, skip_incomplete=True,
+                   random_state=None):
+        """
+        Get the training data as :class:`DataFlow`.
+
+        Args:
+            batch_size (int): Size of each mini-batch.
+            shuffle (bool): Whether or not to shuffle data before iterating?
+                (default :obj:`False`)
+            skip_incomplete (bool): Whether or not to exclude the last
+                mini-batch if it is incomplete? (default :obj:`False`)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
+
+        Returns:
+            DataFlow: The training data flow.
+        """
+        return DataFlow.arrays(
+            self.train_arrays(), batch_size=batch_size, shuffle=shuffle,
+            skip_incomplete=skip_incomplete, random_state=random_state
+        )
+
+    def test_flow(self, batch_size, shuffle=False, skip_incomplete=False,
+                  random_state=None):
+        """
+        Get the testing data as :class:`DataFlow`.
+
+        Args:
+            batch_size (int): Size of each mini-batch.
+            shuffle (bool): Whether or not to shuffle data before iterating?
+                (default :obj:`False`)
+            skip_incomplete (bool): Whether or not to exclude the last
+                mini-batch if it is incomplete? (default :obj:`False`)
+            random_state (RandomState): Optional numpy RandomState for
+                shuffling data before each epoch.  (default :obj:`None`,
+                use the global :class:`RandomState`).
+
+        Returns:
+            DataFlow: The testing data flow.
+        """
+        return DataFlow.arrays(
+            self.test_arrays(), batch_size=batch_size, shuffle=shuffle,
+            skip_incomplete=skip_incomplete, random_state=random_state,
+        )
+
+
+class MNIST(Dataset):
+    """MNIST handwritten digits dataset."""
+
+    def __init__(self, shape=None, dtype=None):
+        """
+        Construct a new :class:`MNIST` instance.
+
+        Args:
+            shape: If specified, reshape each digit into this shape.
+            dtype: If specified, cast each digit into this dtype.
+        """
+        super(MNIST, self).__init__(cache_name='mnist')
+        self._shape = shape
+        self._dtype = dtype
+
+    def _load_as_array(self, uri):
+        path = self._cache_dir.download(uri)
+        with gzip.open(path, 'rb') as f:
+            return idx2numpy.convert_from_file(f)
+
+    def _post_process_x(self, x):
+        assert(x.shape[1:] == (28, 28))
+        if self._shape is not None:
+            x_shape = (-1,) + tuple(self._shape)
+            x = x.reshape(x_shape)
+        if self._dtype is not None:
+            x = x.astype(self._dtype)
+        return x
+
+    def _post_process_y(self, y):
+        assert(y.shape[1:] == ())
+        return y
+
+    def train_arrays(self):
+        train_x = self._load_as_array(
+            'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
+        train_y = self._load_as_array(
+            'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz')
+        assert(len(train_x) == len(train_y))
+        assert(len(train_x) == 60000)
+        return self._post_process_x(train_x), self._post_process_y(train_y)
+
+    def test_arrays(self):
+        test_x = self._load_as_array(
+            'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz')
+        test_y = self._load_as_array(
+            'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz')
+        assert(len(test_x) == len(test_y))
+        assert(len(test_x) == 10000)
+        return self._post_process_x(test_x), self._post_process_y(test_y)
 
 
 def load_mnist(shape=None, dtype=None, normalize=False):
@@ -19,7 +154,8 @@ def load_mnist(shape=None, dtype=None, normalize=False):
     Returns:
         Tuple of numpy arrays `(x_train, y_train), (x_test, y_test)`.
     """
-    (x_train, y_train), (x_test, y_test) = K.datasets.mnist.load_data()
+    (x_train, y_train) = MNIST().train_arrays()
+    (x_test, y_test) = MNIST().test_arrays()
     assert(x_train.shape[1:] == (28, 28))
     assert(y_train.shape[1:] == ())
     if shape is not None:

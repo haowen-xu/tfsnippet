@@ -1,5 +1,6 @@
 backports.tempfile >= 1.0 ; python_version < '3.2'
 frozendict >= 1.2.0
+idx2numpy >= 1.2.2
 natsort >= 5.3.3
 numpy >= 1.12.1
 pathlib2 >= 2.3.0 ; python_version < '3.5'
