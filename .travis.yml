@@ -26,4 +26,6 @@ script:
       -e RUN_EXAMPLES_TEST_CASE=1
       "haowenxu/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
       bash -c "apt-get -y update && apt-get -y install unrar &&
-        pip install . && pip install -r requirements-dev.txt && coverage run -m py.test && coveralls"
+        pip install . && pip install -r requirements-dev.txt &&
+        mkdir -p /root/.config/matplotlib && echo 'backend : Agg' > /root/.config/matplotlib/matplotlibrc &&
+        coverage run -m py.test && coveralls"

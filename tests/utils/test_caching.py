@@ -224,7 +224,8 @@ class CacheDirTestCase(unittest.TestCase):
             # no cache
             log_file = LogIO()
             path = cache_dir.extract_file(get_asset_path('payload.tar.gz'),
-                                          progress_file=log_file)
+                                          progress_file=log_file,
+                                          show_progress=True)
             self.assertEquals(1, PatchedExtractor.call_count)
             self.assertEquals(
                 os.path.join(cache_dir.path, 'payload'), path)
@@ -268,7 +269,7 @@ class CacheDirTestCase(unittest.TestCase):
             log_file = LogIO()
             with pytest.raises(Exception):
                 _ = cache_dir.extract_file(
-                    err_archive, progress_file=log_file)
+                    err_archive, progress_file=log_file, show_progress=True)
             path = os.path.join(cache_dir.path, 'invalid')
             self.assertFalse(os.path.isdir(path))
             self.assertFalse(os.path.isdir(path + '._extracting_'))
