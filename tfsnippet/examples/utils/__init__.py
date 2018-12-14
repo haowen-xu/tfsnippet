@@ -1,7 +1,8 @@
+from . import mnist
 from . import (config, datasets, evaluation, graph, jsonutils, misc,
                multi_gpu, results)
 
-__all__ = sum(
+__all__ = ['mnist'] + sum(
     [m.__all__ for m in [
         config, datasets, evaluation, graph, jsonutils, misc,
         multi_gpu, results

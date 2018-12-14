@@ -154,7 +154,7 @@ class DataFlow(object):
             raise
 
     # -------- here starts the transforming methods --------
-    def map(self, mapper):
+    def map(self, mapper, array_indices=None):
         """
         Construct a :class:`~tfsnippet.dataflow.MapperFlow`.
 
@@ -162,12 +162,21 @@ class DataFlow(object):
             mapper ((\*np.ndarray) -> tuple[np.ndarray])): The mapper
                 function, which transforms numpy arrays into a tuple
                 of other numpy arrays.
+            array_indices (int or Iterable[int]): The indices of the arrays
+                to be processed within a mini-batch.
+
+                If specified, will apply the mapper only on these selected
+                arrays.  This will require the mapper to produce exactly
+                the same number of output arrays as the inputs.
+
+                If not specified, apply the mapper on all arrays, and do
+                not require the number of output arrays to match the inputs.
 
         Returns:
             tfsnippet.dataflow.MapperFlow: The data flow with `mapper` applied.
         """
         from .mapper_flow import MapperFlow
-        return MapperFlow(self, mapper)
+        return MapperFlow(self, mapper, array_indices=array_indices)
 
     def threaded(self, prefetch):
         """

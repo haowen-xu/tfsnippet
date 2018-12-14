@@ -13,7 +13,7 @@ from tfsnippet.distributions import Normal, Bernoulli, Categorical
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (Config, Results, MNIST,
+from tfsnippet.examples.utils import (Config, Results, mnist,
                                       save_images_collection,
                                       collect_outputs,
                                       ClusteringClassifier)
@@ -283,8 +283,8 @@ def main():
     c_classifier = ClusteringClassifier(config.n_clusters, 10)
 
     def train_classifier(loop):
-        df = mnist.train_flow(config.batch_size, shuffle=False,
-                              skip_incomplete=False).select([0])
+        df = mnist.bernoulli_flow(
+            x_train, config.batch_size, shuffle=False, skip_incomplete=False)
         with loop.timeit('cls_train_time'):
             [c_pred] = collect_outputs(
                 outputs=[q_y_given_x],
@@ -309,11 +309,11 @@ def main():
             results.commit(cls_metrics)
 
     # prepare for training and testing data
-    mnist = MNIST(process_x='bernoulli', shape=[config.x_dim])
-    train_flow = mnist.train_flow(config.batch_size)
-    y_train = mnist.train_arrays()[1]
-    test_flow = mnist.test_flow(config.test_batch_size)
-    y_test = mnist.test_arrays()[1]
+    (x_train, y_train), (x_test, y_test) = mnist.load()
+    train_flow = mnist.bernoulli_flow(
+        x_train, config.batch_size, shuffle=True, skip_incomplete=True)
+    test_flow = mnist.bernoulli_flow(
+        x_test, config.test_batch_size, sample_now=True)
 
     with create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:

@@ -30,10 +30,10 @@ class DataMapper(object):
             tuple[np.ndarray]: The output arrays.
         """
         ret = self._transform(*arrays)
-        if not isinstance(ret, tuple):
-            raise TypeError('The output of {} is not a tuple.'.
+        if not isinstance(ret, (tuple, list)):
+            raise TypeError('The output of {} is neither a tuple, nor a list.'.
                             format(self.__class__.__name__))
-        return ret
+        return tuple(ret)
 
 
 class SlidingWindow(DataMapper):

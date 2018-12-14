@@ -10,7 +10,7 @@ from tfsnippet.distributions import Bernoulli
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (Config, Results, MNIST,
+from tfsnippet.examples.utils import (Config, Results, mnist,
                                       save_images_collection)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -169,9 +169,11 @@ def main():
             )
 
     # prepare for training and testing data
-    mnist = MNIST(process_x='bernoulli', shape=[config.x_dim])
-    train_flow = mnist.train_flow(config.batch_size)
-    test_flow = mnist.test_flow(config.test_batch_size)
+    (x_train, y_train), (x_test, y_test) = mnist.load()
+    train_flow = mnist.bernoulli_flow(
+        x_train, config.batch_size, shuffle=True, skip_incomplete=True)
+    test_flow = mnist.bernoulli_flow(
+        x_test, config.test_batch_size, sample_now=True)
 
     with create_session().as_default():
         # train the network

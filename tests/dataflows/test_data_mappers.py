@@ -12,7 +12,8 @@ class DataMapperTestCase(unittest.TestCase):
     def test_error(self):
         dm = DataMapper()
         dm._transform = Mock(return_value=np.array([1, 2, 3]))
-        with pytest.raises(TypeError, match='The output of .* is not a tuple'):
+        with pytest.raises(TypeError, match='The output of .* is neither '
+                                            'a tuple, nor a list'):
             dm(np.array([1, 2, 3]))
 
 

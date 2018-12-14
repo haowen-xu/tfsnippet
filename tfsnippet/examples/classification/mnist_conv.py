@@ -4,6 +4,7 @@ import functools
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
+from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.nn import (dense,
                                    batch_norm_2d,
                                    resnet_block,
@@ -13,7 +14,7 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import Config, Results, MultiGPU, MNIST
+from tfsnippet.examples.utils import Config, Results, MultiGPU, mnist
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
@@ -124,9 +125,10 @@ def main():
     )
 
     # prepare for training and testing data
-    mnist = MNIST(process_x='normalize', shape=[config.x_dim])
-    train_flow = mnist.train_flow(config.batch_size)
-    test_flow = mnist.test_flow(config.test_batch_size)
+    (x_train, y_train), (x_test, y_test) = mnist.load()
+    train_flow = DataFlow.arrays([x_train / 255., y_train], config.batch_size,
+                                 shuffle=True, skip_incomplete=True)
+    test_flow = DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
     with create_session().as_default(), \
             train_flow.threaded(5) as train_flow:

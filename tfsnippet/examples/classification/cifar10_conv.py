@@ -85,7 +85,6 @@ def main():
     # load cifar data
     (x_train, y_train), (x_test, y_test) = \
         load_cifar10(dtype=np.float32, normalize=True)
-    print(x_train.shape)
 
     # input placeholders
     input_x = tf.placeholder(
