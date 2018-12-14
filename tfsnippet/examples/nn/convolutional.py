@@ -121,7 +121,7 @@ def _partial_conv(conv_fn,
                   kernel_constraint=None,
                   bias_constraint=None,
                   trainable=True):
-    return functools.partial(
+    return partial(
         conv_fn,
         padding='same',
         channels_last=channels_last,
