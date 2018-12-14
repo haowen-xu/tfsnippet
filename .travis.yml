@@ -23,6 +23,7 @@ script:
       -e TRAVIS="${TRAVIS}"
       -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}"
       -e TRAVIS_BRANCH="${TRAVIS_BRANCH}"
+      -e RUN_EXAMPLES_TEST_CASE=1
       "haowenxu/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
       bash -c "apt-get -y update && apt-get -y install unrar &&
         pip install -r requirements-dev.txt && coverage run -m py.test && coveralls"

@@ -15,10 +15,7 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy, conv2d)
-from tfsnippet.examples.utils import (load_cifar10,
-                                      Config,
-                                      Results,
-                                      MultiGPU)
+from tfsnippet.examples.utils import Config, Results, MultiGPU, load_cifar10
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
@@ -30,7 +27,9 @@ class ExpConfig(Config):
     dropout = 0.5
 
     # training parameters
+    write_summary = False
     max_epoch = 1000
+    max_step = None
     batch_size = 64
 
     initial_lr = 0.01
@@ -58,7 +57,7 @@ def model(x, is_training, channels_last, k=4, n=2):
         if not channels_last:
             h_x = x
         else:
-            h_x = tf.transpose(x, [-1, 2, 3, 1])
+            h_x = tf.transpose(x, [0, 2, 3, 1])
         h_x = conv2d(h_x, 16 * k, (1, 1), channels_last=channels_last)
 
         # 1st group, (16 * k, 32, 32)
@@ -83,7 +82,7 @@ def model(x, is_training, channels_last, k=4, n=2):
 
 
 def main():
-    # load mnist data
+    # load cifar data
     (x_train, y_train), (x_test, y_test) = \
         load_cifar10(dtype=np.float32, normalize=True)
     print(x_train.shape)
@@ -156,9 +155,10 @@ def main():
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
-                       summary_dir=results.make_dir('train_summary'),
+                       max_step=config.max_step,
+                       summary_dir=(results.make_dir('train_summary')
+                                    if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
-                       summary_commit_freqs={'loss': 10, 'acc': 10},
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x, input_y], train_flow,

@@ -4,28 +4,22 @@ import functools
 import logging
 import warnings
 
-import numpy as np
 import tensorflow as tf
 from sklearn.metrics import accuracy_score
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
-from tfsnippet.dataflow import DataFlow
 from tfsnippet.distributions import Normal, Bernoulli, Categorical
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (load_mnist,
-                                      Config,
+from tfsnippet.examples.utils import (Config, Results, MNIST,
                                       save_images_collection,
-                                      Results,
-                                      MultiGPU,
                                       collect_outputs,
                                       ClusteringClassifier)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
-                             create_session)
+from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
 
 
 class ExpConfig(Config):
@@ -39,7 +33,9 @@ class ExpConfig(Config):
     mean_field_assumption_for_q = False
 
     # training parameters
+    write_summary = False
     max_epoch = 3000
+    max_step = None
     batch_size = 128
     train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
 
@@ -208,101 +204,60 @@ def main():
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     )
 
-    # load mnist data
-    (x_train, y_train), (x_test, y_test) = \
-        load_mnist(shape=[config.x_dim], dtype=np.float32, normalize=True)
-
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.int32, shape=(None,) + x_train.shape[1:], name='input_x')
+        dtype=tf.int32, shape=(None, config.x_dim), name='input_x')
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32,
                                    name='learning_rate')
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
-    multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
-    grads = []
-    losses = []
-    test_nlls = []
-    y_given_x_list = []
-    batch_size = get_batch_size(input_x)
-    params = None
+    with arg_scope([q_net, p_net], is_training=is_training):
+        # derive the loss and lower-bound for training
+        train_q_net = q_net(
+            input_x, n_samples=config.train_n_samples
+        )
+        train_chain = train_q_net.chain(
+            p_net, latent_names=['y', 'z'], latent_axis=0,
+            observed={'x': input_x}
+        )
+
+        if config.train_n_samples is None:
+            baseline = reinforce_baseline_net(input_x)
+            vae_loss = tf.reduce_mean(
+                train_chain.vi.training.reinforce(baseline=baseline))
+        else:
+            vae_loss = tf.reduce_mean(train_chain.vi.training.vimco())
+        loss = vae_loss + regularization_loss()
+
+        # derive the nll and logits output for testing
+        test_q_net = q_net(
+            input_x, n_samples=config.test_n_samples
+        )
+        test_chain = test_q_net.chain(
+            p_net, latent_names=['y', 'z'], latent_axis=0,
+            observed={'x': input_x}
+        )
+        test_nll = -tf.reduce_mean(
+            test_chain.vi.evaluation.is_loglikelihood())
+
+        # derive the classifier via q(y|x)
+        q_y_given_x = tf.argmax(
+            test_q_net['y'].distribution.logits, axis=-1)
+
+    # derive the optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
-
-    for dev, pre_build, [dev_input_x] in multi_gpu.data_parallel(
-            batch_size, [input_x]):
-        with tf.device(dev), multi_gpu.maybe_name_scope(dev):
-            if pre_build:
-                with arg_scope([q_net, p_net], is_training=is_training):
-                    _ = q_net(dev_input_x).chain(
-                        p_net,
-                        latent_names=['y', 'z'],
-                        observed={'x': dev_input_x}
-                    )
-
-            else:
-                with arg_scope([q_net, p_net], is_training=is_training):
-                    # derive the loss and lower-bound for training
-                    train_q_net = q_net(
-                        dev_input_x, n_samples=config.train_n_samples
-                    )
-                    train_chain = train_q_net.chain(
-                        p_net, latent_names=['y', 'z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
-
-                    if config.train_n_samples is None:
-                        dev_baseline = reinforce_baseline_net(dev_input_x)
-                        dev_vae_loss = tf.reduce_mean(
-                            train_chain.vi.training.reinforce(
-                                baseline=dev_baseline
-                            )
-                        )
-                    else:
-                        dev_vae_loss = tf.reduce_mean(
-                            train_chain.vi.training.vimco())
-                    dev_loss = dev_vae_loss + regularization_loss()
-                    losses.append(dev_loss)
-
-                    # derive the nll and logits output for testing
-                    test_q_net = q_net(
-                        dev_input_x, n_samples=config.test_n_samples
-                    )
-                    test_chain = test_q_net.chain(
-                        p_net, latent_names=['y', 'z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
-                    dev_test_nll = -tf.reduce_mean(
-                        test_chain.vi.evaluation.is_loglikelihood())
-                    test_nlls.append(dev_test_nll)
-
-                    # derive the classifier via q(y|x)
-                    dev_q_y_given_x = tf.argmax(
-                        test_q_net['y'].distribution.logits, axis=-1)
-                    y_given_x_list.append(dev_q_y_given_x)
-
-                    # derive the optimizer
-                    params = tf.trainable_variables()
-                    grads.append(
-                        optimizer.compute_gradients(dev_loss, var_list=params))
-
-    # merge multi-gpu outputs and operations
-    [loss, test_nll] = \
-        multi_gpu.average([losses, test_nlls], batch_size)
-    [y_given_x] = multi_gpu.concat([y_given_x_list])
-
-    train_op = multi_gpu.apply_grads(
-        grads=multi_gpu.average_grads(grads),
-        optimizer=optimizer,
-        control_inputs=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    )
+    params = tf.trainable_variables()
+    grads = optimizer.compute_gradients(loss, var_list=params)
+    with tf.control_dependencies(
+            tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+        train_op = optimizer.apply_gradients(grads)
 
     # derive the plotting function
-    work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plot_x'):
+    with tf.name_scope('plot_x'):
         plot_p_net = p_net(
             observed={'y': tf.range(config.n_clusters, dtype=tf.int32)},
             n_z=10,
@@ -328,11 +283,11 @@ def main():
     c_classifier = ClusteringClassifier(config.n_clusters, 10)
 
     def train_classifier(loop):
-        df = DataFlow.arrays([x_train], batch_size=config.batch_size). \
-            map(input_x_sampler)
+        df = mnist.train_flow(config.batch_size, shuffle=False,
+                              skip_incomplete=False).select([0])
         with loop.timeit('cls_train_time'):
             [c_pred] = collect_outputs(
-                outputs=[y_given_x],
+                outputs=[q_y_given_x],
                 inputs=[input_x],
                 data_flow=df,
                 feed_dict={is_training: False}
@@ -343,7 +298,7 @@ def main():
     def evaluate_classifier(loop):
         with loop.timeit('cls_test_time'):
             [c_pred] = collect_outputs(
-                outputs=[y_given_x],
+                outputs=[q_y_given_x],
                 inputs=[input_x],
                 data_flow=test_flow,
                 feed_dict={is_training: False}
@@ -354,31 +309,22 @@ def main():
             results.commit(cls_metrics)
 
     # prepare for training and testing data
-    def input_x_sampler(x):
-        return session.run([sampled_x], feed_dict={sample_input_x: x})
-
-    with tf.device('/device:CPU:0'):
-        sample_input_x = tf.placeholder(
-            dtype=tf.float32, shape=(None, config.x_dim), name='sample_input_x')
-        sampled_x = sample_from_probs(sample_input_x)
-
-    train_flow = DataFlow.arrays([x_train], config.batch_size, shuffle=True,
-                                 skip_incomplete=True).map(input_x_sampler)
-    test_flow = DataFlow.arrays([x_test], config.test_batch_size). \
-        map(input_x_sampler)
+    mnist = MNIST(process_x='bernoulli', shape=[config.x_dim])
+    train_flow = mnist.train_flow(config.batch_size)
+    y_train = mnist.train_arrays()[1]
+    test_flow = mnist.test_flow(config.test_batch_size)
+    y_test = mnist.test_arrays()[1]
 
     with create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
-        # fix the testing flow, reducing the testing time
-        test_flow = test_flow.to_arrays_flow(batch_size=config.test_batch_size)
-
         # train the network
         with TrainLoop(params,
                        var_groups=['p_net', 'q_net', 'gaussian_mixture_prior'],
                        max_epoch=config.max_epoch,
-                       summary_dir=results.make_dir('train_summary'),
+                       max_step=config.max_step,
+                       summary_dir=(results.make_dir('train_summary')
+                                    if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
-                       summary_commit_freqs={'loss': 10},
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x], train_flow,

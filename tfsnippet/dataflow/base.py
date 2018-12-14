@@ -92,8 +92,8 @@ class DataFlow(object):
             pass
         return tuple(np.concatenate(arr) for arr in arrays_buf)
 
-    def to_arrays_flow(self, batch_size, shuffle=False, skip_incomplete=False,
-                       random_state=None):
+    def to_arrays_flow(self, batch_size, shuffle=False,
+                       skip_incomplete=False, random_state=None):
         """
         Convert this data-flow to a :class:`~tfsnippet.dataflow.ArrayFlow`.
 

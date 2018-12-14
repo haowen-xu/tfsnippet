@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import functools
-
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
@@ -12,9 +10,7 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import (load_cifar10,
-                                      Config,
-                                      Results)
+from tfsnippet.examples.utils import Config, Results, load_cifar10
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, create_session
@@ -25,7 +21,9 @@ class ExpConfig(Config):
     l2_reg = 0.0001
 
     # training parameters
+    write_summary = False
     max_epoch = 500
+    max_step = None
     batch_size = 64
 
     initial_lr = 0.001
@@ -48,7 +46,7 @@ def model(x, is_training):
 
 
 def main():
-    # load mnist data
+    # load cifar data
     (x_train, y_train), (x_test, y_test) = \
         load_cifar10(flatten=True, dtype=np.float32, normalize=True)
 
@@ -89,9 +87,10 @@ def main():
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
-                       summary_dir=results.make_dir('train_summary'),
+                       max_step=config.max_step,
+                       summary_dir=(results.make_dir('train_summary')
+                                    if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
-                       summary_commit_freqs={'loss': 10, 'acc': 10},
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
