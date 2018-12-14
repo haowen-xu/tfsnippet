@@ -5,7 +5,8 @@ from contextlib import contextmanager
 import six
 import tensorflow as tf
 
-from tfsnippet.utils import is_tensor_object
+from tfsnippet.utils import (is_tensor_object,
+                             is_tensorflow_version_higher_or_equal)
 from .misc import cached
 
 __all__ = ['detect_gpus', 'average_gradients', 'MultiGPU']
@@ -26,9 +27,12 @@ def detect_gpus():
         try:
             from tensorflow.python.client import device_lib
 
-            config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            devices = list(device_lib.list_local_devices(config))
+            if is_tensorflow_version_higher_or_equal('1.8'):
+                config = tf.ConfigProto()
+                config.gpu_options.allow_growth = True
+                devices = list(device_lib.list_local_devices(config))
+            else:
+                devices = list(device_lib.list_local_devices())
             gpus = [
                 (device.name, device)
                 for device in devices
