@@ -27,7 +27,7 @@ def detect_gpus():
         try:
             from tensorflow.python.client import device_lib
 
-            if is_tensorflow_version_higher_or_equal('1.8'):
+            if is_tensorflow_version_higher_or_equal('1.8.0'):
                 config = tf.ConfigProto()
                 config.gpu_options.allow_growth = True
                 devices = list(device_lib.list_local_devices(config))
