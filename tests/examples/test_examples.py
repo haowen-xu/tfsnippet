@@ -6,9 +6,8 @@ import subprocess
 import sys
 import time
 import unittest
-from tempfile import TemporaryDirectory
 
-from tfsnippet.utils import humanize_duration
+from tfsnippet.utils import TemporaryDirectory, humanize_duration
 
 
 class ExamplesTestCase(unittest.TestCase):
