@@ -213,7 +213,7 @@ class BaseTrainer(object):
 
     def log_after(self, epochs=None, steps=None):
         """
-        Add a logging hook to run after every few epochs or `steps.
+        Add a logging hook to run after every few epochs or steps.
 
         Args:
             epochs (None or int): Run validation after every this few `epochs`.
