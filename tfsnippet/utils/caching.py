@@ -135,8 +135,8 @@ class CacheDir(object):
         return os.path.join(self.path, sub_path)
 
     @contextmanager
-    def _lock_file(self, filename):
-        lock_file = os.path.join(self.path, '{}.lock'.format(filename))
+    def _lock_file(self, file_path):
+        lock_file = file_path + '.lock'
         parent_dir = os.path.split(lock_file)[0]
         if not os.path.isdir(parent_dir):
             makedirs(parent_dir, exist_ok=True)
@@ -216,7 +216,7 @@ class CacheDir(object):
         file_path = os.path.abspath(os.path.join(self.path, filename))
 
         # download the file
-        with self._lock_file(filename):
+        with self._lock_file(file_path):
             return self._download(
                 uri, file_path, show_progress=show_progress,
                 progress_file=progress_file
@@ -286,7 +286,7 @@ class CacheDir(object):
         extract_path = os.path.abspath(os.path.join(self.path, extract_dir))
 
         # extract the file
-        with self._lock_file(filename):
+        with self._lock_file(archive_file):
             return self._extract_file(
                 archive_file, extract_path, show_progress=show_progress,
                 progress_file=progress_file
@@ -332,7 +332,7 @@ class CacheDir(object):
         extract_path = os.path.abspath(os.path.join(self.path, extract_dir))
 
         # download and extract the file
-        with self._lock_file(filename):
+        with self._lock_file(file_path):
             if not os.path.isdir(extract_path):
                 archive_file = self._download(
                     uri, file_path, show_progress=show_progress,
