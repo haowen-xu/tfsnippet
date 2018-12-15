@@ -23,8 +23,8 @@ class VariationalInference(object):
 
         Args:
             log_joint (tf.Tensor): The log-joint of model.
-            latent_log_probs (Iterable[tf.Tensor]): The log-probability
-                densities of latent variables from the variational net.
+            latent_log_probs (Iterable[tf.Tensor]): The log-densities
+                of latent variables from the variational net.
             axis: The axis or axes to be considered as the sampling dimensions
                 of latent variables.  The specified axes will be summed up in
                 the variational lower-bounds or training objectives.
@@ -53,20 +53,20 @@ class VariationalInference(object):
     @property
     def latent_log_probs(self):
         """
-        Get the log-probability densities of latent variables.
+        Get the log-densities of latent variables.
 
         Returns:
-            tuple[tf.Tensor]: The log-probability densities of latent variables.
+            tuple[tf.Tensor]: The log-densities of latent variables.
         """
         return self._latent_log_probs
 
     @property
     def latent_log_prob(self):
         """
-        Get the summed log-probability density of latent variables.
+        Get the summed log-density of latent variables.
 
         Returns:
-            tf.Tensor: The summed log-probability density of latent variables.
+            tf.Tensor: The summed log-density of latent variables.
         """
         return self._latent_log_prob
 
@@ -84,7 +84,7 @@ class VariationalInference(object):
         pre-computed log-joint, by specified algorithm.
 
         Args:
-            func: The variational algorithm from `ZhuSuan`_. Supported
+            func: The variational algorithm from ZhuSuan. Supported
                 functions are: 1. :func:`zhusuan.variational.elbo`
                 2. :func:`zhusuan.variational.importance_weighted_objective`
                 3. :func:`zhusuan.variational.klpq`
@@ -247,6 +247,7 @@ class VariationalTrainingObjectives(object):
 
         Returns:
             tf.Tensor: The per-data SGVB training objective.
+                It is the negative of ELBO, which should directly be minimized.
 
         See Also:
             :func:`tfsnippet.variational.sgvb_estimator`

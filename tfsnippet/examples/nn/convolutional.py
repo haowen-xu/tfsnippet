@@ -1,13 +1,12 @@
-import functools
+from functools import wraps, partial, WRAPPER_ASSIGNMENTS
 
 import numpy as np
-import six
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.examples.utils import (validate_strides_or_kernel_size,
-                                      add_variable_scope,
-                                      int_shape)
+                                      add_variable_scope)
+from tfsnippet.utils import int_shape
 from .wrapper import conv2d, deconv2d
 
 __all__ = [
@@ -16,6 +15,20 @@ __all__ = [
     'deconv_resnet_block',
     'reshape_conv2d_to_flat',
 ]
+
+# This code snippet is to deal with Python 2.x fail to apply `wraps` on a
+# lambda funciton.
+#
+# Source: https://stackoverflow.com/questions/20594193/dynamic-create-method-and-decorator-got-error-functools-partial-object-has-no
+try:
+    wraps(partial(wraps))(wraps)
+except AttributeError:
+    @wraps(wraps)
+    def wraps(obj, attr_names=WRAPPER_ASSIGNMENTS, wraps=wraps):
+        return wraps(
+            obj,
+            assigned=(name for name in attr_names if hasattr(obj, name))
+        )
 
 
 @add_arg_scope
@@ -53,7 +66,7 @@ def _resnet_block(conv_fn, inputs, input_shape, output_shape,
 
     # normalization and activation functions
     def add_scope(method):
-        @six.wraps(method)
+        @wraps(method)
         def wrapper(x, name):
             with tf.name_scope(name):
                 return method(x)
@@ -108,7 +121,7 @@ def _partial_conv(conv_fn,
                   kernel_constraint=None,
                   bias_constraint=None,
                   trainable=True):
-    return functools.partial(
+    return partial(
         conv_fn,
         padding='same',
         channels_last=channels_last,

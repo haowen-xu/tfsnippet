@@ -3,6 +3,7 @@ import contextlib
 import tensorflow as tf
 import zhusuan
 
+from tfsnippet.utils import get_valid_scope_name
 from .base import Distribution
 from .utils import reduce_group_ndims
 
@@ -88,7 +89,7 @@ class ZhuSuanDistribution(Distribution):
         return self._distribution.get_batch_shape()
 
     def sample(self, n_samples=None, is_reparameterized=None, group_ndims=0,
-               name=None):
+               compute_density=None, name=None):
         from tfsnippet.stochastic import StochasticTensor
 
         if is_reparameterized and not self.is_reparameterized:
@@ -109,22 +110,28 @@ class ZhuSuanDistribution(Distribution):
         with tf.name_scope(name=name, default_name='sample'):
             with set_is_reparameterized() as is_reparameterized:
                 samples = self._distribution.sample(n_samples=n_samples)
-                return StochasticTensor(
+                t = StochasticTensor(
                     distribution=self,
                     tensor=samples,
                     n_samples=n_samples,
                     group_ndims=group_ndims,
                     is_reparameterized=is_reparameterized,
                 )
+                if compute_density:
+                    with tf.name_scope('compute_prob_and_log_prob'):
+                        log_p = t.log_prob()
+                        t._self_prob = tf.exp(log_p)
+                return t
 
     def log_prob(self, given, group_ndims=0, name=None):
-        with tf.name_scope(name=name, default_name='log_prob'):
+        with tf.name_scope(name=name,
+                           default_name=get_valid_scope_name('log_prob', self)):
             given = self._distribution._check_input_shape(given)
             log_prob = self._distribution._log_prob(given)
             return reduce_group_ndims(tf.reduce_sum, log_prob, group_ndims)
 
     def prob(self, given, group_ndims=0, name=None):
-        with tf.name_scope(name=name, default_name='prob'):
-            given = self._distribution._check_input_shape(given)
-            prob = self._distribution._prob(given)
-            return reduce_group_ndims(tf.reduce_prod, prob, group_ndims)
+        default_name = '{}.prob'.format(
+            self._distribution.__class__.__name__)
+        with tf.name_scope(name, default_name=default_name):
+            return tf.exp(self.log_prob(given, group_ndims=group_ndims))

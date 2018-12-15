@@ -23,7 +23,7 @@ class ThreadingFlowTestCase(unittest.TestCase):
         flow = DataFlow.arrays([np.arange(10)], batch_size=2). \
             threaded(prefetch=3)
         self.assertIsInstance(flow, ThreadingFlow)
-        self.assertEquals(3, flow.prefetch_num)
+        self.assertEqual(3, flow.prefetch_num)
 
     def test_iterator(self):
         epoch_counter = [0]

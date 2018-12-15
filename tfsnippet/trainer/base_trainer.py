@@ -10,6 +10,13 @@ from .evaluator import Evaluator
 __all__ = ['BaseTrainer']
 
 
+def check_epochs_and_steps_arg(epochs=None, steps=None):
+    if (epochs is not None and steps is not None) or \
+            (epochs is None and steps is None):
+        raise ValueError('One and only one of `epochs` and `steps` should '
+                         'be specified.')
+
+
 @DocInherit
 class BaseTrainer(object):
     """
@@ -204,6 +211,24 @@ class BaseTrainer(object):
         self.after_epochs.add_hook(
             self.loop.print_logs, freq=freq, priority=HookPriority.LOGGING)
 
+    def log_after(self, epochs=None, steps=None):
+        """
+        Add a logging hook to run after every few epochs or `steps.
+
+        Args:
+            epochs (None or int): Run validation after every this few `epochs`.
+            steps (None or int): Run validation after every this few `steps`.
+
+        Raises:
+            ValueError: If both `epochs` and `steps` are specified, or neither
+                is specified.
+        """
+        check_epochs_and_steps_arg(epochs, steps)
+        if epochs is not None:
+            return self.log_after_epochs(epochs)
+        else:
+            return self.log_after_steps(steps)
+
     def remove_log_hooks(self):
         """
         Remove logging hooks from all lists.
@@ -215,7 +240,7 @@ class BaseTrainer(object):
 
     def evaluate_after_steps(self, evaluator, freq):
         """
-        Add a evaluation hook to run after every few steps.
+        Add an evaluation hook to run after every few steps.
 
         Args:
             evaluator (Evaluator or () -> any): A evaluator object
@@ -228,7 +253,7 @@ class BaseTrainer(object):
 
     def evaluate_after_epochs(self, evaluator, freq):
         """
-        Add a evaluation hook to run after every few epochs.
+        Add an evaluation hook to run after every few epochs.
 
         Args:
             evaluator (Evaluator or () -> any): A evaluator object
@@ -238,6 +263,26 @@ class BaseTrainer(object):
         callback = evaluator if callable(evaluator) else evaluator.run
         self.after_epochs.add_hook(
             callback, freq=freq, priority=HookPriority.EVALUATION)
+
+    def evaluate_after(self, evaluator, epochs=None, steps=None):
+        """
+        Add an evaluation hook to run after every few epochs or steps.
+
+        Args:
+            evaluator (Evaluator or () -> any): A evaluator object
+                (which has ``.run()``), or any callable object.
+            epochs (None or int): Run validation after every this few `epochs`.
+            steps (None or int): Run validation after every this few `steps`.
+
+        Raises:
+            ValueError: If both `epochs` and `steps` are specified, or neither
+                is specified.
+        """
+        check_epochs_and_steps_arg(epochs, steps)
+        if epochs is not None:
+            return self.evaluate_after_epochs(evaluator, freq=epochs)
+        else:
+            return self.evaluate_after_steps(evaluator, freq=steps)
 
     def remove_evaluation_hooks(self):
         """
@@ -251,6 +296,7 @@ class BaseTrainer(object):
     # legacy names for evaluation
     validate_after_steps = evaluate_after_steps
     validate_after_epochs = evaluate_after_epochs
+    validate_after = evaluate_after
     remove_validation_hooks = remove_evaluation_hooks
 
     def anneal_after_steps(self, value, freq):
@@ -278,6 +324,26 @@ class BaseTrainer(object):
         callback = value if callable(value) else value.anneal
         self.after_epochs.add_hook(
             callback, freq=freq, priority=HookPriority.ANNEALING)
+
+    def anneal_after(self, value, epochs=None, steps=None):
+        """
+        Add an annealing hook to run after every few epochs or steps.
+
+        Args:
+            value (AnnealingDynamicValue or () -> any): An annealing dynamic
+                value (which has ``.anneal()``), or any callable object.
+            epochs (None or int): Run validation after every this few `epochs`.
+            steps (None or int): Run validation after every this few `steps`.
+
+        Raises:
+            ValueError: If both `epochs` and `steps` are specified, or neither
+                is specified.
+        """
+        check_epochs_and_steps_arg(epochs, steps)
+        if epochs is not None:
+            return self.anneal_after_epochs(value, freq=epochs)
+        else:
+            return self.anneal_after_steps(value, freq=steps)
 
     def remove_annealing_hooks(self):
         """

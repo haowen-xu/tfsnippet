@@ -1,6 +1,6 @@
 import numpy as np
 
-from tfsnippet.nn import npyops, tfops
+from tfsnippet.mathops import npyops, tfops
 from tfsnippet.utils import get_default_session_or_error
 
 __all__ = ['run_op', 'assert_op_result']

@@ -60,6 +60,16 @@ def set_cache_root(cache_root):
     _cache_root = os.path.abspath(cache_root)
 
 
+def infer_show_progress_arg(progress_file, show_progress):  # pragma: no cover
+    if show_progress is None:
+        if hasattr(progress_file, 'isatty'):
+            return progress_file.isatty()
+        else:
+            return False
+    else:
+        return show_progress
+
+
 class CacheDir(object):
     """Class to manipulate a cache directory."""
 
@@ -107,7 +117,7 @@ class CacheDir(object):
         """
         return os.path.join(self.path, sub_path)
 
-    def download(self, uri, filename=None, show_progress=True,
+    def download(self, uri, filename=None, show_progress=None,
                  progress_file=sys.stderr):
         """
         Download a file into this :class:`CacheDir`.
@@ -119,7 +129,9 @@ class CacheDir(object):
                 will not download `uri`.  Default :obj:`None`, will
                 automatically infer `filename` according to `uri`.
             show_progress (bool): Whether or not to show interactive
-                progress bar? (default :obj:`True`)
+                progress bar?  If not specified, will show progress only
+                if `progress_file` is `std.stdout` or `std.stderr`, and
+                if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
 
@@ -129,6 +141,8 @@ class CacheDir(object):
         Raises:
             ValueError: If `filename` cannot be inferred.
         """
+        show_progress = infer_show_progress_arg(progress_file, show_progress)
+
         # prepare downloading
         if filename is None:
             parsed_uri = urlparse(uri)
@@ -178,7 +192,7 @@ class CacheDir(object):
                 os.rename(temp_file, file_path)
         return file_path
 
-    def extract_file(self, archive_file, extract_dir=None, show_progress=True,
+    def extract_file(self, archive_file, extract_dir=None, show_progress=None,
                      progress_file=sys.stderr):
         """
         Extract an archive file into this :class:`CacheDir`.
@@ -190,7 +204,9 @@ class CacheDir(object):
                 will not extract `archive_file`.  Default :obj:`None`, will
                 automatically infer `extract_dir` according to `archive_file`.
             show_progress (bool): Whether or not to show interactive
-                progress bar? (default :obj:`True`)
+                progress bar?  If not specified, will show progress only
+                if `progress_file` is `std.stdout` or `std.stderr`, and
+                if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
 
@@ -200,6 +216,8 @@ class CacheDir(object):
         Raises:
             ValueError: If `extract_dir` cannot be inferred.
         """
+        show_progress = infer_show_progress_arg(progress_file, show_progress)
+
         # prepare extracting
         archive_file = os.path.abspath(archive_file)
         if extract_dir is None:
@@ -238,7 +256,7 @@ class CacheDir(object):
         return extract_path
 
     def download_and_extract(self, uri, filename=None, extract_dir=None,
-                             show_progress=True, progress_file=sys.stderr):
+                             show_progress=None, progress_file=sys.stderr):
         """
         Download a file into this :class:`CacheDir`, and extract it.
 
@@ -253,7 +271,9 @@ class CacheDir(object):
                 will not extract `archive_file`.  Default :obj:`None`, will
                 automatically infer `extract_dir` according to `filename`.
             show_progress (bool): Whether or not to show interactive
-                progress bar? (default :obj:`True`)
+                progress bar?  If not specified, will show progress only
+                if `progress_file` is `std.stdout` or `std.stderr`, and
+                if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
 
@@ -263,6 +283,7 @@ class CacheDir(object):
         Raises:
             ValueError: If `filename` or `extract_dir` cannot be inferred.
         """
+        show_progress = infer_show_progress_arg(progress_file, show_progress)
         downloaded = self.download(uri, filename=filename,
                                    show_progress=show_progress,
                                    progress_file=progress_file)

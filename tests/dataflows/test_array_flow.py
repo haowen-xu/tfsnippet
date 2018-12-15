@@ -15,9 +15,9 @@ class ArrayFlowTestCase(unittest.TestCase):
         self.assertIsInstance(df, ArrayFlow)
         for i, arr in enumerate(arrays):
             self.assertIs(arr, df.the_arrays[i])
-        self.assertEquals(2, df.array_count)
-        self.assertEquals(5, df.data_length)
-        self.assertEquals(((), (2,)), df.data_shapes)
+        self.assertEqual(2, df.array_count)
+        self.assertEqual(5, df.data_length)
+        self.assertEqual(((), (2,)), df.data_shapes)
         self.assertFalse(df.is_shuffled)
         self.assertFalse(df.skip_incomplete)
 
@@ -28,10 +28,10 @@ class ArrayFlowTestCase(unittest.TestCase):
             shuffle=True,
             skip_incomplete=True
         )
-        self.assertEquals(2, df.array_count)
-        self.assertEquals(4, df.data_length)
-        self.assertEquals(((3,), ()), df.data_shapes)
-        self.assertEquals(5, df.batch_size)
+        self.assertEqual(2, df.array_count)
+        self.assertEqual(4, df.data_length)
+        self.assertEqual(((3,), ()), df.data_shapes)
+        self.assertEqual(5, df.batch_size)
         self.assertTrue(df.skip_incomplete)
         self.assertTrue(df.is_shuffled)
 
@@ -57,7 +57,7 @@ class ArrayFlowTestCase(unittest.TestCase):
     def test_iterator(self):
         # test single array, without shuffle, no ignore
         b = [a[0] for a in ArrayFlow([np.arange(12)], 5)]
-        self.assertEquals(3, len(b))
+        self.assertEqual(3, len(b))
         np.testing.assert_array_equal(np.arange(0, 5), b[0])
         np.testing.assert_array_equal(np.arange(5, 10), b[1])
         np.testing.assert_array_equal(np.arange(10, 12), b[2])
@@ -65,14 +65,14 @@ class ArrayFlowTestCase(unittest.TestCase):
         # test single array, without shuffle, ignore
         b = [a[0] for a in ArrayFlow(
                 [np.arange(12)], 5, skip_incomplete=True)]
-        self.assertEquals(2, len(b))
+        self.assertEqual(2, len(b))
         np.testing.assert_array_equal(np.arange(0, 5), b[0])
         np.testing.assert_array_equal(np.arange(5, 10), b[1])
 
         # test dual arrays, without shuffle, no ignore
         b = list(ArrayFlow([np.arange(6), np.arange(12).reshape([6, 2])],
                                 5))
-        self.assertEquals(2, len(b))
+        self.assertEqual(2, len(b))
         np.testing.assert_array_equal(np.arange(0, 5), b[0][0])
         np.testing.assert_array_equal(np.arange(5, 6), b[1][0])
         np.testing.assert_array_equal(np.arange(0, 10).reshape([5, 2]), b[0][1])
@@ -81,7 +81,7 @@ class ArrayFlowTestCase(unittest.TestCase):
 
         # test single array, with shuffle, no ignore
         b = [a[0] for a in ArrayFlow([np.arange(12)], 5, shuffle=True)]
-        self.assertEquals(3, len(b))
+        self.assertEqual(3, len(b))
         np.testing.assert_array_equal(np.arange(12), sorted(np.concatenate(b)))
 
 

@@ -66,11 +66,14 @@ class DefaultMetricFormatter(MetricFormatter):
     1.  The metrics are first divided into groups according to the suffices
         of their names as follows:
 
-        1.  names ending with "time" or "timer" should come the first
-        2.  other metrics should come the second
-        2.  names ending with "loss" or "cost" should come the third
-        3.  names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
-            should come the fourth
+        1.  Names ending with "time" or "timer" should come the first;
+
+        2.  Other metrics should come the second;
+
+        3.  Names ending with "loss" or "cost" should come the third;
+
+        4.  Names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
+            should come the fourth.
 
     2.  The metrics are then sorted according to their names, within each group.
 

@@ -12,7 +12,8 @@ class DataMapperTestCase(unittest.TestCase):
     def test_error(self):
         dm = DataMapper()
         dm._transform = Mock(return_value=np.array([1, 2, 3]))
-        with pytest.raises(TypeError, match='The output of .* is not a tuple'):
+        with pytest.raises(TypeError, match='The output of .* is neither '
+                                            'a tuple, nor a list'):
             dm(np.array([1, 2, 3]))
 
 
@@ -22,7 +23,7 @@ class SlidingWindowTestCase(unittest.TestCase):
         arr = np.arange(13)
         sw = SlidingWindow(arr, window_size=3)
         self.assertIs(arr, sw.data_array)
-        self.assertEquals(3, sw.window_size)
+        self.assertEqual(3, sw.window_size)
 
     def test_transform(self):
         arr = np.arange(13)
@@ -36,7 +37,7 @@ class SlidingWindowTestCase(unittest.TestCase):
         arr = np.arange(13)
         sw = SlidingWindow(arr, window_size=3)
         batches = list(sw.as_flow(batch_size=4))
-        self.assertEquals(3, len(batches))
+        self.assertEqual(3, len(batches))
         np.testing.assert_equal(
             [[0, 1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5]],
             batches[0][0]

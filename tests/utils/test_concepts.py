@@ -91,8 +91,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
         ctx = _ContextA()
 
         self.assertFalse(ctx._is_entered)
-        self.assertEquals(0, ctx._enter.call_count)
-        self.assertEquals(0, ctx._exit.call_count)
+        self.assertEqual(0, ctx._enter.call_count)
+        self.assertEqual(0, ctx._exit.call_count)
         with pytest.raises(
                 RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
@@ -100,8 +100,8 @@ class NoReentrantContextTestCase(unittest.TestCase):
         with ctx as x:
             self.assertEqual(123, x)
             self.assertTrue(ctx._is_entered)
-            self.assertEquals(1, ctx._enter.call_count)
-            self.assertEquals(0, ctx._exit.call_count)
+            self.assertEqual(1, ctx._enter.call_count)
+            self.assertEqual(0, ctx._exit.call_count)
             _ = ctx._require_entered()
 
             with pytest.raises(
@@ -109,12 +109,12 @@ class NoReentrantContextTestCase(unittest.TestCase):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
-            self.assertEquals(1, ctx._enter.call_count)
-            self.assertEquals(0, ctx._exit.call_count)
+            self.assertEqual(1, ctx._enter.call_count)
+            self.assertEqual(0, ctx._exit.call_count)
 
         self.assertFalse(ctx._is_entered)
-        self.assertEquals(1, ctx._enter.call_count)
-        self.assertEquals(1, ctx._exit.call_count)
+        self.assertEqual(1, ctx._enter.call_count)
+        self.assertEqual(1, ctx._exit.call_count)
         with pytest.raises(
                 RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
@@ -122,13 +122,13 @@ class NoReentrantContextTestCase(unittest.TestCase):
         with ctx as x:
             self.assertEqual(123, x)
             self.assertTrue(ctx._is_entered)
-            self.assertEquals(2, ctx._enter.call_count)
-            self.assertEquals(1, ctx._exit.call_count)
+            self.assertEqual(2, ctx._enter.call_count)
+            self.assertEqual(1, ctx._exit.call_count)
             _ = ctx._require_entered()
 
         self.assertFalse(ctx._is_entered)
-        self.assertEquals(2, ctx._enter.call_count)
-        self.assertEquals(2, ctx._exit.call_count)
+        self.assertEqual(2, ctx._enter.call_count)
+        self.assertEqual(2, ctx._exit.call_count)
         with pytest.raises(
                 RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
@@ -140,8 +140,8 @@ class DisposableContextTestCase(unittest.TestCase):
         ctx = _ContextB()
 
         self.assertFalse(ctx._is_entered)
-        self.assertEquals(0, ctx._enter.call_count)
-        self.assertEquals(0, ctx._exit.call_count)
+        self.assertEqual(0, ctx._enter.call_count)
+        self.assertEqual(0, ctx._exit.call_count)
         with pytest.raises(
                 RuntimeError, match='Context is required be entered'):
             ctx._require_entered()
@@ -150,20 +150,20 @@ class DisposableContextTestCase(unittest.TestCase):
             _ = ctx._require_entered()
             self.assertEqual(123, x)
             self.assertTrue(ctx._is_entered)
-            self.assertEquals(1, ctx._enter.call_count)
-            self.assertEquals(0, ctx._exit.call_count)
+            self.assertEqual(1, ctx._enter.call_count)
+            self.assertEqual(0, ctx._exit.call_count)
 
             with pytest.raises(
                     RuntimeError, match='Context is not reentrant'):
                 with ctx:
                     pass
             self.assertTrue(ctx._is_entered)
-            self.assertEquals(1, ctx._enter.call_count)
-            self.assertEquals(0, ctx._exit.call_count)
+            self.assertEqual(1, ctx._enter.call_count)
+            self.assertEqual(0, ctx._exit.call_count)
 
         self.assertFalse(ctx._is_entered)
-        self.assertEquals(1, ctx._enter.call_count)
-        self.assertEquals(1, ctx._exit.call_count)
+        self.assertEqual(1, ctx._enter.call_count)
+        self.assertEqual(1, ctx._exit.call_count)
         with pytest.raises(
                 RuntimeError, match='Context is required be entered'):
             ctx._require_entered()

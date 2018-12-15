@@ -7,7 +7,8 @@ __all__ = ['is_tensorflow_version_higher_or_equal']
 
 def is_tensorflow_version_higher_or_equal(version):
     """
-    Check whether the version of TensorFlow is higher than `version`.
+    Check whether the version of TensorFlow is higher than or equal to
+    `version`.
 
     Args:
         version (str): Expected version of TensorFlow.

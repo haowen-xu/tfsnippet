@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import functools
 
-import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
+from tfsnippet.examples.datasets import load_cifar10
 from tfsnippet.examples.nn import (dense,
                                    batch_norm_2d,
                                    resnet_block,
@@ -15,26 +15,24 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy, conv2d)
-from tfsnippet.examples.utils import (load_cifar10,
-                                      create_session,
-                                      Config,
-                                      Results,
-                                      MultiGPU,
-                                      anneal_after,
-                                      get_batch_size)
+from tfsnippet.examples.utils import Config, Results, MultiGPU
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse
+from tfsnippet.utils import global_reuse, get_batch_size, create_session
 
 
 class ExpConfig(Config):
     # model parameters
+    x_shape = (3, 32, 32)
     l2_reg = 0.0001
     dropout = 0.5
 
     # training parameters
+    write_summary = False
     max_epoch = 1000
+    max_step = None
     batch_size = 64
+    test_batch_size = 64
 
     initial_lr = 0.01
     lr_anneal_factor = 0.5
@@ -61,7 +59,7 @@ def model(x, is_training, channels_last, k=4, n=2):
         if not channels_last:
             h_x = x
         else:
-            h_x = tf.transpose(x, [-1, 2, 3, 1])
+            h_x = tf.transpose(x, [0, 2, 3, 1])
         h_x = conv2d(h_x, 16 * k, (1, 1), channels_last=channels_last)
 
         # 1st group, (16 * k, 32, 32)
@@ -86,14 +84,9 @@ def model(x, is_training, channels_last, k=4, n=2):
 
 
 def main():
-    # load mnist data
-    (x_train, y_train), (x_test, y_test) = \
-        load_cifar10(dtype=np.float32, normalize=True)
-    print(x_train.shape)
-
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.float32, shape=(None,) + x_train.shape[1:], name='input_x')
+        dtype=tf.float32, shape=(None,) + config.x_shape, name='input_x')
     input_y = tf.placeholder(
         dtype=tf.int32, shape=[None], name='input_y')
     is_training = tf.placeholder(
@@ -149,27 +142,29 @@ def main():
     )
 
     # prepare for training and testing data
-    train_flow = DataFlow.arrays(
-        [x_train, y_train], config.batch_size, shuffle=True,
-        skip_incomplete=True
-    )
-    test_flow = DataFlow.arrays([x_test, y_test], config.batch_size)
+    (x_train, y_train), (x_test, y_test) = \
+        load_cifar10(x_shape=config.x_shape, normalize_x=True)
+    train_flow = DataFlow.arrays([x_train, y_train], config.batch_size,
+                                 shuffle=True, skip_incomplete=True)
+    test_flow = DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
     with create_session().as_default():
         # train the network
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
-                       summary_dir=results.make_dir('train_summary'),
+                       max_step=config.max_step,
+                       summary_dir=(results.make_dir('train_summary')
+                                    if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
-                       summary_commit_freqs={'loss': 10, 'acc': 10},
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss, 'acc': acc}
             )
-            anneal_after(
-                trainer, learning_rate_var, epochs=config.lr_anneal_epoch_freq,
+            trainer.anneal_after(
+                learning_rate_var,
+                epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
             evaluator = Evaluator(

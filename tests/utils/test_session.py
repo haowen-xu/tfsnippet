@@ -6,7 +6,34 @@ from tfsnippet.utils import (get_default_session_or_error,
                              VariableSaver,
                              get_uninitialized_variables,
                              ensure_variables_initialized,
-                             TemporaryDirectory)
+                             TemporaryDirectory,
+                             create_session)
+
+
+class CreateSessionTestCase(tf.test.TestCase):
+
+    def test_create_session(self):
+        with pytest.raises(TypeError, match='`lock_memory` must be True, '
+                                            'False or float'):
+            _ = create_session(lock_memory='')
+
+        # test with default options
+        session = create_session()
+        self.assertFalse(session._config.gpu_options.allow_growth)
+        self.assertFalse(session._config.log_device_placement)
+        self.assertTrue(session._config.allow_soft_placement)
+
+        # test with various options
+        session = create_session(lock_memory=0.5, log_device_placement=True,
+                                 allow_soft_placement=False)
+        self.assertEqual(
+            session._config.gpu_options.per_process_gpu_memory_fraction, .5)
+        self.assertTrue(session._config.log_device_placement)
+        self.assertFalse(session._config.allow_soft_placement)
+
+        # test with lock_memory = False
+        session = create_session(lock_memory=False)
+        self.assertTrue(session._config.gpu_options.allow_growth)
 
 
 class GetDefaultSessionOrErrorTestCase(tf.test.TestCase):

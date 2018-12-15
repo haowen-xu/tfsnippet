@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow import keras as K
 
 from tfsnippet.applications import InceptionV3
-from tfsnippet.nn import softmax, npyops
+from tfsnippet.mathops import softmax, npyops
 
 
 class InceptionV3TestCase(tf.test.TestCase):
@@ -28,21 +28,21 @@ class InceptionV3TestCase(tf.test.TestCase):
 
         # predict proba with jpeg
         proba = model.predict_proba([image_data]).astype(np.float32)
-        self.assertEquals((1, 1008), proba.shape)
-        self.assertEquals(169, np.argmax(np.squeeze(proba)))
+        self.assertEqual((1, 1008), proba.shape)
+        self.assertEqual(169, np.argmax(np.squeeze(proba)))
 
         # predict log-proba with jpeg
         log_proba = model.predict_log_proba([image_data]).astype(np.float32)
-        self.assertEquals((1, 1008), proba.shape)
-        self.assertEquals(169, np.argmax(np.squeeze(proba)))
+        self.assertEqual((1, 1008), proba.shape)
+        self.assertEqual(169, np.argmax(np.squeeze(proba)))
         np.testing.assert_allclose(np.log(proba), log_proba, rtol=1e-2)
 
         # predict logits with binary data
         image_array = imageio.imread(image_path)
         image_array = np.expand_dims(image_array, 0)
         logits = model.predict_logits(image_array).astype(np.float32)
-        self.assertEquals((1, 1008), logits.shape)
-        self.assertEquals(169, np.argmax(np.squeeze(logits)))
+        self.assertEqual((1, 1008), logits.shape)
+        self.assertEqual(169, np.argmax(np.squeeze(logits)))
         # TensorFlow `log_softmax()` has special tweaks, thus is not identical
         # to the result of `softmax()` in general.  We thus test 169 only.
         np.testing.assert_allclose(
@@ -50,7 +50,7 @@ class InceptionV3TestCase(tf.test.TestCase):
 
         # predict classes with jpeg
         classes = model.predict([image_data])
-        self.assertEquals((1,), classes.shape)
+        self.assertEqual((1,), classes.shape)
         np.testing.assert_equal([169], classes)
 
         # check get labels

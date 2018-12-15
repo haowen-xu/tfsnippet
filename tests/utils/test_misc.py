@@ -117,43 +117,23 @@ class CamelToUnderscoreTestCase(unittest.TestCase):
             )
 
 
+class GetValidScopeNameTestCase(unittest.TestCase):
+
+    def test_get_valid_scope_name(self):
+        class _MyClass:
+            pass
+
+        self.assertEqual(get_valid_scope_name('abc'), 'abc')
+        self.assertEqual(get_valid_scope_name('abc', str), 'str.abc')
+        self.assertEqual(get_valid_scope_name('abc', ''), 'str.abc')
+        self.assertEqual(get_valid_scope_name('abc', _MyClass), 'MyClass.abc')
+        self.assertEqual(get_valid_scope_name('abc', _MyClass()), 'MyClass.abc')
+
+
 class NotSetTestCase(unittest.TestCase):
 
     def test_repr(self):
         self.assertEqual(repr(NOT_SET), 'NOT_SET')
-
-
-class _CachedPropertyHelper(object):
-
-    def __init__(self, value):
-        self.value = value
-
-    @cached_property('_cached_value')
-    def cached_value(self):
-        return self.value
-
-
-class CachedPropertyTestCase(unittest.TestCase):
-
-    def test_cached_property(self):
-        o = _CachedPropertyHelper(0)
-        self.assertFalse(hasattr(o, '_cached_value'))
-        o.value = 123
-        self.assertEqual(o.cached_value, 123)
-        self.assertTrue(hasattr(o, '_cached_value'))
-        self.assertEqual(o._cached_value, 123)
-        o.value = 456
-        self.assertEqual(o.cached_value, 123)
-        self.assertEqual(o._cached_value, 123)
-
-    def test_clear_cached_property(self):
-        o = _CachedPropertyHelper(123)
-        _ = o.cached_value
-        clear_cached_property(o, '_cached_value')
-        o.value = 456
-        self.assertFalse(hasattr(o, '_cached_value'))
-        self.assertEqual(o.cached_value, 456)
-        self.assertEqual(o._cached_value, 456)
 
 
 class MaybeCloseTestCase(unittest.TestCase):
@@ -196,21 +176,21 @@ class ETATestCase(unittest.TestCase):
         self.assertListEqual([], eta._progresses)
 
         eta = ETA(take_initial_snapshot=True)
-        self.assertEquals(1, len(eta._times))
+        self.assertEqual(1, len(eta._times))
         self.assertListEqual([0.], eta._progresses)
 
         eta.take_snapshot(.5)
-        self.assertEquals(2, len(eta._times))
+        self.assertEqual(2, len(eta._times))
         self.assertGreaterEqual(eta._times[1], eta._times[0])
         self.assertListEqual([0., .5], eta._progresses)
 
         eta.take_snapshot(.50001)
-        self.assertEquals(2, len(eta._times))
+        self.assertEqual(2, len(eta._times))
         self.assertListEqual([0., .5], eta._progresses)
 
         eta.take_snapshot(1., 12345)
-        self.assertEquals(3, len(eta._times))
-        self.assertEquals(12345, eta._times[-1])
+        self.assertEqual(3, len(eta._times))
+        self.assertEqual(12345, eta._times[-1])
         self.assertListEqual([0., .5, 1.], eta._progresses)
 
     def test_get_eta(self):

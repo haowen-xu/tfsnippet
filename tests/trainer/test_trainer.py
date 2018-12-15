@@ -23,9 +23,9 @@ class TrainerTestCase(tf.test.TestCase):
                     metrics={'loss_x': loss})
         self.assertIs(loop, t.loop)
         self.assertIs(train_op, t.train_op)
-        self.assertEquals((12, 34), t.inputs)
+        self.assertEqual((12, 34), t.inputs)
         self.assertIs(df, t.data_flow)
-        self.assertEquals({'a': 56}, t.feed_dict)
+        self.assertEqual({'a': 56}, t.feed_dict)
         self.assertDictEqual({'loss_x': loss}, t.metrics)
 
         t = Trainer(loop, train_op, [], Mock())
@@ -51,7 +51,7 @@ class TrainerTestCase(tf.test.TestCase):
             ensure_variables_initialized()
             t.run()
 
-            self.assertEquals(
+            self.assertEqual(
                 {'loss_x': 60}, loop.collect_metrics.call_args_list[0][0][0])
             np.testing.assert_equal([10, 11, 12, 13, 14], session.run(var))
 
@@ -69,13 +69,13 @@ class LossTrainerTestCase(tf.test.TestCase):
         self.assertIs(loop, t.loop)
         self.assertIs(loss, t.loss)
         self.assertIs(train_op, t.train_op)
-        self.assertEquals((12, 34), t.inputs)
+        self.assertEqual((12, 34), t.inputs)
         self.assertIs(df, t.data_flow)
-        self.assertEquals({'a': 56}, t.feed_dict)
-        self.assertEquals('loss_x', t.metric_name)
+        self.assertEqual({'a': 56}, t.feed_dict)
+        self.assertEqual('loss_x', t.metric_name)
 
         t = LossTrainer(loop, loss, train_op, [], Mock())
-        self.assertEquals('loss', t.metric_name)
+        self.assertEqual('loss', t.metric_name)
 
     def test_run(self):
         ph = tf.placeholder(tf.int32, [5])
@@ -91,7 +91,7 @@ class LossTrainerTestCase(tf.test.TestCase):
             ensure_variables_initialized()
             t.run()
 
-            self.assertEquals(
+            self.assertEqual(
                 {'loss_x': 60}, loop.collect_metrics.call_args_list[0][0][0])
             np.testing.assert_equal([10, 11, 12, 13, 14], session.run(var))
 

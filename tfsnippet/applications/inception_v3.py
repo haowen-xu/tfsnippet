@@ -5,7 +5,7 @@ import re
 import six
 import tensorflow as tf
 
-from tfsnippet.nn import inception_score, npyops
+from tfsnippet.mathops import inception_score, npyops
 from tfsnippet.utils import CacheDir, get_default_session_or_error
 
 __all__ = ['InceptionV3']

@@ -19,12 +19,12 @@ class DataFlowTestCase(unittest.TestCase):
         df = _DataFlow()
 
         self.assertFalse(df._is_iter_entered)
-        self.assertEquals(0, df._minibatch_iterator.call_count)
+        self.assertEqual(0, df._minibatch_iterator.call_count)
 
         for x in df:
-            self.assertEquals(123, x)
+            self.assertEqual(123, x)
             self.assertTrue(df._is_iter_entered)
-            self.assertEquals(1, df._minibatch_iterator.call_count)
+            self.assertEqual(1, df._minibatch_iterator.call_count)
 
             with pytest.raises(
                     RuntimeError, match='_DataFlow.__iter__ is not reentrant'):
@@ -32,7 +32,7 @@ class DataFlowTestCase(unittest.TestCase):
                     pass
 
         self.assertFalse(df._is_iter_entered)
-        self.assertEquals(1, df._minibatch_iterator.call_count)
+        self.assertEqual(1, df._minibatch_iterator.call_count)
 
     def test_get_arrays(self):
         with pytest.raises(ValueError, match='empty, cannot convert to arrays'):
