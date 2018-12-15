@@ -47,17 +47,14 @@ class ExamplesTestCase(unittest.TestCase):
 
         # run all examples scripts for just max_step
         env_dict = copy.copy(os.environ)
-        env_dict['MLSTORAGE_EXPERIMENT_ID'] = 'null_id'
 
         for example_script in examples_scripts:
             print('Run {} ...'.format(example_script))
 
             with TemporaryDirectory() as tempdir:
-                with codecs.open(os.path.join(tempdir, 'config.json'),
-                                 'wb', 'utf-8') as f:
-                    f.write('{"max_step":1}\n')
-                subprocess.check_call([sys.executable, '-u', example_script],
-                                      cwd=tempdir, env=env_dict)
+                args = [sys.executable, '-u',
+                        example_script, '-c', 'max_step=1']
+                subprocess.check_call(args, cwd=tempdir, env=env_dict)
                 print('')
 
         # report finished tests

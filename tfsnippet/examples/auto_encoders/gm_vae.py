@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import codecs
 import functools
-import logging
 import warnings
 
+import click
 import tensorflow as tf
 from sklearn.metrics import accuracy_score
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
@@ -14,15 +14,16 @@ from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (Config, Results, save_images_collection,
+from tfsnippet.examples.utils import (MLConfig, Results, save_images_collection,
                                       collect_outputs,
-                                      ClusteringClassifier)
+                                      ClusteringClassifier, pass_global_config,
+                                      config_options)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
 
 
-class ExpConfig(Config):
+class ExpConfig(MLConfig):
     # model parameters
     x_dim = 784
     z_dim = 16
@@ -50,7 +51,8 @@ class ExpConfig(Config):
 
 
 @global_reuse
-def gaussian_mixture_prior(y, z_dim, n_clusters):
+@pass_global_config
+def gaussian_mixture_prior(config, y, z_dim, n_clusters):
     # derive the learnt z_mean
     prior_mean = tf.get_variable(
         'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
@@ -88,9 +90,8 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_samples=None, is_training=True):
-    logging.info('q_net builder: %r', locals())
-
+@pass_global_config
+def q_net(config, x, observed=None, n_samples=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -143,12 +144,12 @@ def q_net(x, observed=None, n_samples=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_y=None, n_z=None, is_training=True, n_samples=None):
+@pass_global_config
+def p_net(config, observed=None, n_y=None, n_z=None, is_training=True,
+          n_samples=None):
     if n_samples is not None:
         warnings.warn('`n_samples` is deprecated, use `n_y` instead.')
         n_y = n_samples
-
-    logging.info('p_net builder: %r', locals())
 
     net = BayesianNet(observed=observed)
 
@@ -180,7 +181,8 @@ def p_net(observed=None, n_y=None, n_z=None, is_training=True, n_samples=None):
 
 
 @global_reuse
-def reinforce_baseline_net(x):
+@pass_global_config
+def reinforce_baseline_net(config, x):
     x, s1, s2 = flatten(tf.to_float(x), 2)
     with arg_scope([dense],
                    kernel_regularizer=l2_regularizer(config.l2_reg),
@@ -190,19 +192,11 @@ def reinforce_baseline_net(x):
     return h_x
 
 
-def sample_from_probs(x):
-    uniform_samples = tf.random_uniform(
-        shape=tf.shape(x), minval=0., maxval=1.,
-        dtype=x.dtype
-    )
-    return tf.cast(tf.less(uniform_samples, x), dtype=tf.int32)
-
-
-def main():
-    logging.basicConfig(
-        level='INFO',
-        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-    )
+@click.command()
+@config_options(ExpConfig)
+@pass_global_config
+def main(config):
+    results = Results()
 
     # input placeholders
     input_x = tf.placeholder(
@@ -363,6 +357,4 @@ def main():
 
 
 if __name__ == '__main__':
-    config = ExpConfig()
-    results = Results()
     main()
