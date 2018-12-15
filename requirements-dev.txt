@@ -9,6 +9,7 @@ sphinx >= 1.6.3
 
 # dependencies required only for running the examples
 scikit-learn >= 0.20
+git+https://github.com/haowen-xu/mlsnippet.git
 
 # !!! DO NOT INCLUDE TENSORFLOW IN THIS FILE !!!
 # Installing tensorflow (no `-gpu`) will cause the gpu version not to work.

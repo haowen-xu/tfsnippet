@@ -106,12 +106,12 @@ the mini-batch iterators.
         for batch_x, batch_y in threaded_flow:
             ...  # Do something with batch_x and batch_y
 
-    # If you use `MLToolkit <https://github.com/haowen-xu/mltoolkit>`_,
+    # If you use `MLSnippet <https://github.com/haowen-xu/mlsnippet>`_,
     # you can even load data from a MongoDB via data flow.  Suppose you
     # have stored all images from ImageNet into a GridFS (of MongoDB),
     # along with the labels stored as ``metadata.y``.
     # You may iterate through the ImageNet in batches by:
-    from mltoolkit.datafs import MongoFS
+    from mlsnippet.datafs import MongoFS
 
     fs = MongoFS('mongodb://localhost', 'imagenet', 'train')
     with fs.as_flow(batch_size=64, with_names=False, meta_keys=['y'],
