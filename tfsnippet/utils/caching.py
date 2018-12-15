@@ -144,10 +144,6 @@ class CacheDir(object):
             yield
 
     def _download(self, uri, file_path, show_progress, progress_file):
-        file_dir = os.path.split(file_path)[0]
-        if not os.path.isdir(file_dir):
-            makedirs(file_dir, exist_ok=True)
-
         if not os.path.isfile(file_path):
             temp_file = file_path + '._downloading_'
             try:
