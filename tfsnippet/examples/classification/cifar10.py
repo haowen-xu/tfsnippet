@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
+from tfsnippet.examples.datasets import load_cifar10
 from tfsnippet.examples.nn import (dense,
                                    softmax_classification_loss,
                                    softmax_classification_output,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import Config, Results, load_cifar10
+from tfsnippet.examples.utils import Config, Results
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, create_session
@@ -18,6 +18,7 @@ from tfsnippet.utils import global_reuse, create_session
 
 class ExpConfig(Config):
     # model parameters
+    x_dim = 3 * 32 * 32
     l2_reg = 0.0001
 
     # training parameters
@@ -25,6 +26,7 @@ class ExpConfig(Config):
     max_epoch = 500
     max_step = None
     batch_size = 64
+    test_batch_size = 64
 
     initial_lr = 0.001
     lr_anneal_factor = 0.5
@@ -46,13 +48,9 @@ def model(x, is_training):
 
 
 def main():
-    # load cifar data
-    (x_train, y_train), (x_test, y_test) = \
-        load_cifar10(flatten=True, dtype=np.float32, normalize=True)
-
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.float32, shape=(None,) + x_train.shape[1:], name='input_x')
+        dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
     input_y = tf.placeholder(
         dtype=tf.int32, shape=[None], name='input_y')
     is_training = tf.placeholder(
@@ -77,11 +75,11 @@ def main():
         train_op = optimizer.apply_gradients(grads)
 
     # prepare for training and testing data
-    train_flow = DataFlow.arrays(
-        [x_train, y_train], config.batch_size, shuffle=True,
-        skip_incomplete=True
-    )
-    test_flow = DataFlow.arrays([x_test, y_test], config.batch_size)
+    (x_train, y_train), (x_test, y_test) = \
+        load_cifar10(x_shape=(config.x_dim,), normalize_x=True)
+    train_flow = DataFlow.arrays([x_train, y_train], config.batch_size,
+                                 shuffle=True, skip_incomplete=True)
+    test_flow = DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
     with create_session().as_default():
         # train the network

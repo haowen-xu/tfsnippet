@@ -2,10 +2,29 @@ import numpy as np
 
 from tfsnippet.dataflow import DataMapper
 
-__all__ = ['BernoulliSampler', 'UniformNoiseSampler']
+__all__ = ['BaseSampler', 'BernoulliSampler', 'UniformNoiseSampler']
 
 
-class BernoulliSampler(DataMapper):
+class BaseSampler(DataMapper):
+    """Base class for samplers."""
+
+    def sample(self, x):
+        """
+        Sample array according to `x`.
+
+        Args:
+            x (np.ndarray): The input `x` array.
+
+        Returns:
+            np.ndarray: The sampled array.
+        """
+        raise NotImplementedError()
+
+    def _transform(self, x):
+        return self.sample(x),
+
+
+class BernoulliSampler(BaseSampler):
     """
     A :class:`DataMapper` which can sample 0/1 integers according to the
     input probability.  The input is assumed to be float numbers range within
@@ -29,14 +48,14 @@ class BernoulliSampler(DataMapper):
         """Get the data type of the sampled array."""
         return self._dtype
 
-    def _transform(self, x):
+    def sample(self, x):
         rng = self._random_state or np.random
         sampled = np.asarray(
             rng.uniform(0., 1., size=x.shape) < x, dtype=self._dtype)
-        return sampled,
+        return sampled
 
 
-class UniformNoiseSampler(DataMapper):
+class UniformNoiseSampler(BaseSampler):
     """
     A :class:`DataMapper` which can add uniform noise onto the input array.
     The data type of the returned array will be the same as the input array,
@@ -74,8 +93,8 @@ class UniformNoiseSampler(DataMapper):
         """Get the data type of the sampled array."""
         return self._dtype
 
-    def _transform(self, x):
+    def sample(self, x):
         rng = self._random_state or np.random
         dtype = self._dtype or x.dtype
         noise = rng.uniform(self._minval, self._maxval, size=x.shape)
-        return np.asarray(x + noise, dtype=dtype),
+        return np.asarray(x + noise, dtype=dtype)

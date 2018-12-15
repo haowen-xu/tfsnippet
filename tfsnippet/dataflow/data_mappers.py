@@ -1,4 +1,6 @@
 import numpy as np
+
+from tfsnippet.utils import DocInherit
 from .base import DataFlow
 
 __all__ = [
@@ -6,6 +8,7 @@ __all__ = [
 ]
 
 
+@DocInherit
 class DataMapper(object):
     """
     Base class for all data mappers.

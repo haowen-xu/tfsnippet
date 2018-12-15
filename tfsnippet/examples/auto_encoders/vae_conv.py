@@ -7,6 +7,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 from tfsnippet.bayes import BayesianNet
 
 from tfsnippet.distributions import Normal, Bernoulli
+from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (dense,
                                    resnet_block,
                                    deconv_resnet_block,
@@ -15,7 +16,7 @@ from tfsnippet.examples.nn import (dense,
                                    regularization_loss,
                                    conv2d,
                                    batch_norm_2d)
-from tfsnippet.examples.utils import (Config, MultiGPU, Results, mnist,
+from tfsnippet.examples.utils import (Config, MultiGPU, Results,
                                       save_images_collection)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -229,10 +230,10 @@ def main():
             )
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = mnist.load()
-    train_flow = mnist.bernoulli_flow(
+    (x_train, y_train), (x_test, y_test) = load_mnist()
+    train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
-    test_flow = mnist.bernoulli_flow(
+    test_flow = bernoulli_flow(
         x_test, config.test_batch_size, sample_now=True)
 
     with create_session().as_default() as session, \

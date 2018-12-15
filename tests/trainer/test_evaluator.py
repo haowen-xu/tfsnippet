@@ -13,9 +13,9 @@ from tfsnippet.trainer import *
 class AutoBatchWeightTestCase(unittest.TestCase):
 
     def test_auto_loss_weight(self):
-        self.assertEquals(5., auto_batch_weight(np.arange(5)))
-        self.assertEquals(7., auto_batch_weight(np.arange(7), np.arange(5)))
-        self.assertEquals(1., auto_batch_weight(None))
+        self.assertEqual(5., auto_batch_weight(np.arange(5)))
+        self.assertEqual(7., auto_batch_weight(np.arange(7), np.arange(5)))
+        self.assertEqual(1., auto_batch_weight(None))
 
 
 class EvaluatorTestCase(tf.test.TestCase):
@@ -27,11 +27,11 @@ class EvaluatorTestCase(tf.test.TestCase):
         v = Evaluator(loop, 12, [34, 56], df)
         self.assertIs(loop, v.loop)
         with self.test_session():
-            self.assertEquals(12, v.metrics['valid_loss'].eval())
-        self.assertEquals([34, 56], v.inputs)
+            self.assertEqual(12, v.metrics['valid_loss'].eval())
+        self.assertEqual([34, 56], v.inputs)
         self.assertIs(v.data_flow, df)
-        self.assertEquals({}, v.feed_dict)
-        self.assertEquals('eval_time', v.time_metric_name)
+        self.assertEqual({}, v.feed_dict)
+        self.assertEqual('eval_time', v.time_metric_name)
         self.assertIs(auto_batch_weight, v.batch_weight_func)
         self.assertIsInstance(v.before_run, HookList)
         self.assertIsInstance(v.after_run, HookList)
@@ -42,8 +42,8 @@ class EvaluatorTestCase(tf.test.TestCase):
                       time_metric_name='valid_time_x',
                       batch_weight_func=batch_weight_func)
         with self.test_session():
-            self.assertEquals(12, v.metrics['valid_loss_x'].eval())
-        self.assertEquals('valid_time_x', v.time_metric_name)
+            self.assertEqual(12, v.metrics['valid_loss_x'].eval())
+        self.assertEqual('valid_time_x', v.time_metric_name)
         self.assertIs(batch_weight_func, v.batch_weight_func)
 
     def test_error(self):
@@ -71,7 +71,7 @@ class EvaluatorTestCase(tf.test.TestCase):
                         2.5, v.last_metrics_dict['valid_loss'])
                     self.assertIn('eval_time', loop._epoch_metrics._metrics)
 
-                self.assertEquals(2, len(v._run_batch.call_args_list))
+                self.assertEqual(2, len(v._run_batch.call_args_list))
                 for i, call_args in enumerate(v._run_batch.call_args_list):
                     call_session, call_feed_dict = call_args[0]
                     self.assertIs(session, call_session)
@@ -79,8 +79,8 @@ class EvaluatorTestCase(tf.test.TestCase):
                         np.arange(6, dtype=np.float32)[i*4: (i+1)*4],
                         call_feed_dict[ph]
                     )
-                    self.assertEquals(34, call_feed_dict[ph2])
-                    self.assertEquals(56, call_feed_dict[ph3])
+                    self.assertEqual(34, call_feed_dict[ph2])
+                    self.assertEqual(56, call_feed_dict[ph3])
 
             # test None loss weight and None time metric and override feed dict
             with TrainLoop([], max_epoch=1) as loop:
@@ -101,7 +101,7 @@ class EvaluatorTestCase(tf.test.TestCase):
 
                 for i, call_args in enumerate(v._run_batch.call_args_list):
                     call_session, call_feed_dict = call_args[0]
-                    self.assertEquals(56, call_feed_dict[ph2])
+                    self.assertEqual(56, call_feed_dict[ph2])
                     self.assertNotIn(ph3, call_feed_dict)
 
 

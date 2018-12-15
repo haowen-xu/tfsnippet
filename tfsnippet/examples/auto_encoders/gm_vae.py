@@ -10,11 +10,11 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Normal, Bernoulli, Categorical
+from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (Config, Results, mnist,
-                                      save_images_collection,
+from tfsnippet.examples.utils import (Config, Results, save_images_collection,
                                       collect_outputs,
                                       ClusteringClassifier)
 from tfsnippet.scaffold import TrainLoop
@@ -283,7 +283,7 @@ def main():
     c_classifier = ClusteringClassifier(config.n_clusters, 10)
 
     def train_classifier(loop):
-        df = mnist.bernoulli_flow(
+        df = bernoulli_flow(
             x_train, config.batch_size, shuffle=False, skip_incomplete=False)
         with loop.timeit('cls_train_time'):
             [c_pred] = collect_outputs(
@@ -309,10 +309,10 @@ def main():
             results.commit(cls_metrics)
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = mnist.load()
-    train_flow = mnist.bernoulli_flow(
+    (x_train, y_train), (x_test, y_test) = load_mnist()
+    train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
-    test_flow = mnist.bernoulli_flow(
+    test_flow = bernoulli_flow(
         x_test, config.test_batch_size, sample_now=True)
 
     with create_session().as_default() as session, \

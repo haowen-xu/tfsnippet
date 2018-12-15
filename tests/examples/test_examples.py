@@ -8,6 +8,7 @@ import time
 import unittest
 
 from tfsnippet.utils import TemporaryDirectory, humanize_duration
+from tests.examples.helper import skipUnlessRunExamplesTests
 
 
 class ExamplesTestCase(unittest.TestCase):
@@ -15,8 +16,7 @@ class ExamplesTestCase(unittest.TestCase):
     Test case to ensure all examples can run for at least one step.
     """
 
-    @unittest.skipUnless(os.environ.get('RUN_EXAMPLES_TEST_CASE') == '1',
-                         'RUN_EXAMPLES_TEST_CASE is not set to 1, thus skipped')
+    @skipUnlessRunExamplesTests()
     def test_examples_can_run_one_step(self):
         timer = -time.time()
 

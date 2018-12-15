@@ -15,8 +15,8 @@ class IteratorFactoryFlowTestCase(unittest.TestCase):
         ))
 
         b = list(flow)
-        self.assertEquals(2, len(b))
-        self.assertEquals(2, len(b[0]))
+        self.assertEqual(2, len(b))
+        self.assertEqual(2, len(b[0]))
         np.testing.assert_array_equal([0, 1, 2], b[0][0])
         np.testing.assert_array_equal([5, 6, 7], b[0][1])
         np.testing.assert_array_equal([3, 4], b[1][0])

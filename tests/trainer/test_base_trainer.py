@@ -17,7 +17,7 @@ class BaseTrainerTestCase(tf.test.TestCase):
         loop = Mock(valid_metric_name='valid_loss')
         t = BaseTrainer(loop)
         self.assertIs(loop, t.loop)
-        self.assertEquals(
+        self.assertEqual(
             (t.before_epochs, t.before_steps, t.after_steps, t.after_epochs),
             t.hook_lists
         )
@@ -70,40 +70,40 @@ class BaseTrainerTestCase(tf.test.TestCase):
             epochs=18
         )
 
-        self.assertEquals('HookList()', repr(t.before_steps))
-        self.assertEquals('HookList()', repr(t.before_epochs))
+        self.assertEqual('HookList()', repr(t.before_steps))
+        self.assertEqual('HookList()', repr(t.before_epochs))
         steps_ans = 'HookList(eval_step:5,{!r}:9,eval_step2:15,anneal_step:7,' \
                     '{!r}:11,anneal_step2:17,print_logs:3,print_logs:13)'. \
                     format(eval1.run, anneal1.anneal)
-        self.assertEquals(steps_ans, repr(t.after_steps))
+        self.assertEqual(steps_ans, repr(t.after_steps))
         epochs_ans = 'HookList(eval_epoch:6,{!r}:10,eval_epoch2:16,' \
                      'anneal_epoch:8,{!r}:12,anneal_epoch2:18,print_logs:4,' \
                      'print_logs:14)'. \
                      format(eval2.run, anneal2.anneal)
-        self.assertEquals(epochs_ans, repr(t.after_epochs))
+        self.assertEqual(epochs_ans, repr(t.after_epochs))
 
         # test remove
         t.remove_log_hooks()
         steps_ans = 'HookList(eval_step:5,{!r}:9,eval_step2:15,anneal_step:7,' \
                     '{!r}:11,anneal_step2:17)'. \
                     format(eval1.run, anneal1.anneal)
-        self.assertEquals(steps_ans, repr(t.after_steps))
+        self.assertEqual(steps_ans, repr(t.after_steps))
         epochs_ans = 'HookList(eval_epoch:6,{!r}:10,eval_epoch2:16,' \
                      'anneal_epoch:8,{!r}:12,anneal_epoch2:18)'. \
                      format(eval2.run, anneal2.anneal)
-        self.assertEquals(epochs_ans, repr(t.after_epochs))
+        self.assertEqual(epochs_ans, repr(t.after_epochs))
 
         t.remove_validation_hooks()
         steps_ans = 'HookList(anneal_step:7,{!r}:11,anneal_step2:17)'. \
                     format(anneal1.anneal)
-        self.assertEquals(steps_ans, repr(t.after_steps))
+        self.assertEqual(steps_ans, repr(t.after_steps))
         epochs_ans = 'HookList(anneal_epoch:8,{!r}:12,anneal_epoch2:18)'. \
                      format(anneal2.anneal)
-        self.assertEquals(epochs_ans, repr(t.after_epochs))
+        self.assertEqual(epochs_ans, repr(t.after_epochs))
 
         t.remove_annealing_hooks()
-        self.assertEquals('HookList()', repr(t.after_steps))
-        self.assertEquals('HookList()', repr(t.after_epochs))
+        self.assertEqual('HookList()', repr(t.after_steps))
+        self.assertEqual('HookList()', repr(t.after_epochs))
 
         # test error add
         func_list = [
@@ -145,19 +145,19 @@ class BaseTrainerTestCase(tf.test.TestCase):
                     functools.partial(log_message, 'after_epoch'))
 
                 t.run()
-                self.assertEquals(4, len(t._run_step.call_args_list))
+                self.assertEqual(4, len(t._run_step.call_args_list))
                 for i, call_args in enumerate(t._run_step.call_args_list[:-2]):
                     call_session, call_payload = call_args[0]
                     self.assertIs(session, call_session)
-                    self.assertEquals(i + 1, call_payload[0])
+                    self.assertEqual(i + 1, call_payload[0])
                     self.assertIsInstance(call_payload[1], tuple)
-                    self.assertEquals(1, len(call_payload[1]))
+                    self.assertEqual(1, len(call_payload[1]))
                     np.testing.assert_equal(
                         np.arange(6, dtype=np.float32)[i * 4: (i + 1) * 4],
                         call_payload[1][0]
                     )
 
-                self.assertEquals(
+                self.assertEqual(
                     ['before_epoch', 'before_step', 'after_step',
                      'before_step', 'after_step', 'after_epoch'] * 2,
                     logged_messages

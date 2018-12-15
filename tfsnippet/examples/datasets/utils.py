@@ -1,52 +1,18 @@
-import gzip
-
 import numpy as np
-import idx2numpy
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.preprocessing import BernoulliSampler, UniformNoiseSampler
-from tfsnippet.utils import CacheDir
 
-__all__ = []
-
-
-TRAIN_X_URI = 'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz'
-TRAIN_Y_URI = 'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz'
-TEST_X_URI = 'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz'
-TEST_Y_URI = 'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz'
+__all__ = ['bernoulli_flow', 'quantized_flow']
 
 
-def _fetch_array(uri):
-    """Fetch an MNIST array from the `uri` with cache."""
-    path = CacheDir('mnist').download(uri)
-    with gzip.open(path, 'rb') as f:
-        return idx2numpy.convert_from_file(f)
-
-
-def load(x_shape=(784,), x_dtype=np.float32, y_dtype=np.int32):
-    """
-    Load the MNIST dataset as NumPy arrays.
-
-    Args:
-        x_shape: Reshape each digit into this shape.  Default ``(784,)``.
-        x_dtype: Cast each digit into this data type.  Default `np.float32`.
-        y_dtype: Cast each label into this data type.  Default `np.int32`.
-
-    Returns:
-        (np.ndarray, np.ndarray), (np.ndarray, np.ndarray): The
-            (train_x, train_y), (test_x, test_y)
-    """
-    train_x = _fetch_array(TRAIN_X_URI).astype(x_dtype)
-    train_y = _fetch_array(TRAIN_Y_URI).astype(y_dtype)
-    test_x = _fetch_array(TEST_X_URI).astype(x_dtype)
-    test_y = _fetch_array(TEST_Y_URI).astype(y_dtype)
-
-    assert(len(train_x) == len(train_y) == 60000)
-    assert(len(test_x) == len(test_y) == 10000)
-
-    train_x = train_x.reshape([-1] + list(x_shape))
-    test_x = test_x.reshape([-1] + list(x_shape))
-    return (train_x, train_y), (test_x, test_y)
+def _create_sampled_dataflow(arrays, sampler, sample_now, **kwargs):
+    if sample_now:
+        arrays = sampler(*arrays)
+    df = DataFlow.arrays(arrays, **kwargs)
+    if not sample_now:
+        df = df.map(sampler)
+    return df
 
 
 def bernoulli_flow(x, batch_size, shuffle=False, skip_incomplete=False,
@@ -56,7 +22,8 @@ def bernoulli_flow(x, batch_size, shuffle=False, skip_incomplete=False,
     according to the given `x` array.
 
     Args:
-        x: The `train_x` or `test_x` of MNIST dataset.
+        x: The `train_x` or `test_x` of an image dataset.  The pixel values
+            must be 8-bit integers, having the range of ``[0, 255]``.
         batch_size (int): Size of each mini-batch.
         shuffle (bool): Whether or not to shuffle data before iterating?
             (default :obj:`False`)
@@ -79,17 +46,10 @@ def bernoulli_flow(x, batch_size, shuffle=False, skip_incomplete=False,
     sampler = BernoulliSampler(dtype=dtype, random_state=random_state)
 
     # compose the data flow
-    if sample_now:
-        x = sampler(x)[0]
-    df = DataFlow.arrays([x],
-                         batch_size=batch_size,
-                         shuffle=shuffle,
-                         skip_incomplete=skip_incomplete,
-                         random_state=random_state)
-    if not sample_now:
-        df = df.map(sampler)
-
-    return df
+    return _create_sampled_dataflow(
+        [x], sampler, sample_now, batch_size=batch_size, shuffle=shuffle,
+        skip_incomplete=skip_incomplete, random_state=random_state
+    )
 
 
 def quantized_flow(x, batch_size, shuffle=False, skip_incomplete=False,
@@ -100,7 +60,8 @@ def quantized_flow(x, batch_size, shuffle=False, skip_incomplete=False,
     the given `x` array.
 
     Args:
-        x: The `train_x` or `test_x` of MNIST dataset.
+        x: The `train_x` or `test_x` of an image dataset.  The pixel values
+            must be 8-bit integers, having the range of ``[0, 255]``.
         batch_size (int): Size of each mini-batch.
         shuffle (bool): Whether or not to shuffle data before iterating?
             (default :obj:`False`)
@@ -133,14 +94,7 @@ def quantized_flow(x, batch_size, shuffle=False, skip_incomplete=False,
                                   random_state=random_state)
 
     # compose the data flow
-    if sample_now:
-        x = x + sampler(x)[0]
-    df = DataFlow.arrays([x],
-                         batch_size=batch_size,
-                         shuffle=shuffle,
-                         skip_incomplete=skip_incomplete,
-                         random_state=random_state)
-    if not sample_now:
-        df = df.map(sampler)
-
-    return df
+    return _create_sampled_dataflow(
+        [x], sampler, sample_now, batch_size=batch_size, shuffle=shuffle,
+        skip_incomplete=skip_incomplete, random_state=random_state
+    )
