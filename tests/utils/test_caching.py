@@ -154,10 +154,10 @@ class CacheDirTestCase(unittest.TestCase):
         cache_dir = CacheDir('sub-dir/sub-sub-dir', cache_root=None)
         self.assertEqual('sub-dir/sub-sub-dir', cache_dir.name)
         self.assertEqual(os.path.abspath(get_cache_root()),
-                          cache_dir.cache_root)
+                         cache_dir.cache_root)
         self.assertEqual(os.path.abspath(os.path.join(get_cache_root(),
-                                                       'sub-dir/sub-sub-dir')),
-                          cache_dir.path)
+                                                      'sub-dir/sub-sub-dir')),
+                         cache_dir.path)
 
         with TemporaryDirectory() as tmpdir:
             cache_dir = CacheDir('sub-dir/sub-sub-dir', cache_root=tmpdir)
@@ -165,9 +165,9 @@ class CacheDirTestCase(unittest.TestCase):
             self.assertEqual('sub-dir/sub-sub-dir', cache_dir.name)
             self.assertEqual(tmpdir, cache_dir.cache_root)
             self.assertEqual(os.path.join(tmpdir, 'sub-dir/sub-sub-dir'),
-                              cache_dir.path)
+                             cache_dir.path)
             self.assertEqual(os.path.join(cache_dir.path, 'a/b/c'),
-                              cache_dir.resolve('a/b/c'))
+                             cache_dir.resolve('a/b/c'))
 
         with pytest.raises(ValueError, match='`name` is required'):
             _ = CacheDir('')
@@ -179,7 +179,8 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(0, server.counter[0])
 
                 # no cache
-                path = cache_dir.download(url + 'payload.zip')
+                path = cache_dir.download(url + 'payload.zip',
+                                          show_progress=True)
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'payload.zip'), path)
                 self.assertTrue(os.path.isfile(path))
@@ -187,8 +188,7 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(1, server.counter[0])
 
                 # having cache
-                path = cache_dir.download(url + 'payload.zip',
-                                          show_progress=True)
+                path = cache_dir.download(url + 'payload.zip')
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'payload.zip'), path)
                 self.assertTrue(os.path.isfile(path))
@@ -240,8 +240,7 @@ class CacheDirTestCase(unittest.TestCase):
             # having cache
             log_file = LogIO()
             path = cache_dir.extract_file(get_asset_path('payload.tgz'),
-                                          progress_file=log_file,
-                                          show_progress=True)
+                                          progress_file=log_file)
             self.assertEqual(1, PatchedExtractor.call_count)
             self.assertEqual(
                 os.path.join(cache_dir.path, 'payload'), path)
