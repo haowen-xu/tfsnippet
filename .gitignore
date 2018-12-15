@@ -2,6 +2,7 @@
 .cache
 .pytest_cache
 *.iml
+*.lock
 /config.py
 /debug.py
 /.coverage

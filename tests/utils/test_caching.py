@@ -188,7 +188,8 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(1, server.counter[0])
 
                 # having cache
-                path = cache_dir.download(url + 'payload.zip')
+                path = cache_dir.download(url + 'payload.zip',
+                                          show_progress=True)
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'payload.zip'), path)
                 self.assertTrue(os.path.isfile(path))
@@ -240,7 +241,8 @@ class CacheDirTestCase(unittest.TestCase):
             # having cache
             log_file = LogIO()
             path = cache_dir.extract_file(get_asset_path('payload.tgz'),
-                                          progress_file=log_file)
+                                          progress_file=log_file,
+                                          show_progress=True)
             self.assertEqual(1, PatchedExtractor.call_count)
             self.assertEqual(
                 os.path.join(cache_dir.path, 'payload'), path)
@@ -285,7 +287,7 @@ class CacheDirTestCase(unittest.TestCase):
                 path = cache_dir.download_and_extract(url + 'payload.zip')
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'payload'), path)
-                self.assertTrue(os.path.isfile(path + '.zip'))
+                self.assertFalse(os.path.isfile(path + '.zip'))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
                 self.assertTrue(os.path.isdir(path))
                 self.assertFalse(os.path.isdir(path + '._extracting_'))
