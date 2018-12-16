@@ -4,13 +4,21 @@ import sys
 from pprint import pformat
 
 import imageio
+import six
 from fs import open_fs
 from fs.base import FS
+from fs.errors import NoSysPath
 
 from tfsnippet.utils import makedirs
 from .jsonutils import JsonEncoder
 
 __all__ = ['MLResults']
+
+
+def ensure_unicode_path(path):
+    if isinstance(path, six.binary_type):
+        path = path.decode('utf-8')
+    return path
 
 
 class MLResults(object):
@@ -130,6 +138,36 @@ class MLResults(object):
             str: The formatted metric values.
         """
         return pformat(self.metrics_dict)
+
+    def system_path(self, path):
+        """
+        Resolve `path` into system path.
+
+        Args:
+            path (str): The directory path, relative to the result directory.
+
+        Returns:
+            str: The resolved system path.
+
+        Raises:
+            RuntimeError: If the `path` cannot be resolved as system path.
+        """
+        try:
+            return self.fs.getsyspath(ensure_unicode_path(path))
+        except NoSysPath as e:
+            raise RuntimeError('`path` cannot be resolved into system absolute '
+                               'path: {}'.format(path), e)
+
+    def makedirs(self, path, exist_ok=False):
+        """
+        Create a directory and all its parent directories.
+
+        Args:
+            path (str): The directory path, relative to the result directory.
+            exist_ok (bool): If :obj:`False`, will raise exception if
+                `path` already is a directory.
+        """
+        self.fs.makedirs(ensure_unicode_path(path), recreate=exist_ok)
 
     def imwrite(self, path, im, format=None, **kwargs):
         """

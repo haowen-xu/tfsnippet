@@ -207,8 +207,8 @@ def main(config, result_dir):
 
     # open the result object and prepare for result directories
     results = MLResults(result_dir)
-    results.fs.makedir('plotting', recreate=True)
-    results.fs.makedir('train_summary', recreate=True)
+    results.makedirs('plotting', exist_ok=True)
+    results.makedirs('train_summary', exist_ok=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -327,7 +327,7 @@ def main(config, result_dir):
                        var_groups=['p_net', 'q_net', 'gaussian_mixture_prior'],
                        max_epoch=config.max_epoch,
                        max_step=config.max_step,
-                       summary_dir=(results.fs.getsyspath('train_summary')
+                       summary_dir=(results.system_path('train_summary')
                                     if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
