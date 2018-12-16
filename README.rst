@@ -4,7 +4,7 @@ TFSnippet
 +---------+-----------------+-----------------+---------------+
 | Master  | |master_build|  | |master_cover|  | |master_doc|  |
 +---------+-----------------+-----------------+---------------+
-| Develop | |develop_build| | |develop_cover| |               |
+| Develop | |develop_build| | |develop_cover| | |develop_doc| |
 +---------+-----------------+-----------------+---------------+
 
 .. |master_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=master
@@ -17,6 +17,8 @@ TFSnippet
     :target: https://travis-ci.org/haowen-xu/tfsnippet
 .. |develop_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=develop
     :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=develop
+.. |develop_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=develop
+    :target: http://tfsnippet.readthedocs.io/en/develop/?badge=develop
 
 TFSnippet is a set of utilities for writing and testing TensorFlow models.
 
