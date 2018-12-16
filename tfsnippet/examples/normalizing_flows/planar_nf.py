@@ -11,8 +11,12 @@ from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (MLConfig, Results, save_images_collection,
-                                      pass_global_config, config_options)
+from tfsnippet.examples.utils import (MLConfig,
+                                      MLResults,
+                                      save_images_collection,
+                                      pass_global_config,
+                                      config_options,
+                                      bernoulli_as_pixel)
 from tfsnippet.flows import PlanarNormalizingFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -97,10 +101,18 @@ def posterior_flow(config):
 
 
 @click.command()
+@click.option('--result-dir', help='The result directory.', metavar='PATH',
+              required=False, type=str)
 @config_options(ExpConfig)
 @pass_global_config
-def main(config):
-    results = Results()
+def main(config, result_dir):
+    # print the config
+    print('Configurations\n==============\n' + config.format_config() + '\n')
+
+    # open the result object and prepare for result directories
+    results = MLResults(result_dir)
+    results.makedirs('plotting', exist_ok=True)
+    results.makedirs('train_summary', exist_ok=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -143,19 +155,14 @@ def main(config):
     # derive the plotting function
     with tf.name_scope('plot_x'):
         plot_p_net = p_net(n_z=100, is_training=is_training)
-        x = tf.cast(
-            255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
-            dtype=tf.uint8
-        )
-        x_plots = tf.reshape(x, [-1, 28, 28])
+        x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
-                filename=results.prepare_parent('plotting/{}.png'.
-                                                format(loop.epoch)),
+                filename='plotting/{}.png'.format(loop.epoch),
                 grid_size=(10, 10)
             )
 
@@ -173,7 +180,7 @@ def main(config):
                        var_groups=['p_net', 'q_net', 'posterior_flow'],
                        max_epoch=config.max_epoch,
                        max_step=config.max_step,
-                       summary_dir=(results.make_dir('train_summary')
+                       summary_dir=(results.system_path('train_summary')
                                     if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
@@ -196,15 +203,16 @@ def main(config):
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(
-                lambda: results.commit(evaluator.last_metrics_dict))
+                lambda: results.update_metrics(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
-    # write the final test_nll and test_lb
-    results.commit_and_print(evaluator.last_metrics_dict)
+    # print the final metrics and close the results object
+    print('\nResults\n=======\n' + results.format_metrics())
+    results.close()
 
 
 if __name__ == '__main__':
