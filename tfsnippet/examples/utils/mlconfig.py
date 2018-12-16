@@ -20,6 +20,11 @@ CONFIG_STRING_PATTERN = re.compile(
     r'^\s*([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$')
 
 
+def is_config_attr(cls_or_instance, key):
+    return (not key.startswith('_') and hasattr(cls_or_instance, key) and
+            not hasattr(MLConfig, key))
+
+
 class MLConfig(object):
     """
     Base class to define machine learning configuration values.
@@ -57,6 +62,18 @@ class MLConfig(object):
             raise AttributeError('Config key {!r} does not exist.'.format(key))
         object.__setattr__(self, key, value)
 
+    def has_config_key(self, key):
+        """
+        Check whether or not the configuration key exists.
+
+        Args:
+            key (str): The key to check.
+
+        Returns:
+            bool: A boolean indicating whether the key exists.
+        """
+        return is_config_attr(self, key)
+
     @classmethod
     def defaults(cls):
         """
@@ -65,11 +82,20 @@ class MLConfig(object):
         Returns:
             dict[str, any]: The default configuration values of this class.
         """
-        return {
-            k: getattr(cls, k)
-            for k in dir(cls)
-            if not k.startswith('_') and not hasattr(MLConfig, k)
-        }
+        return {k: getattr(cls, k)
+                for k in dir(cls)
+                if is_config_attr(cls, k)}
+
+    def overrides(self):
+        """
+        Get the overrided values (with respect to the default values) as a dict.
+
+        Returns:
+            dict[str, any]: The overrided values.
+        """
+        return {k: v
+                for k, v in six.iteritems(self.__dict__)
+                if is_config_attr(self, k)}
 
     def to_dict(self):
         """
@@ -78,11 +104,9 @@ class MLConfig(object):
         Returns:
             dict[str, any]: The configuration values of this config object.
         """
-        return {
-            k: getattr(self, k)
-            for k in dir(self)
-            if not k.startswith('_') and not hasattr(MLConfig, k)
-        }
+        return {k: getattr(self, k)
+                for k in dir(self)
+                if is_config_attr(self, k)}
 
     def parse_dict(self, d):
         """
@@ -232,13 +256,16 @@ def config_options(cls):
 
     def mlstorage_protocol(config):
         # The ``env["MLSTORAGE_EXPERIMENT_ID"]`` would be set if the program
-        # is run via `mlrun` from MLStorage.
-        # See `MLStorage <https://github.com/haowen-xu/mlstorage>`_ for details.
+        # is run via `mlrun` from MLStorage.  See
+        # `MLStorage Server <https://github.com/haowen-xu/mlstorage-server>`_
+        # and
+        # `MLStorage Client <https://github.com/haowen-xu/mlstorage-client>`_
+        # for details.
         if os.environ.get('MLSTORAGE_EXPERIMENT_ID'):
             # save default config values to "config.defaults.json"
             default_config_path = os.path.abspath(
                 os.path.join(os.getcwd(), 'config.defaults.json'))
-            default_config_json = json.dumps(config.to_dict())
+            default_config_json = json.dumps(config.defaults())
             with codecs.open(default_config_path, 'wb', 'utf-8') as f:
                 f.write(default_config_json)
 
@@ -252,6 +279,11 @@ def config_options(cls):
                     raise ValueError('%s: expected a config dict, but got '
                                      '%r'.format(config_path, config_dict))
                 config.parse_dict(config_dict)
+
+            # save user specified config into "config.json"
+            config_json = json.dumps(config.overrides())
+            with codecs.open(config_path, 'wb', 'utf-8') as f:
+                f.write(config_json)
 
     def wrapper(method):
         @click.option('-c', '--config',
