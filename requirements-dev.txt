@@ -2,6 +2,7 @@
 
 coverage >= 4.3.4
 click >= 7.0
+fs >= 2.1.2
 imageio >= 2.3.0
 mock >= 2.0.0
 pytest >= 3.0

@@ -16,7 +16,7 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import (MLConfig, Results, MultiGPU,
+from tfsnippet.examples.utils import (MLConfig, MLResults, MultiGPU,
                                       pass_global_config, config_options)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -71,10 +71,14 @@ def model(config, x, is_training, channels_last):
 
 
 @click.command()
+@click.option('--result-dir', help='The result directory.', metavar='PATH',
+              required=False, type=str)
 @config_options(ExpConfig)
 @pass_global_config
-def main(config):
-    results = Results()
+def main(config, result_dir):
+    # open the result object and prepare for result directories
+    results = MLResults(result_dir)
+    results.fs.makedir('train_summary', recreate=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -145,7 +149,7 @@ def main(config):
         with TrainLoop(params,
                        max_epoch=config.max_epoch,
                        max_step=config.max_step,
-                       summary_dir=(results.make_dir('train_summary')
+                       summary_dir=(results.fs.getsyspath('train_summary')
                                     if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
@@ -168,13 +172,14 @@ def main(config):
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(
-                lambda: results.commit(evaluator.last_metrics_dict))
+                lambda: results.update_metrics(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=5)
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
         # save test result
-        results.commit_and_print(evaluator.last_metrics_dict)
+        print('\nResults\n=======\n' + results.format_metrics())
+        results.close()
 
 
 if __name__ == '__main__':

@@ -14,10 +14,14 @@ from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (MLConfig, Results, save_images_collection,
+from tfsnippet.examples.utils import (MLConfig,
+                                      MLResults,
+                                      save_images_collection,
                                       collect_outputs,
-                                      ClusteringClassifier, pass_global_config,
-                                      config_options, bernoulli_as_pixel)
+                                      ClusteringClassifier,
+                                      pass_global_config,
+                                      config_options,
+                                      bernoulli_as_pixel)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
@@ -193,10 +197,15 @@ def reinforce_baseline_net(config, x):
 
 
 @click.command()
+@click.option('--result-dir', help='The result directory.', metavar='PATH',
+              required=False, type=str)
 @config_options(ExpConfig)
 @pass_global_config
-def main(config):
-    results = Results()
+def main(config, result_dir):
+    # open the result object and prepare for result directories
+    results = MLResults(result_dir)
+    results.fs.makedir('plotting', recreate=True)
+    results.fs.makedir('train_summary', recreate=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -267,9 +276,9 @@ def main(config):
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
-                filename=results.prepare_parent('plotting/{}.png'.
-                                                format(loop.epoch)),
-                grid_size=(config.n_clusters, 10)
+                filename='plotting/{}.png'.format(loop.epoch),
+                grid_size=(config.n_clusters, 10),
+                results=results
             )
 
     # derive the final un-supervised classifier
@@ -299,7 +308,7 @@ def main(config):
             y_pred = c_classifier.predict(c_pred)
             cls_metrics = {'test_acc': accuracy_score(y_test, y_pred)}
             loop.collect_metrics(cls_metrics)
-            results.commit(cls_metrics)
+            results.update_metrics(cls_metrics)
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = load_mnist()
@@ -315,7 +324,7 @@ def main(config):
                        var_groups=['p_net', 'q_net', 'gaussian_mixture_prior'],
                        max_epoch=config.max_epoch,
                        max_step=config.max_step,
-                       summary_dir=(results.make_dir('train_summary')
+                       summary_dir=(results.fs.getsyspath('train_summary')
                                     if config.write_summary else None),
                        summary_graph=tf.get_default_graph(),
                        early_stopping=False) as loop:
@@ -338,7 +347,7 @@ def main(config):
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(
-                lambda: results.commit(evaluator.last_metrics_dict))
+                lambda: results.update_metrics(evaluator.last_metrics_dict))
             trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
@@ -350,9 +359,11 @@ def main(config):
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
-    # write the final results
+    # dump the final results
     with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
         f.write(c_classifier.describe())
+    print('\nResults\n=======\n' + results.format_metrics())
+    results.close()
 
 
 if __name__ == '__main__':

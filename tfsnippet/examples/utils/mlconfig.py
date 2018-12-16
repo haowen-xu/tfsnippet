@@ -2,7 +2,7 @@ import codecs
 import json
 import os
 import re
-from pprint import pprint
+from pprint import pprint, pformat
 
 import click
 import six
@@ -27,7 +27,7 @@ def is_config_attr(cls_or_instance, key):
 
 class MLConfig(object):
     """
-    Base class to define machine learning configuration values.
+    Base class of configuration values for machine learning experiments.
 
     Derive sub-classes of :class:`MLConfig`, and define configuration
     values as public class attributes.  These attributes can then be
@@ -153,6 +153,15 @@ class MLConfig(object):
             key = m.group(1)
             value = yaml.load(m.group(2))
             setattr(self, key, value)
+
+    def format_config(self):
+        """
+        Format the configuration values as string.
+
+        Returns:
+            str: The formatted configuration values.
+        """
+        return pformat(self.to_dict())
 
 
 _global_config = None
@@ -288,11 +297,11 @@ def config_options(cls):
     def wrapper(method):
         @click.option('-c', '--config',
                       help='Set a configuration value.',
-                      metavar='<key>=<value>', type=str, multiple=True,
+                      metavar='KEY=VALUE', type=str, multiple=True,
                       expose_value=False, callback=parse_config)
         @click.option('-C', '--config-file',
                       help='Load a JSON or YAML configuration file.',
-                      metavar='<path>', type=str, multiple=True,
+                      metavar='PATH', type=str, multiple=True,
                       expose_value=False, callback=parse_config_file)
         @click.option('--print-config',
                       help='Print configuration values and exit.',
@@ -303,7 +312,7 @@ def config_options(cls):
             ensure_ctx_config(ctx)
 
             if print_config:
-                pprint(ctx.obj['config'].to_dict())
+                click.echo(ctx.obj['config'].format_config())
                 ctx.exit()
             else:
                 old_config = get_global_config()
