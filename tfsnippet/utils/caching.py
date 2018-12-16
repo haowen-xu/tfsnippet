@@ -5,6 +5,8 @@ from contextlib import contextmanager
 import requests
 import six
 import sys
+
+from filelock import FileLock
 from tqdm import tqdm
 
 from .archive_file import Extractor
@@ -60,7 +62,7 @@ def set_cache_root(cache_root):
     _cache_root = os.path.abspath(cache_root)
 
 
-def infer_show_progress_arg(progress_file, show_progress):  # pragma: no cover
+def guess_show_progress_arg(progress_file, show_progress):  # pragma: no cover
     if show_progress is None:
         if hasattr(progress_file, 'isatty'):
             return progress_file.isatty()
@@ -68,6 +70,21 @@ def infer_show_progress_arg(progress_file, show_progress):  # pragma: no cover
             return False
     else:
         return show_progress
+
+
+def guess_filename_from_uri(uri):
+    parsed_uri = urlparse(uri)
+    filename = parsed_uri.path.rsplit('/', 1)[-1]
+    if not filename:  # pragma: no cover
+        raise ValueError('`filename` cannot be inferred.')
+    return filename
+
+
+def guess_extract_dir_from_filename(filename):
+    extract_dir = filename.split('.', 1)[0]
+    if not extract_dir:  # pragma: no cover
+        raise ValueError('`extract_dir` cannot be inferred.')
+    return extract_dir
 
 
 class CacheDir(object):
@@ -117,6 +134,52 @@ class CacheDir(object):
         """
         return os.path.join(self.path, sub_path)
 
+    @contextmanager
+    def _lock_file(self, file_path):
+        lock_file = file_path + '.lock'
+        parent_dir = os.path.split(lock_file)[0]
+        if not os.path.isdir(parent_dir):
+            makedirs(parent_dir, exist_ok=True)
+        with FileLock(lock_file):
+            yield
+
+    def _download(self, uri, file_path, show_progress, progress_file):
+        if not os.path.isfile(file_path):
+            temp_file = file_path + '._downloading_'
+            try:
+                desc = 'Downloading {}'.format(uri)
+                with _maybe_tqdm(tqdm_enabled=show_progress, desc=desc,
+                                 unit='B', unit_scale=True, unit_divisor=1024,
+                                 miniters=1, file=progress_file) as t, \
+                        open(temp_file, 'wb') as f:
+                    req = requests.get(uri, stream=True)
+                    if req.status_code != 200:
+                        raise IOError('HTTP Error {}: {}'.
+                                      format(req.status_code, req.content))
+
+                    # detect the total length
+                    if t is not None:
+                        cont_length = req.headers.get('Content-Length')
+                        if cont_length is not None:
+                            try:
+                                t.total = int(cont_length)
+                            except ValueError:  # pragma: no cover
+                                pass
+
+                    # do download the content
+                    for chunk in req.iter_content(8192):
+                        if chunk:
+                            f.write(chunk)
+                            if t is not None:
+                                t.update(len(chunk))
+            except BaseException:
+                if os.path.isfile(temp_file):  # pragma: no cover
+                    os.remove(temp_file)
+                raise
+            else:
+                os.rename(temp_file, file_path)
+        return file_path
+
     def download(self, uri, filename=None, show_progress=None,
                  progress_file=sys.stderr):
         """
@@ -141,92 +204,22 @@ class CacheDir(object):
         Raises:
             ValueError: If `filename` cannot be inferred.
         """
-        show_progress = infer_show_progress_arg(progress_file, show_progress)
+        # check the arguments
+        show_progress = guess_show_progress_arg(progress_file, show_progress)
 
-        # prepare downloading
         if filename is None:
-            parsed_uri = urlparse(uri)
-            filename = parsed_uri.path.rsplit('/', 1)[-1]
-            if not filename:  # pragma: no cover
-                raise ValueError('`filename` cannot be inferred.')
-
+            filename = guess_filename_from_uri(uri)
         file_path = os.path.abspath(os.path.join(self.path, filename))
-        file_dir = os.path.split(file_path)[0]
-        if not os.path.isdir(file_dir):
-            makedirs(file_dir, exist_ok=True)
 
         # download the file
-        if not os.path.isfile(file_path):
-            temp_file = file_path + '._downloading_'
-            try:
-                desc = 'Downloading {}'.format(uri)
-                with _maybe_tqdm(tqdm_enabled=show_progress, desc=desc,
-                                 unit='B', unit_scale=True, unit_divisor=1024,
-                                 miniters=1, file=progress_file) as t, \
-                        open(temp_file, 'wb') as f:
-                    req = requests.get(uri, stream=True)
-                    if req.status_code != 200:
-                        raise IOError('HTTP Error {}: {}'.
-                                      format(req.status_code, req.content))
+        with self._lock_file(file_path):
+            return self._download(
+                uri, file_path, show_progress=show_progress,
+                progress_file=progress_file
+            )
 
-                    # detect the total length
-                    if t is not None:
-                        cont_length = req.headers.get('Content-Length')
-                        if cont_length is not None:
-                            try:
-                                t.total = int(cont_length)
-                            except ValueError:
-                                pass
-
-                    # do download the content
-                    for chunk in req.iter_content(8192):
-                        if chunk:
-                            f.write(chunk)
-                            if t is not None:
-                                t.update(len(chunk))
-            except BaseException:
-                if os.path.isfile(temp_file):  # pragma: no cover
-                    os.remove(temp_file)
-                raise
-            else:
-                os.rename(temp_file, file_path)
-        return file_path
-
-    def extract_file(self, archive_file, extract_dir=None, show_progress=None,
-                     progress_file=sys.stderr):
-        """
-        Extract an archive file into this :class:`CacheDir`.
-
-        Args:
-            archive_file (str): The path of the archive file.
-            extract_dir (str): The name to use as the extracted directory.
-                If `extract_dir` already exists in this :class:`CacheDir`,
-                will not extract `archive_file`.  Default :obj:`None`, will
-                automatically infer `extract_dir` according to `archive_file`.
-            show_progress (bool): Whether or not to show interactive
-                progress bar?  If not specified, will show progress only
-                if `progress_file` is `std.stdout` or `std.stderr`, and
-                if `progress_file.isatty()` is :obj:`True`.
-            progress_file: The file object where to write the progress.
-                (default :obj:`sys.stderr`)
-
-        Returns:
-            str: The absolute path of the extracted directory.
-
-        Raises:
-            ValueError: If `extract_dir` cannot be inferred.
-        """
-        show_progress = infer_show_progress_arg(progress_file, show_progress)
-
-        # prepare extracting
-        archive_file = os.path.abspath(archive_file)
-        if extract_dir is None:
-            extract_dir = os.path.split(archive_file)[-1].split('.', 1)[0]
-            if not extract_dir:  # pragma: no cover
-                raise ValueError('`extract_dir` cannot be inferred.')
-        extract_path = os.path.abspath(os.path.join(self.path, extract_dir))
-
-        # extract the archive
+    def _extract_file(self, archive_file, extract_path, show_progress,
+                      progress_file):
         if not os.path.isdir(extract_path):
             temp_path = extract_path + '._extracting_'
             if show_progress:
@@ -254,6 +247,46 @@ class CacheDir(object):
                     progress_file.flush()
                 os.rename(temp_path, extract_path)
         return extract_path
+
+    def extract_file(self, archive_file, extract_dir=None, show_progress=None,
+                     progress_file=sys.stderr):
+        """
+        Extract an archive file into this :class:`CacheDir`.
+
+        Args:
+            archive_file (str): The path of the archive file.
+            extract_dir (str): The name to use as the extracted directory.
+                If `extract_dir` already exists in this :class:`CacheDir`,
+                will not extract `archive_file`.  Default :obj:`None`, will
+                automatically infer `extract_dir` according to `archive_file`.
+            show_progress (bool): Whether or not to show interactive
+                progress bar?  If not specified, will show progress only
+                if `progress_file` is `std.stdout` or `std.stderr`, and
+                if `progress_file.isatty()` is :obj:`True`.
+            progress_file: The file object where to write the progress.
+                (default :obj:`sys.stderr`)
+
+        Returns:
+            str: The absolute path of the extracted directory.
+
+        Raises:
+            ValueError: If `extract_dir` cannot be inferred.
+        """
+        # check the arguments
+        show_progress = guess_show_progress_arg(progress_file, show_progress)
+
+        archive_file = os.path.abspath(archive_file)
+        filename = os.path.split(archive_file)[-1]
+        if extract_dir is None:
+            extract_dir = guess_extract_dir_from_filename(filename)
+        extract_path = os.path.abspath(os.path.join(self.path, extract_dir))
+
+        # extract the file
+        with self._lock_file(archive_file):
+            return self._extract_file(
+                archive_file, extract_path, show_progress=show_progress,
+                progress_file=progress_file
+            )
 
     def download_and_extract(self, uri, filename=None, extract_dir=None,
                              show_progress=None, progress_file=sys.stderr):
@@ -283,13 +316,31 @@ class CacheDir(object):
         Raises:
             ValueError: If `filename` or `extract_dir` cannot be inferred.
         """
-        show_progress = infer_show_progress_arg(progress_file, show_progress)
-        downloaded = self.download(uri, filename=filename,
-                                   show_progress=show_progress,
-                                   progress_file=progress_file)
-        return self.extract_file(downloaded, extract_dir=extract_dir,
-                                 show_progress=show_progress,
-                                 progress_file=progress_file)
+        # check the arguments
+        show_progress = guess_show_progress_arg(progress_file, show_progress)
+
+        if filename is None:
+            filename = guess_filename_from_uri(uri)
+        file_path = os.path.abspath(os.path.join(self.path, filename))
+
+        if extract_dir is None:
+            extract_dir = guess_extract_dir_from_filename(filename)
+        extract_path = os.path.abspath(os.path.join(self.path, extract_dir))
+
+        # download and extract the file
+        with self._lock_file(file_path):
+            if not os.path.isdir(extract_path):
+                archive_file = self._download(
+                    uri, file_path, show_progress=show_progress,
+                    progress_file=progress_file
+                )
+                self._extract_file(
+                    archive_file, extract_path, show_progress=show_progress,
+                    progress_file=progress_file
+                )
+                # download the archive file if we successfully extracted it.
+                os.remove(file_path)
+            return extract_path
 
     def purge_all(self):
         """Delete everything in this :class:`CacheDir`."""

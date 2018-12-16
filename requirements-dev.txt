@@ -1,14 +1,17 @@
 -r requirements.txt
 
 coverage >= 4.3.4
+click >= 7.0
 imageio >= 2.3.0
 mock >= 2.0.0
 pytest >= 3.0
+PyYAML >= 3.13
 rarfile >= 3.0
 sphinx >= 1.6.3
 
 # dependencies required only for running the examples
 scikit-learn >= 0.20
+git+https://github.com/haowen-xu/mlsnippet.git
 
 # !!! DO NOT INCLUDE TENSORFLOW IN THIS FILE !!!
 # Installing tensorflow (no `-gpu`) will cause the gpu version not to work.

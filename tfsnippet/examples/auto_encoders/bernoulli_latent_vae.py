@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import functools
-import logging
 
+import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 from tfsnippet.bayes import BayesianNet
@@ -11,14 +11,15 @@ from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
-from tfsnippet.examples.utils import (Config, Results, save_images_collection)
+from tfsnippet.examples.utils import (MLConfig, Results, save_images_collection,
+                                      pass_global_config, config_options)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_default_session_or_error,
                              flatten, unflatten, create_session)
 
 
-class ExpConfig(Config):
+class ExpConfig(MLConfig):
     # model parameters
     z_dim = 80
     x_dim = 784
@@ -41,9 +42,8 @@ class ExpConfig(Config):
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_z=None, is_training=True):
-    logging.info('q_net builder: %r', locals())
-
+@pass_global_config
+def q_net(config, x, observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -64,9 +64,8 @@ def q_net(x, observed=None, n_z=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_z=None, is_training=True):
-    logging.info('p_net builder: %r', locals())
-
+@pass_global_config
+def p_net(config, observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # sample z ~ p(z)
@@ -89,8 +88,9 @@ def p_net(observed=None, n_z=None, is_training=True):
     return net
 
 
+@pass_global_config
 @global_reuse
-def baseline_net(x):
+def baseline_net(config, x):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
@@ -99,15 +99,12 @@ def baseline_net(x):
     return tf.squeeze(dense(h_x, 1), -1)
 
 
-def sample_from_probs(x):
-    uniform_samples = tf.random_uniform(
-        shape=tf.shape(x), minval=0., maxval=1.,
-        dtype=x.dtype
-    )
-    return tf.cast(tf.less(uniform_samples, x), dtype=tf.int32)
+@click.command()
+@config_options(ExpConfig)
+@pass_global_config
+def main(config):
+    results = Results()
 
-
-def main():
     # input placeholders
     input_x = tf.placeholder(
         dtype=tf.int32, shape=(None, config.x_dim), name='input_x')
@@ -215,6 +212,4 @@ def main():
 
 
 if __name__ == '__main__':
-    config = ExpConfig()
-    results = Results()
     main()

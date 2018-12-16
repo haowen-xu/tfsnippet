@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import functools
 
+import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
@@ -15,13 +16,14 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy, conv2d)
-from tfsnippet.examples.utils import Config, Results, MultiGPU
+from tfsnippet.examples.utils import (MLConfig, Results, MultiGPU,
+                                      pass_global_config, config_options)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
 
 
-class ExpConfig(Config):
+class ExpConfig(MLConfig):
     # model parameters
     x_shape = (3, 32, 32)
     l2_reg = 0.0001
@@ -41,7 +43,8 @@ class ExpConfig(Config):
 
 
 @global_reuse
-def model(x, is_training, channels_last, k=4, n=2):
+@pass_global_config
+def model(config, x, is_training, channels_last, k=4, n=2):
     with arg_scope([resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
@@ -83,7 +86,12 @@ def model(x, is_training, channels_last, k=4, n=2):
     return logits
 
 
-def main():
+@click.command()
+@config_options(ExpConfig)
+@pass_global_config
+def main(config):
+    results = Results()
+
     # input placeholders
     input_x = tf.placeholder(
         dtype=tf.float32, shape=(None,) + config.x_shape, name='input_x')
@@ -186,6 +194,4 @@ def main():
 
 
 if __name__ == '__main__':
-    config = ExpConfig()
-    results = Results()
     main()

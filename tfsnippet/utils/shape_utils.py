@@ -36,9 +36,9 @@ def flatten(x, k, name=None):
         name (str or None): Name of this operation.
 
     Returns:
-        (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or
-        (tf.Tensor, None, None): (The flatten tensor, the static front shape,
-            and the front shape), or (the original tensor, None, None)
+        (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or (tf.Tensor, None, None):
+            (The flatten tensor, the static front shape, and the front shape),
+            or (the original tensor, None, None)
     """
     x = tf.convert_to_tensor(x)
     if k < 1:
