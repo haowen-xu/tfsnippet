@@ -55,6 +55,9 @@ def model(config, x, is_training):
 @config_options(ExpConfig)
 @pass_global_config
 def main(config, result_dir):
+    # print the config
+    print('Configurations\n==============\n' + config.format_config() + '\n')
+
     # open the result object and prepare for result directories
     results = MLResults(result_dir)
     results.fs.makedir('train_summary', recreate=True)
@@ -125,9 +128,9 @@ def main(config, result_dir):
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
-        # save test result
-        print('\nResults\n=======\n' + results.format_metrics())
-        results.close()
+    # print the final metrics and close the results object
+    print('\nResults\n=======\n' + results.format_metrics())
+    results.close()
 
 
 if __name__ == '__main__':

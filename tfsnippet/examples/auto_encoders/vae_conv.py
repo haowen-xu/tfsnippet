@@ -140,6 +140,9 @@ def p_net(config, observed=None, n_z=None, is_training=True,
 @config_options(ExpConfig)
 @pass_global_config
 def main(config, result_dir):
+    # print the config
+    print('Configurations\n==============\n' + config.format_config() + '\n')
+
     # open the result object and prepare for result directories
     results = MLResults(result_dir)
     results.fs.makedir('plotting', recreate=True)
@@ -279,7 +282,7 @@ def main(config, result_dir):
             trainer.log_after_epochs(freq=1)
             trainer.run()
 
-    # write the final test_nll and test_lb
+    # print the final metrics and close the results object
     print('\nResults\n=======\n' + results.format_metrics())
     results.close()
 
