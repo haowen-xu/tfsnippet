@@ -1,10 +1,14 @@
 import numpy as np
+import tensorflow as tf
 from matplotlib import pyplot as plt
 
+from tfsnippet.distributions import Bernoulli
+from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.trainer import merge_feed_dict
 from tfsnippet.utils import get_default_session_or_error
 
-__all__ = ['collect_outputs', 'plot_2d_log_p', 'ClusteringClassifier']
+__all__ = ['collect_outputs', 'plot_2d_log_p', 'ClusteringClassifier',
+           'bernoulli_as_pixel']
 
 
 def collect_outputs(outputs, inputs, data_flow, feed_dict=None, session=None):
@@ -149,3 +153,43 @@ class ClusteringClassifier(object):
         if len(c_pred.shape) != 1:
             raise ValueError('`c_pred` must be 1-d array.')
         return self.cluster_classes[c_pred]
+
+
+def bernoulli_as_pixel(x=None, uint8=True, name=None):
+    """
+    Translate a Bernoulli random variable as pixel values.
+
+    This function will use the probability of the Bernoulli random variable
+    to take 1 as the pixel value.
+
+    Args:
+        x (StochasticTensor or Bernoulli or Tensor): It should be a
+            :class:`StochasticTensor`, a :class:`Bernoulli` distribution,
+            or a Tensor indicating the logits of the Bernoulli variable.
+            If it is a :class:`StochasticTensor`, its distribution must
+            be :class:`Bernoulli`.  The logits of the Bernoulli distribution
+            will be used to compute the probability.
+        uint8 (bool): Whether or not to convert the pixel value into uint8?
+            If :obj:`True`, will multiple the Bernoulli probability by 255,
+            then convert the dtype into tf.uint8.  Otherwise will use the
+            probability (range in ``[0, 1]``) as the pixel value.
+        name (str): Optional TensorFlow operation name.
+
+    Returns:
+        tf.Tensor: The translated pixel values.
+    """
+    if isinstance(x, StochasticTensor):
+        assert(isinstance(x.distribution, Bernoulli))
+        logits = x.distribution.logits
+    elif isinstance(x, Bernoulli):
+        logits = x.logits
+    else:
+        logits = tf.convert_to_tensor(x)
+
+    with tf.name_scope(name, default_name='bernoulli_as_pixel',
+                       values=[logits]):
+        pixels = tf.sigmoid(logits)
+        if uint8:
+            pixels = tf.cast(255 * pixels, dtype=tf.uint8)
+
+    return pixels

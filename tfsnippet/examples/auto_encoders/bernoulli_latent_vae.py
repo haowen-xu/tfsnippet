@@ -12,7 +12,8 @@ from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss,
                                    dense)
 from tfsnippet.examples.utils import (MLConfig, Results, save_images_collection,
-                                      pass_global_config, config_options)
+                                      pass_global_config, config_options,
+                                      bernoulli_as_pixel)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_default_session_or_error,
@@ -148,11 +149,7 @@ def main(config):
     # derive the plotting function
     with tf.name_scope('plot_x'):
         plot_p_net = p_net(n_z=100, is_training=is_training)
-        x = tf.cast(
-            255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
-            dtype=tf.uint8
-        )
-        x_plots = tf.reshape(x, [-1, 28, 28])
+        x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):

@@ -18,7 +18,8 @@ from tfsnippet.examples.nn import (dense,
                                    batch_norm_2d)
 from tfsnippet.examples.utils import (MLConfig, MultiGPU, Results,
                                       save_images_collection,
-                                      pass_global_config, config_options)
+                                      pass_global_config, config_options,
+                                      bernoulli_as_pixel)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
@@ -214,11 +215,7 @@ def main(config):
     with tf.device(work_dev), tf.name_scope('plot_x'):
         plot_p_net = p_net(n_z=100, is_training=is_training,
                            channels_last=multi_gpu.channels_last(work_dev))
-        x = tf.cast(
-            255 * tf.sigmoid(plot_p_net['x'].distribution.logits),
-            dtype=tf.uint8
-        )
-        x_plots = tf.reshape(x, [-1, 28, 28])
+        x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
