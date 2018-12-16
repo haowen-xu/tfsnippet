@@ -190,5 +190,5 @@ class MLResults(object):
                     format = fmt.name
                     break
 
-        with self.fs.open(path, 'wb') as f:
+        with self.fs.open(ensure_unicode_path(path), 'wb') as f:
             return imageio.imwrite(f, im, format=format, **kwargs)
