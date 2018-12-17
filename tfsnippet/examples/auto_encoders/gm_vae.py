@@ -45,6 +45,7 @@ class ExpConfig(MLConfig):
     batch_size = 128
     train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
 
+    initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
     lr_anneal_step_freq = None
