@@ -28,7 +28,7 @@ function runTest() {
       bash "scripts/travis-docker-entry.sh"
 }
 if [[ "${CORE_TESTS_ONLY}" = "1" ]]; then
-  for PY_VER in 2.7 3.5; do
+  for PY_VER in 2 3; do
     for TF_VER in 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do
       runTest "${PY_VER}" "${TF_VER}" "0";
     done
