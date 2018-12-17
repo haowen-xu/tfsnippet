@@ -8,11 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This version introduces breaking changes. Existing code might better stick to [v0.1.2](https://github.com/haowen-xu/tfsnippet/tree/v0.1.2)
 
 ### Changed
-- `global_reuse` the `VarScopeObject` is now rewritten.
-  This will cause existing code to be malfunction, if they rely heavily on the precise variable scope or name scope of certain variables or tensors.
+- `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten.
+  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
 
 ### Removed
-- The `modules` package is now purged out of this project totally, including the `tfsnippet.modules.VAE` class.
-- `instance_reuse` has been removed, and will not be rewritten until we have got enough evidence of its necessity.
-  The recommended way to replace `instance_reuse` is to use `tf.make_template` inside `VarScopeObject._variable_scope_created`,
-  to wrap some of your own methods into template methods.
+- The `modules` package is now purged out of this project totally, including the `VAE` class.
+- `auto_reuse_variables` has been removed.

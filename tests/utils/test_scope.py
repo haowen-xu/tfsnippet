@@ -1,5 +1,6 @@
 import unittest
 
+import pytest
 import tensorflow as tf
 
 from tfsnippet.utils import *
@@ -25,6 +26,54 @@ class GetValidNameScopeNameTestCase(unittest.TestCase):
                          'MyClass.abc')
         self.assertEqual(get_valid_name_scope_name('abc', _MyClass()),
                          'MyClass.abc')
+
+
+class ReopenVariableScopeTestCase(tf.test.TestCase):
+
+    def test_reopen_root_variable_scope(self):
+        with tf.Graph().as_default():
+            root = tf.get_variable_scope()
+
+            # test to reopen root within root
+            with reopen_variable_scope(root):
+                vs, v1, op = make_var_and_op('v1', 'op')
+                self.assertEqual(vs.name, '')
+                self.assertEqual(v1.name, 'v1:0')
+                self.assertEqual(op.name, 'op:0')
+
+            # test to reopen root within another variable scope
+            with tf.variable_scope('a') as a:
+                with reopen_variable_scope(root):
+                    vs, v2, op = make_var_and_op('v2', 'op')
+                    self.assertEqual(vs.name, '')
+                    self.assertEqual(v2.name, 'v2:0')
+                    self.assertEqual(op.name, 'op_1:0')
+
+    def test_reopen_variable_scope(self):
+        with tf.Graph().as_default():
+            with tf.variable_scope('the_scope') as the_scope:
+                pass
+
+            # test to reopen within root
+            with reopen_variable_scope(the_scope):
+                vs, v1, op = make_var_and_op('v1', 'op')
+                self.assertEqual(vs.name, 'the_scope')
+                self.assertEqual(v1.name, 'the_scope/v1:0')
+                self.assertEqual(op.name, 'the_scope/op:0')
+
+            # test to reopen within another variable scope
+            with tf.variable_scope('another'):
+                with reopen_variable_scope(the_scope):
+                    vs, v2, op = make_var_and_op('v2', 'op')
+                    self.assertEqual(vs.name, 'the_scope')
+                    self.assertEqual(v2.name, 'the_scope/v2:0')
+                    self.assertEqual(op.name, 'the_scope/op_1:0')
+
+    def test_errors(self):
+        with pytest.raises(TypeError, match='`var_scope` must be an instance '
+                                            'of `tf.VariableScope`'):
+            with reopen_variable_scope(object()):
+                pass
 
 
 class RootVariableScopeTestCase(tf.test.TestCase):
@@ -140,106 +189,3 @@ class VarScopeObjectTestCase(tf.test.TestCase):
         o = MyVarScopeObj(name='o')
         self.assertEqual(o.vs.name, 'o')
         self.assertEqual(o.a.name, 'o/a:0')
-
-    def test_work_with_tf_make_template(self):
-        class MyVarScopeObj(VarScopeObject):
-            def _f(self):
-                vs = tf.get_variable_scope()
-                var = tf.get_variable('var', dtype=tf.float32, shape=())
-                op = tf.add(1, 2, name='op')
-                return vs, var, op
-
-            def _g(self):
-                with tf.variable_scope(None, default_name='vs') as vs1:
-                    var1 = tf.get_variable('var', dtype=tf.float32, shape=())
-                with tf.variable_scope(None, default_name='vs') as vs2:
-                    var2 = tf.get_variable('var', dtype=tf.float32, shape=())
-                return (vs1, var1), (vs2, var2)
-
-            def _variable_scope_created(self, vs):
-                self.f = tf.make_template('f', self._f, create_scope_now_=True)
-                self.g = tf.make_template('g', self._g, create_scope_now_=True)
-
-        with tf.Graph().as_default():
-            # test to obtain the object under root scope
-            o = MyVarScopeObj('o')
-            vs, var, op = o.f()
-            self.assertEqual(vs.name, 'o/f')
-            self.assertEqual(var.name, 'o/f/var:0')
-            self.assertEqual(op.name, 'f/op:0')
-            (vs1, var1), (vs2, var2) = o.g()
-            self.assertEqual(vs1.name, 'o/g/vs')
-            self.assertEqual(var1.name, 'o/g/vs/var:0')
-            self.assertEqual(vs2.name, 'o/g/vs_1')
-            self.assertEqual(var2.name, 'o/g/vs_1/var:0')
-
-            # test to call f for the second time.  it should generate a
-            # different name scope.
-            vs, var, op = o.f()
-            self.assertEqual(vs.name, 'o/f')
-            self.assertEqual(var.name, 'o/f/var:0')
-            self.assertEqual(op.name, 'f_1/op:0')
-            (vs1, var1), (vs2, var2) = o.g()
-            self.assertEqual(vs1.name, 'o/g/vs')
-            self.assertEqual(var1.name, 'o/g/vs/var:0')
-            self.assertEqual(vs2.name, 'o/g/vs_1')
-            self.assertEqual(var2.name, 'o/g/vs_1/var:0')
-
-            # test to call this object in another variable scope
-            with tf.variable_scope('parent'):
-                vs, var, op = o.f()
-                self.assertEqual(vs.name, 'o/f')
-                self.assertEqual(var.name, 'o/f/var:0')
-                self.assertEqual(op.name, 'parent/f/op:0')
-                (vs1, var1), (vs2, var2) = o.g()
-                self.assertEqual(vs1.name, 'o/g/vs')
-                self.assertEqual(var1.name, 'o/g/vs/var:0')
-                self.assertEqual(vs2.name, 'o/g/vs_1')
-                self.assertEqual(var2.name, 'o/g/vs_1/var:0')
-
-                # the second time, should generate a different name scope
-                vs, var, op = o.f()
-                self.assertEqual(vs.name, 'o/f')
-                self.assertEqual(var.name, 'o/f/var:0')
-                self.assertEqual(op.name, 'parent/f_1/op:0')
-                (vs1, var1), (vs2, var2) = o.g()
-                self.assertEqual(vs1.name, 'o/g/vs')
-                self.assertEqual(var1.name, 'o/g/vs/var:0')
-                self.assertEqual(vs2.name, 'o/g/vs_1')
-                self.assertEqual(var2.name, 'o/g/vs_1/var:0')
-
-            # test to obtain another object under the root scope
-            o = MyVarScopeObj('o')
-            vs, var, op = o.f()
-            self.assertEqual(vs.name, 'o_1/f')
-            self.assertEqual(var.name, 'o_1/f/var:0')
-            self.assertEqual(op.name, 'f_2/op:0')
-            (vs1, var1), (vs2, var2) = o.g()
-            self.assertEqual(vs1.name, 'o_1/g/vs')
-            self.assertEqual(var1.name, 'o_1/g/vs/var:0')
-            self.assertEqual(vs2.name, 'o_1/g/vs_1')
-            self.assertEqual(var2.name, 'o_1/g/vs_1/var:0')
-
-            # now test to obtain the object under a parent scope
-            with tf.variable_scope('outside'):
-                o = MyVarScopeObj('o')
-                vs, var, op = o.f()
-                self.assertEqual(vs.name, 'outside/o/f')
-                self.assertEqual(var.name, 'outside/o/f/var:0')
-                self.assertEqual(op.name, 'outside/f/op:0')
-                (vs1, var1), (vs2, var2) = o.g()
-                self.assertEqual(vs1.name, 'outside/o/g/vs')
-                self.assertEqual(var1.name, 'outside/o/g/vs/var:0')
-                self.assertEqual(vs2.name, 'outside/o/g/vs_1')
-                self.assertEqual(var2.name, 'outside/o/g/vs_1/var:0')
-
-            # test to call the object under root scope now
-            vs, var, op = o.f()
-            self.assertEqual(vs.name, 'outside/o/f')
-            self.assertEqual(var.name, 'outside/o/f/var:0')
-            self.assertEqual(op.name, 'f_3/op:0')
-            (vs1, var1), (vs2, var2) = o.g()
-            self.assertEqual(vs1.name, 'outside/o/g/vs')
-            self.assertEqual(var1.name, 'outside/o/g/vs/var:0')
-            self.assertEqual(vs2.name, 'outside/o/g/vs_1')
-            self.assertEqual(var2.name, 'outside/o/g/vs_1/var:0')

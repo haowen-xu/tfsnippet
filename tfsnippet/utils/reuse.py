@@ -1,4 +1,5 @@
 import functools
+import inspect
 import weakref
 
 import six
@@ -7,7 +8,7 @@ import tensorflow as tf
 from .scope import root_variable_scope
 from .tfver import is_tensorflow_version_higher_or_equal
 
-__all__ = ['global_reuse']
+__all__ = ['instance_reuse', 'global_reuse']
 
 
 def require_at_least_tensorflow_1_5():
@@ -18,6 +19,168 @@ def require_at_least_tensorflow_1_5():
                            'not allowed.')
 
 
+def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
+    """
+    Decorate an instance method to reuse a variable scope automatically.
+
+    This decorator should be applied to unbound instance methods, and
+    the instance that owns the methods should have :attr:`variable_scope`
+    attribute.  The first time to enter a decorated method will open
+    a new variable scope under the `variable_scope` of the instance.
+    This variable scope will be reused the next time to enter this method.
+    For example:
+
+    .. code-block:: python
+
+        class Foo(object):
+
+            def __init__(self, name):
+                with tf.variable_scope(name) as vs:
+                    self.variable_scope = vs
+
+            @instance_reuse
+            def bar(self):
+                return tf.get_variable('bar', ...)
+
+        foo = Foo()
+        bar = foo.bar()
+        bar_2 = foo.bar()
+        assert(bar is bar_2)  # should be True
+
+    By default the name of the variable scope should be chosen according to
+    the name of the decorated method.  You can change this behavior by
+    specifying an alternative name, for example:
+
+    .. code-block:: python
+
+        class Foo(object):
+
+            @instance_reuse(scope='scope_name')
+            def foo(self):
+                # name will be self.variable_scope.name + '/foo/bar'
+                return tf.get_variable('bar', ...)
+
+    If you have two methods sharing the same scope name, they will not
+    use the same variable scope.  Instead, one of these two functions will
+    have its scope name added with a suffix '_?', for example::
+
+    .. code-block:: python
+
+        class Foo(object):
+
+            @instance_reuse(scope='foo')
+            def foo_1(self):
+                return tf.get_variable('bar', ...)
+
+            @instance_reuse(scope='foo')
+            def foo_2(self):
+                return tf.get_variable('bar', ...)
+
+        foo = Foo()
+        assert(foo.foo_1().name == foo.variable_scope.name + '/foo/bar')
+        assert(foo.foo_2().name == foo.variable_scope.name + '/foo_1/bar')
+
+    The variable scope name will depend on the calling order of these
+    two functions, so you should better not guess the scope name by yourself.
+
+    See Also:
+        :class:`tfsnippet.utils.VarScopeObject`,
+        :func:`tfsnippet.utils.global_reuse`
+    """
+    require_at_least_tensorflow_1_5()
+
+    if _sentinel is not None:  # pragma: no cover
+        raise TypeError('`scope` must be specified with named argument.')
+
+    if isinstance(method_or_scope, six.string_types):
+        scope = method_or_scope
+        method = None
+    else:
+        method = method_or_scope
+
+    if method is None:
+        return functools.partial(instance_reuse, scope=scope)
+
+    scope = scope or method.__name__
+
+    if '/' in scope:
+        raise ValueError('`instance_reuse` does not support "/" in scope name.')
+
+    # check whether or not `method` looks like an instance method
+    if six.PY2:
+        getargspec = inspect.getargspec
+    else:
+        getargspec = inspect.getfullargspec
+
+    if inspect.ismethod(method):
+        raise TypeError('`method` is expected to be unbound instance method')
+    argspec = getargspec(method)
+    if not argspec.args or argspec.args[0] != 'self':
+        raise TypeError('`method` seems not to be an instance method '
+                        '(whose first argument should be `self`)')
+
+    # determine the scope name
+    scope = scope or method.__name__
+
+    # Until now, we have checked all the arguments, such that `method`
+    # is the function to be decorated, and `scope` is the base name
+    # for the variable scope.  We can now generate the closure used
+    # to track the variable scopes.
+    variable_scopes = weakref.WeakKeyDictionary()
+
+    @six.wraps(method)
+    def wrapper(*args, **kwargs):
+        # get the instance from the arguments and its variable scope
+        obj = args[0]
+        obj_vs = obj.variable_scope
+
+        if not isinstance(obj_vs, tf.VariableScope):
+            raise TypeError('`variable_scope` attribute of the instance {!r} '
+                            'is expected to be a `tf.VariableScope`, but got '
+                            '{!r}'.format(obj, obj_vs))
+
+        # now ready to create the variable scope for the method
+        if obj not in variable_scopes:
+            graph = tf.get_default_graph()
+
+            # Branch #1.1: first time to enter the method, and we are not
+            #   in the object's variable scope.  We should first pick up
+            #   the object's variable scope before creating our desired
+            #   variable scope.  However, if we execute the method right after
+            #   we obtain the new variable scope, we will not be in the correct
+            #   name scope.  So we should exit the scope, then re-enter our
+            #   desired variable scope.
+            if graph.get_name_scope() + '/' != obj_vs.original_name_scope or \
+                    tf.get_variable_scope() != obj_vs:
+                with tf.variable_scope(obj_vs, auxiliary_name_scope=False):
+                    with tf.name_scope(obj_vs.original_name_scope):
+                        # now we are here in the object's variable scope, and
+                        # its original name scope.  Thus we can now create the
+                        # method's variable scope.
+                        with tf.variable_scope(None, default_name=scope) as vs:
+                            variable_scopes[obj] = vs
+
+                with tf.variable_scope(vs):
+                    return method(*args, **kwargs)
+
+            # Branch #1.2: first time to enter the method, and we are just
+            #   in the object's variable scope.  So we can happily create a new
+            #   variable scope, and just call the method immediately.
+            else:
+                with tf.variable_scope(None, default_name=scope) as vs:
+                    variable_scopes[obj] = vs
+                    return method(*args, **kwargs)
+
+        else:
+            # Branch #2: not the first time to enter the method, so we
+            #   should reopen the variable scope with reuse set to `True`.
+            vs = variable_scopes[obj]
+            with tf.variable_scope(vs, reuse=True):
+                return method(*args, **kwargs)
+
+    return wrapper
+
+
 def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
     """
     Decorate a function to reuse a variable scope automatically.
@@ -25,7 +188,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
     The first time to enter a function decorated by this utility will
     open a new variable scope under the root variable scope.
     This variable scope will be reused the next time to enter this function.
-    For example::
+    For example:
 
     .. code-block:: python
 
@@ -51,7 +214,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
 
     If you have two functions sharing the same scope name, they will not
     use the same variable scope.  Instead, one of these two functions will
-    have its scope name added with a suffix '_1', for example::
+    have its scope name added with a suffix '_?', for example::
 
     .. code-block:: python
 
@@ -69,10 +232,8 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
     The variable scope name will depend on the calling order of these
     two functions, so you should better not guess the scope name by yourself.
 
-    Args:
-        scope (str): The name of the variable scope. If not set, will use the
-            function name as scope name. This argument must be specified as
-            named argument.
+    See Also:
+        :func:`tfsnippet.utils.instance_reuse`
     """
     require_at_least_tensorflow_1_5()
 
@@ -89,7 +250,6 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
         return functools.partial(global_reuse, scope=scope)
 
     scope = scope or method.__name__
-
     if '/' in scope:
         raise ValueError('`global_reuse` does not support "/" in scope name.')
 
@@ -109,12 +269,13 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
             #   variable scope before creating our desired variable scope.
             #   However, if we execute the method right after we obtain the
             #   new variable scope, we will not be in the correct name scope.
-            #   So we should exit the root scope, then re-enter our desired
+            #   So we should exit the scope, then re-enter our desired
             #   variable scope.
-            if tf.get_variable_scope().name:
+            if graph.get_name_scope() or tf.get_variable_scope().name:
                 with root_variable_scope():
                     with tf.variable_scope(None, default_name=scope) as vs:
                         variable_scopes[graph] = vs
+
                 with tf.variable_scope(vs):
                     return method(*args, **kwargs)
 

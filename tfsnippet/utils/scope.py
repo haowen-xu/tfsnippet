@@ -2,13 +2,13 @@ from contextlib import contextmanager
 
 import six
 import tensorflow as tf
-from tensorflow.python.ops import variable_scope as variable_scope_ops
 
 from .doc_inherit import DocInherit
 from .misc import camel_to_underscore
 
 __all__ = [
     'get_valid_name_scope_name',
+    'reopen_variable_scope',
     'root_variable_scope',
     'VarScopeObject'
 ]
@@ -35,6 +35,25 @@ def get_valid_name_scope_name(name, cls_or_instance=None):
 
 
 @contextmanager
+def reopen_variable_scope(var_scope, **kwargs):
+    """
+    Reopen the specified `var_scope` and its original name scope.
+
+    Args:
+        var_scope (tf.VariableScope): The variable scope instance.
+        **kwargs: Named arguments for opening the variable scope.
+    """
+    if not isinstance(var_scope, tf.VariableScope):
+        raise TypeError('`var_scope` must be an instance of `tf.VariableScope`')
+
+    with tf.variable_scope(var_scope,
+                           auxiliary_name_scope=False,
+                           **kwargs) as vs:
+        with tf.name_scope(var_scope.original_name_scope):
+            yield vs
+
+
+@contextmanager
 def root_variable_scope(**kwargs):
     """
     Open the root variable scope and its name scope.
@@ -42,20 +61,9 @@ def root_variable_scope(**kwargs):
     Args:
         **kwargs: Named arguments for opening the root variable scope.
     """
-    # `tf.variable_scope` does not support opening the root variable scope
-    # from empty name.  It always prepend the name of current variable scope
-    # to the front of opened variable scope.  So we get the current scope,
-    # and pretend it to be the root scope.
-    scope = tf.get_variable_scope()
-    old_name = scope.name
-    try:
-        scope._name = ''
-        with variable_scope_ops._pure_variable_scope('', **kwargs) as vs:
-            scope._name = old_name
-            with tf.name_scope(None):
-                yield vs
-    finally:
-        scope._name = old_name
+    with tf.variable_scope('', auxiliary_name_scope=False, **kwargs) as vs:
+        with tf.name_scope(None):
+            yield vs
 
 
 @DocInherit
@@ -63,19 +71,14 @@ class VarScopeObject(object):
     """
     Base class for objects that own a variable scope.
 
-    The :class:`VarScopeObject` can be used along with :func:`tf.make_template`,
+    The :class:`VarScopeObject` can be used along with :func:`instance_reuse`,
     for example::
 
         class YourVarScopeObject(VarScopeObject):
 
-            def _foo():
+            @instance_reuse
+            def foo(self):
                 return tf.get_variable('bar', ...)
-
-            def _variable_scope_created(self):
-                self.foo = tf.make_template(
-                    'foo', self._foo, create_scope_now_=True)
-                # NOTE: `create_scope_now_` is required to ensure `_foo`
-                #   would work under the object's variable scope.
 
         o = YourVarScopeObject('object_name')
         o.foo()  # You should get a variable with name "object_name/foo/bar"
