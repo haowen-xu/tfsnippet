@@ -83,6 +83,12 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
     The variable scope name will depend on the calling order of these
     two functions, so you should better not guess the scope name by yourself.
 
+    Note:
+        If you use Keras, you SHOULD NOT create a Keras layer inside a
+        `instance_reuse` decorated function.  Instead, you should create it
+        outside the method (for example, when in the constructor of the
+        object), and then pass it into the method.
+
     See Also:
         :class:`tfsnippet.utils.VarScopeObject`,
         :func:`tfsnippet.utils.global_reuse`
@@ -231,6 +237,11 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
 
     The variable scope name will depend on the calling order of these
     two functions, so you should better not guess the scope name by yourself.
+
+    Note:
+        If you use Keras, you SHOULD NOT create a Keras layer inside a
+        `global_reuse` decorated function.  Instead, you should create it
+        outside the function, and pass it into the function.
 
     See Also:
         :func:`tfsnippet.utils.instance_reuse`
