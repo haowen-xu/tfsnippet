@@ -5,6 +5,7 @@ from tfsnippet.utils import is_integer
 __all__ = [
     'validate_strides_or_kernel_size',
     'cached',
+    'print_with_title',
 ]
 
 
@@ -53,3 +54,19 @@ def cached(method):
         return results[cache_key]
 
     return wrapper
+
+
+def print_with_title(title, content, before='', after='', hl='='):
+    """
+    Print a content section with title.
+
+    Args:
+        title (str): The title of the section.
+        content (str): The multi-line content.
+        before (str): String to print before the title.
+        after (str): String to print after the content.
+        hl (str): The character for horizon line.
+    """
+    cont_maxlen = max(len(s) for s in content.split('\n'))
+    hl_len = max(cont_maxlen, len(title))
+    print('{}{}\n{}\n{}{}'.format(before, title, hl * hl_len, content, after))

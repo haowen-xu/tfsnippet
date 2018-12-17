@@ -102,7 +102,7 @@ def save_images_collection(images, filename, grid_size, border_size=0,
         buf = np.reshape(buf, (buf_h, buf_w))
 
     if results is not None:
-        results.imwrite(filename, buf)
+        results.save_image(filename, buf)
     else:
         imageio.imwrite(filename, buf)
 

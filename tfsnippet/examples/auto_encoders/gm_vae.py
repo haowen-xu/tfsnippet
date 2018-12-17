@@ -21,7 +21,8 @@ from tfsnippet.examples.utils import (MLConfig,
                                       ClusteringClassifier,
                                       pass_global_config,
                                       config_options,
-                                      bernoulli_as_pixel)
+                                      bernoulli_as_pixel,
+                                      print_with_title)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
@@ -203,12 +204,12 @@ def reinforce_baseline_net(config, x):
 @pass_global_config
 def main(config, result_dir):
     # print the config
-    print('Configurations\n==============\n' + config.format_config() + '\n')
+    print_with_title('Configurations', config.format_config(), after='\n')
 
     # open the result object and prepare for result directories
     results = MLResults(result_dir)
-    results.makedirs('plotting', exist_ok=True)
-    results.makedirs('train_summary', exist_ok=True)
+    results.make_dirs('plotting', exist_ok=True)
+    results.make_dirs('train_summary', exist_ok=True)
 
     # input placeholders
     input_x = tf.placeholder(
@@ -365,7 +366,7 @@ def main(config, result_dir):
     # print the final metrics and close the results object
     with codecs.open('cluster_classifier.txt', 'wb', 'utf-8') as f:
         f.write(c_classifier.describe())
-    print('\nResults\n=======\n' + results.format_metrics())
+    print_with_title('Results', results.format_metrics(), before='\n')
     results.close()
 
 

@@ -158,7 +158,7 @@ class MLResults(object):
             raise RuntimeError('`path` cannot be resolved into system absolute '
                                'path: {}'.format(path), e)
 
-    def makedirs(self, path, exist_ok=False):
+    def make_dirs(self, path, exist_ok=False):
         """
         Create a directory and all its parent directories.
 
@@ -169,7 +169,9 @@ class MLResults(object):
         """
         self.fs.makedirs(ensure_unicode_path(path), recreate=exist_ok)
 
-    def imwrite(self, path, im, format=None, **kwargs):
+    makedirs = make_dirs
+
+    def save_image(self, path, im, format=None, **kwargs):
         """
         Save an image into the result directory.
 
@@ -192,3 +194,5 @@ class MLResults(object):
 
         with self.fs.open(ensure_unicode_path(path), 'wb') as f:
             return imageio.imwrite(f, im, format=format, **kwargs)
+
+    imwrite = save_image
