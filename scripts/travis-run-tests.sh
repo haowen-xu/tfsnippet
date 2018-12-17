@@ -32,7 +32,7 @@ function runTest() {
 if [[ "${TRAVIS_BRANCH}" = "master" || "${TRAVIS_BRANCH}" = "develop" ]]; then
   if [[ "${TENSORFLOW_VERSION}" = "*" ]]; then
     for TF_VER in 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do
-      runTest "${PY_VER}" "${TF_VER}" "0";
+      runTest "${PYTHON_VERSION}" "${TF_VER}" "0";
     done
   else
     runTest "${PYTHON_VERSION}" "${TENSORFLOW_VERSION}" "1";
