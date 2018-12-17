@@ -10,6 +10,7 @@ function runTest() {
     CORE_TESTS_ONLY=${CORE_TESTS_ONLY}
     PYTHON_VERSION=${PY_VER}
     TENSORFLOW_VERSION=${TF_VER}
+    RUN_EXAMPLES_TEST_CASE=${RUN_EXAMPLES_TEST_CASE}
   "
 
   IMAGE_NAME="haowenxu/travis-tensorflow-docker:py${PY_VER}tf${TF_VER}"
