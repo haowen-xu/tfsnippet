@@ -7,7 +7,6 @@ function runTest() {
 
   echo "TFSnippet Tests
 
-    CORE_TESTS_ONLY=${CORE_TESTS_ONLY}
     PYTHON_VERSION=${PY_VER}
     TENSORFLOW_VERSION=${TF_VER}
     RUN_EXAMPLES_TEST_CASE=${RUN_EXAMPLES_TEST_CASE}
@@ -23,21 +22,23 @@ function runTest() {
       -e TRAVIS="${TRAVIS}" \
       -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}" \
       -e TRAVIS_BRANCH="${TRAVIS_BRANCH}" \
-      -e CORE_TESTS_ONLY="${CORE_TESTS_ONLY}" \
+      -e PYTHON_VERSION="${PYTHON_VERSION}" \
+      -e TENSORFLOW_VERSION="${TENSORFLOW_VERSION}" \
       -e RUN_EXAMPLES_TEST_CASE="${RUN_EXAMPLES_TEST_CASE}" \
       "${IMAGE_NAME}" \
       bash "scripts/travis-docker-entry.sh"
 }
-if [[ "${CORE_TESTS_ONLY}" = "1" ]]; then
-  for PY_VER in 2 3; do
+
+if [[ "${TRAVIS_BRANCH}" = "master" || "${TRAVIS_BRANCH}" = "develop" ]]; then
+  if [[ "${TENSORFLOW_VERSION}" = "*" ]]; then
     for TF_VER in 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do
       runTest "${PY_VER}" "${TF_VER}" "0";
     done
-  done
-else
-  if [[ "${TRAVIS_BRANCH}" = "master" || "${TRAVIS_BRANCH}" = "develop" ]]; then
-    runTest "${PYTHON_VERSION}" "${TENSORFLOW_VERSION}" "1";
   else
+    runTest "${PYTHON_VERSION}" "${TENSORFLOW_VERSION}" "1";
+  fi
+else
+  if [[ "${TENSORFLOW_VERSION}" != "*" ]]; then
     runTest "${PYTHON_VERSION}" "${TENSORFLOW_VERSION}" "0";
   fi
 fi

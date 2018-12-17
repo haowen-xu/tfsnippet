@@ -2,6 +2,7 @@ from contextlib import contextmanager
 
 import six
 import tensorflow as tf
+from tensorflow.python.ops import variable_scope as variable_scope_ops
 
 from .doc_inherit import DocInherit
 from .misc import camel_to_underscore
@@ -61,9 +62,20 @@ def root_variable_scope(**kwargs):
     Args:
         **kwargs: Named arguments for opening the root variable scope.
     """
-    with tf.variable_scope('', auxiliary_name_scope=False, **kwargs) as vs:
-        with tf.name_scope(None):
-            yield vs
+    # `tf.variable_scope` does not support opening the root variable scope
+    # from empty name.  It always prepend the name of current variable scope
+    # to the front of opened variable scope.  So we get the current scope,
+    # and pretend it to be the root scope.
+    scope = tf.get_variable_scope()
+    old_name = scope.name
+    try:
+        scope._name = ''
+        with variable_scope_ops._pure_variable_scope('', **kwargs) as vs:
+            scope._name = old_name
+            with tf.name_scope(None):
+                yield vs
+    finally:
+        scope._name = old_name
 
 
 @DocInherit

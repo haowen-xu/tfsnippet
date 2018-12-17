@@ -8,7 +8,7 @@ pip install -r requirements-dev.txt
 mkdir -p /root/.config/matplotlib
 echo 'backend : Agg' > /root/.config/matplotlib/matplotlibrc
 
-if [ "${CORE_TESTS_ONLY}" = "1" ]; then
+if [ "${TENSORFLOW_VERSION}" = "*" ]; then
   coverage run -m py.test \
       tests/utils/test_reuse.py \
       tests/utils/test_scope.py \
