@@ -50,8 +50,6 @@ class StochasticTensor(TensorWrapper):
     It mimics the interface of :class:`zhusuan.model.StochasticTensor`,
     except that it does not carry a `name`, and does not add itself to
     any :class:`BayesianNet` context automatically.
-    This modified design fits the concept of :class:`~tfsnippet.modules.Module`
-    better than the original :class:`zhusuan.model.StochasticTensor`.
     """
 
     def __init__(self, distribution, tensor, n_samples=None,

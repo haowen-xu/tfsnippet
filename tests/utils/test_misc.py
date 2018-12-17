@@ -117,19 +117,6 @@ class CamelToUnderscoreTestCase(unittest.TestCase):
             )
 
 
-class GetValidScopeNameTestCase(unittest.TestCase):
-
-    def test_get_valid_scope_name(self):
-        class _MyClass:
-            pass
-
-        self.assertEqual(get_valid_scope_name('abc'), 'abc')
-        self.assertEqual(get_valid_scope_name('abc', str), 'str.abc')
-        self.assertEqual(get_valid_scope_name('abc', ''), 'str.abc')
-        self.assertEqual(get_valid_scope_name('abc', _MyClass), 'MyClass.abc')
-        self.assertEqual(get_valid_scope_name('abc', _MyClass()), 'MyClass.abc')
-
-
 class NotSetTestCase(unittest.TestCase):
 
     def test_repr(self):

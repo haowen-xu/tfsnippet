@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.utils import DocInherit, VarScopeObject, reopen_variable_scope
+from tfsnippet.utils import DocInherit, VarScopeObject
 
 __all__ = ['Flow', 'MultiLayerFlow']
 
@@ -152,19 +152,19 @@ class MultiLayerFlow(Flow):
             scope (str): Optional scope of this :class:`VariableSaver`
                 (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         """
-        super(MultiLayerFlow, self).__init__(
-            dtype=dtype, name=name, scope=scope)
-
         n_layers = int(n_layers)
         if n_layers < 1:
             raise ValueError('`n_layers` must be larger than 0.')
         self._n_layers = n_layers
         self._layer_params = []
 
-        with reopen_variable_scope(self.variable_scope):
-            for i in range(self._n_layers):
-                with tf.variable_scope('_{}'.format(i)):
-                    self._layer_params.append(self._create_layer_params(i))
+        super(MultiLayerFlow, self).__init__(
+            dtype=dtype, name=name, scope=scope)
+
+    def _variable_scope_created(self, vs):
+        for i in range(self._n_layers):
+            with tf.variable_scope('_{}'.format(i)):
+                self._layer_params.append(self._create_layer_params(i))
 
     @property
     def n_layers(self):
