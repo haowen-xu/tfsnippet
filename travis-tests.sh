@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [[ "${TRAVIS_BRANCH}" = "master" || "${TRAVIS_BRANCH}" = "develop" ]]; then
+    export RUN_EXAMPLES_TEST_CASE=1
+fi
+
 apt-get -y update &&  \
     apt-get -y install unrar &&  \
     pip install . &&  \
