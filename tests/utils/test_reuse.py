@@ -63,9 +63,10 @@ class InstanceReuseTestCase(tf.test.TestCase):
     def test_nested_name_should_cause_an_error(self):
         with pytest.raises(ValueError, match='`global_reuse` does not support '
                                              '"/" in scope name'):
-            @global_reuse('nested/scope')
-            def nested_scope():
-                return tf.get_variable('var', shape=(), dtype=tf.float32)
+            class MyScopeObject(VarScopeObject):
+                @instance_reuse('nested/scope')
+                def foo(self):
+                    return _make_var_and_op()
 
     def test_create_in_root_scope(self):
         class MyScopeObject(VarScopeObject):
