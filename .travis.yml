@@ -4,20 +4,14 @@ services:
   - docker
 env:
   matrix:
-  - CORE_TESTS_ONLY=0 PYTHON_VERSION=2 TENSORFLOW_VERSION=1.5
-  - CORE_TESTS_ONLY=0 PYTHON_VERSION=3 TENSORFLOW_VERSION=1.5
-  - CORE_TESTS_ONLY=0 PYTHON_VERSION=2 TENSORFLOW_VERSION=1.12
-  - CORE_TESTS_ONLY=0 PYTHON_VERSION=3 TENSORFLOW_VERSION=1.12
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.5
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.5
+  - PYTHON_VERSION=2 TENSORFLOW_VERSION=1.12
+  - PYTHON_VERSION=3 TENSORFLOW_VERSION=1.12
   - CORE_TESTS_ONLY=1
 cache:
   directories:
   - /home/travis/.tfsnippet
   - /home/travis/.keras
-install:
-  - docker pull "haowenxu/travis-tensorflow-docker:py${PYTHON_VERSION}tf${TENSORFLOW_VERSION}"
 script:
-  - if [ "${CORE_TESTS_ONLY}" = "1" ]; then
-      bash scripts/travis-run-tests.sh
-    else
-      bash scripts/travis-core-tests-under-various-runtimes.sh
-    fi
+  - bash scripts/travis-run-tests.sh
