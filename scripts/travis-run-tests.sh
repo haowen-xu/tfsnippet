@@ -14,17 +14,17 @@ function runTest() {
 
   IMAGE_NAME="haowenxu/travis-tensorflow-docker:py${PY_VER}tf${TF_VER}"
   docker pull "${IMAGE_NAME}"
-  docker run
-      -v "$(pwd)":"$(pwd)"
-      -v "/home/travis/.tfsnippet":"/root/.tfsnippet"
-      -v "/home/travis/.keras":"/root/.keras"
-      -w "$(pwd)"
-      -e TRAVIS="${TRAVIS}"
-      -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}"
-      -e TRAVIS_BRANCH="${TRAVIS_BRANCH}"
-      -e CORE_TESTS_ONLY="${CORE_TESTS_ONLY}"
-      -e RUN_EXAMPLES_TEST_CASE="${RUN_EXAMPLES_TEST_CASE}"
-      "${IMAGE_NAME}"
+  docker run \
+      -v "$(pwd)":"$(pwd)" \
+      -v "/home/travis/.tfsnippet":"/root/.tfsnippet" \
+      -v "/home/travis/.keras":"/root/.keras" \
+      -w "$(pwd)" \
+      -e TRAVIS="${TRAVIS}" \
+      -e TRAVIS_JOB_ID="${TRAVIS_JOB_ID}" \
+      -e TRAVIS_BRANCH="${TRAVIS_BRANCH}" \
+      -e CORE_TESTS_ONLY="${CORE_TESTS_ONLY}" \
+      -e RUN_EXAMPLES_TEST_CASE="${RUN_EXAMPLES_TEST_CASE}" \
+      "${IMAGE_NAME}" \
       bash "scripts/travis-docker-entry.sh"
 }
 if [[ "${CORE_TESTS_ONLY}" = "1" ]]; then
