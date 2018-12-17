@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-from tfsnippet.utils import DocInherit, get_valid_scope_name
+from tfsnippet.utils import DocInherit, get_valid_name_scope_name
 
 __all__ = ['Distribution']
 
@@ -178,34 +178,5 @@ class Distribution(object):
             tf.Tensor: The densities of `given`.
         """
         with tf.name_scope(name,
-                           default_name=get_valid_scope_name('prob', self)):
+                           default_name=get_valid_name_scope_name('prob', self)):
             return tf.exp(self.log_prob(given, group_ndims=group_ndims))
-
-    @classmethod
-    def factory(cls, **kwargs):
-        """
-        Get a factory for constructing a distribution instance of `cls`,
-        with some default parameters.
-
-        .. code-block:: python
-
-            factory = Normal.factory(std=1.)
-
-            # equivalent to Normal(mean=0., std=1.)
-            normal = factory(mean=0.)
-
-            # override `std`
-            normal = factory(mean=1., std=2.)
-
-            # parameters can also be specified via a dict
-            normal = factory({'mean': 0.})
-
-        Args:
-            \**kwargs: The default named arguments.
-
-        Returns:
-            tfsnippet.distributions.DistributionFactory: The distribution
-                factory instance.
-        """
-        from tfsnippet.distributions import DistributionFactory
-        return DistributionFactory(cls, kwargs)

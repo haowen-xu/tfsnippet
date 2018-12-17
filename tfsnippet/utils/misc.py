@@ -4,10 +4,11 @@ import time
 from contextlib import contextmanager
 
 import numpy as np
-import six
 
-__all__ = ['humanize_duration', 'camel_to_underscore', 'get_valid_scope_name',
-           'NOT_SET', 'maybe_close', 'iter_files', 'ETA']
+__all__ = [
+    'humanize_duration', 'camel_to_underscore', 'NOT_SET', 'maybe_close',
+    'iter_files', 'ETA'
+]
 
 
 def humanize_duration(seconds, short_units=True):
@@ -62,26 +63,6 @@ def camel_to_underscore(name):
 
 CAMEL_TO_UNDERSCORE_S1 = re.compile('([^_])([A-Z][a-z]+)')
 CAMEL_TO_UNDERSCORE_S2 = re.compile('([a-z0-9])([A-Z])')
-
-
-def get_valid_scope_name(name, cls_or_instance=None):
-    """
-    Generate a valid scope name for the given method.
-
-    Args:
-        name (str): The base name.
-        cls_or_instance: The class or the instance object, optional.
-
-    Returns:
-        str: The generated scope name.
-    """
-    # TODO: add more validation here.
-    prefix = ''
-    if cls_or_instance is not None:
-        if not isinstance(cls_or_instance, six.class_types):
-            cls_or_instance = cls_or_instance.__class__
-        prefix = '{}.'.format(cls_or_instance.__name__).lstrip('_')
-    return prefix + name
 
 
 class NotSet(object):

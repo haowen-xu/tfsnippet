@@ -35,7 +35,6 @@ API Docs
    api/tfsnippet.examples
    api/tfsnippet.flows
    api/tfsnippet.mathops
-   api/tfsnippet.modules
    api/tfsnippet.preprocessing
    api/tfsnippet.scaffold
    api/tfsnippet.stochastic

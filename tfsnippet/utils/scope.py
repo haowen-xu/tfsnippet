@@ -7,7 +7,32 @@ from tensorflow.python.ops import variable_scope as variable_scope_ops
 from .doc_inherit import DocInherit
 from .misc import camel_to_underscore
 
-__all__ = ['reopen_variable_scope', 'root_variable_scope', 'VarScopeObject']
+__all__ = [
+    'get_valid_name_scope_name',
+    'reopen_variable_scope',
+    'root_variable_scope',
+    'VarScopeObject'
+]
+
+
+def get_valid_name_scope_name(name, cls_or_instance=None):
+    """
+    Generate a valid name scope name.
+
+    Args:
+        name (str): The base name.
+        cls_or_instance: The class or the instance object, optional.
+
+    Returns:
+        str: The generated scope name.
+    """
+    # TODO: add more validation here.
+    prefix = ''
+    if cls_or_instance is not None:
+        if not isinstance(cls_or_instance, six.class_types):
+            cls_or_instance = cls_or_instance.__class__
+        prefix = '{}.'.format(cls_or_instance.__name__).lstrip('_')
+    return prefix + name
 
 
 @contextmanager
@@ -15,23 +40,17 @@ def reopen_variable_scope(var_scope, **kwargs):
     """
     Reopen the specified `var_scope` and its original name scope.
 
-    Unlike :func:`tf.variable_scope`, which does not open the original name
-    scope even if a stored :class:`tf.VariableScope` instance is specified,
-    this method opens exactly the same name scope as the original one.
-
     Args:
         var_scope (tf.VariableScope): The variable scope instance.
         **kwargs: Named arguments for opening the variable scope.
     """
     if not isinstance(var_scope, tf.VariableScope):
         raise TypeError('`var_scope` must be an instance of `tf.VariableScope`')
-    old_name_scope = var_scope.original_name_scope
-    with variable_scope_ops._pure_variable_scope(var_scope, **kwargs) as vs:
-        name_scope = old_name_scope
-        if name_scope and not name_scope.endswith('/'):
-            name_scope += '/'  # pragma: no cover
 
-        with tf.name_scope(name_scope):
+    with tf.variable_scope(var_scope,
+                           auxiliary_name_scope=False,
+                           **kwargs) as vs:
+        with tf.name_scope(var_scope.original_name_scope):
             yield vs
 
 
@@ -62,8 +81,19 @@ def root_variable_scope(**kwargs):
 @DocInherit
 class VarScopeObject(object):
     """
-    Base class for object that owns a variable scope.
-    It is typically used along with :func:`~tfsnippet.utils.instance_reuse`.
+    Base class for objects that own a variable scope.
+
+    The :class:`VarScopeObject` can be used along with :func:`instance_reuse`,
+    for example::
+
+        class YourVarScopeObject(VarScopeObject):
+
+            @instance_reuse
+            def foo(self):
+                return tf.get_variable('bar', ...)
+
+        o = YourVarScopeObject('object_name')
+        o.foo()  # You should get a variable with name "object_name/foo/bar"
     """
 
     def __init__(self, name=None, scope=None):
@@ -95,10 +125,20 @@ class VarScopeObject(object):
         with tf.variable_scope(scope, default_name=default_name) as vs:
             self._variable_scope = vs       # type: tf.VariableScope
             self._name = name
+            self._variable_scope_created(vs)
 
     def __repr__(self):
         return '{}({!r})'.format(
             self.__class__.__name__, self.variable_scope.name)
+
+    def _variable_scope_created(self, vs):
+        """
+        Derived classes may override this to execute code right after
+        the variable scope has been created.
+
+        Args:
+            vs (tf.VariableScope): The created variable scope.
+        """
 
     @property
     def name(self):
@@ -109,42 +149,3 @@ class VarScopeObject(object):
     def variable_scope(self):
         """Get the variable scope of this object."""
         return self._variable_scope
-
-    def get_variables_as_dict(self, sub_scope=None,
-                              collection=tf.GraphKeys.GLOBAL_VARIABLES,
-                              strip_sub_scope=True):
-        """
-        Get the variables created inside this :class:`VarScopeObject`.
-
-        This method will collect variables from specified `collection`,
-        which are created in the :attr:`variable_scope` of this object
-        (or in the `sub_scope` of :attr:`variable_scope`, if `sub_scope`
-        is not :obj:`None`).
-
-        Args:
-            sub_scope (str): The sub-scope of :attr:`variable_scope`.
-            collection (str): The collection from which to collect variables.
-                (default ``tf.GraphKeys.GLOBAL_VARIABLES``).
-            strip_sub_scope (bool): Whether or not to also strip the common
-                prefix of `sub_scope`? (default :obj:`True`)
-
-        Returns:
-            dict[str, tf.Variable]: Dict which maps from the relative names of
-                variables to variable objects.  By `relative names` we mean the
-                full names of variables, without the common prefix of
-                :attr:`variable_scope` (and `sub_scope` if `strip_sub_scope`
-                is :obj:`True`).
-        """
-        from tfsnippet.utils.session import get_variables_as_dict
-        scope_name = self.variable_scope.name
-        if sub_scope:
-            sub_scope = sub_scope.strip('/')
-            if scope_name and not scope_name.endswith('/'):
-                scope_name += '/'
-            scope_name += sub_scope
-
-        ret = get_variables_as_dict(scope_name, collection)
-        if not strip_sub_scope and sub_scope:
-            sub_scope += '/'
-            ret = {sub_scope + k: v for k, v in six.iteritems(ret)}
-        return ret

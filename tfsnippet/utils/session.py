@@ -142,18 +142,21 @@ class VariableSaver(VarScopeObject):
             variables = list(variables)
         if max_versions < 2:
             raise ValueError('At least 2 versions should be kept')
-        super(VariableSaver, self).__init__(scope, name)
+
         self.variables = variables
         self.save_dir = os.path.abspath(save_dir)
         self.filename = filename
         self.max_versions = max_versions
         self.latest_file = latest_file
         self.save_meta = save_meta
-        with tf.variable_scope(self.variable_scope):
-            self._saver = tf.train.Saver(
-                var_list=self.variables, max_to_keep=self.max_versions,
-                name='saver'
-            )
+
+        super(VariableSaver, self).__init__(scope, name)
+
+    def _variable_scope_created(self, vs):
+        self._saver = tf.train.Saver(
+            var_list=self.variables, max_to_keep=self.max_versions,
+            name='saver'
+        )
 
     def get_latest_file(self):
         """Get the latest available checkpoint file."""
