@@ -65,7 +65,7 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, loop, train_op, inputs, data_flow, feed_dict=None,
-                 metrics=None):
+                 metrics=None, summaries=None):
         """
 
         Args:
@@ -83,6 +83,10 @@ class Trainer(BaseTrainer):
                 (default :obj:`None`)
             metrics (dict[str, tf.Tensor]): Metrics to be computed along with
                 `train_op`.  The keys are the names of metrics.
+            summaries (Iterable[tf.Tensor]): A list of summaries to be run
+                and along with `train_op`, and later to be added to
+                ``loop.summary_writer``.  If ``loop.summary_writer`` is None,
+                then no summary will be run.
         """
         if loop.max_epoch is None and loop.max_step is None:
             raise ValueError('At least one of `max_epoch`, `max_step` should '
@@ -95,6 +99,7 @@ class Trainer(BaseTrainer):
         self._feed_dict = dict(feed_dict or ())
         self._train_op = train_op
         self._metrics = dict(metrics or ())
+        self._summaries = list(summaries or ())
 
     @property
     def inputs(self):
@@ -136,6 +141,11 @@ class Trainer(BaseTrainer):
         """Get the metrics to be computed along with `train_op`."""
         return self._metrics
 
+    @property
+    def summaries(self):
+        """Get the summaries to be computed along with `train_op`."""
+        return self._summaries
+
     def _iter_steps(self):
         return self.loop.iter_steps(self.data_flow)
 
@@ -149,10 +159,22 @@ class Trainer(BaseTrainer):
             )
         )
 
-        # run the training operation
+        # run the training operation if batch data is not null
         metric_names = list(six.iterkeys(self.metrics))
         metric_tensors = [self.metrics[k] for k in metric_names]
-        metric_values = session.run(
-            [self._train_op] + metric_tensors, feed_dict=feed_dict)[1:]
+        if self.loop.summary_writer is not None:
+            summary_tensors = self._summaries
+        else:
+            summary_tensors = []
+        session_out = session.run(
+            [self._train_op] + metric_tensors + summary_tensors,
+            feed_dict=feed_dict
+        )
+        metric_values = session_out[1: len(session_out) - len(summary_tensors)]
+        summaries = session_out[len(session_out) - len(summary_tensors):]
+
+        # collect the metrics and the summaries
         self.loop.collect_metrics(
             {n: v for n, v in zip(metric_names, metric_values)})
+        for summary in summaries:
+            self.loop.add_summary(summary)

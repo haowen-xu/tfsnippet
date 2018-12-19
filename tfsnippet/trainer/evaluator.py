@@ -246,16 +246,17 @@ class Evaluator(object):
                 metric_values.append(np.asarray(batch_values))
 
             # now merge all batch metrics and do logging
-            metric_values = np.average(
-                np.stack(metric_values, axis=0),
-                axis=0,
-                weights=np.asarray(metric_weights),
-            )
-            assert(len(metric_names) == len(metric_values))
-            self._last_metrics_dict = metrics_dict = {
-                k: v for k, v in zip(metric_names, metric_values)
-            }
-            self.loop.collect_metrics(metrics_dict)
+            if metric_values:
+                metric_values = np.average(
+                    np.stack(metric_values, axis=0),
+                    axis=0,
+                    weights=np.asarray(metric_weights),
+                )
+                assert(len(metric_names) == len(metric_values))
+                self._last_metrics_dict = metrics_dict = {
+                    k: v for k, v in zip(metric_names, metric_values)
+                }
+                self.loop.collect_metrics(metrics_dict)
 
             # run after evaluation hooks
             self.after_run.call_hooks()
