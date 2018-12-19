@@ -14,7 +14,7 @@ from tfsnippet.examples.nn import (l2_regularizer,
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
-                                      pass_global_config,
+                                      global_config as config,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
@@ -48,8 +48,7 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def q_net(config, x, observed=None, n_z=None, is_training=True):
+def q_net(x, posterior_flow, observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -64,15 +63,14 @@ def q_net(config, x, observed=None, n_z=None, is_training=True):
     z_mean = dense(h_x, config.z_dim, name='z_mean')
     z_logstd = dense(h_x, config.z_dim, name='z_logstd')
     z = net.add('z', Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1, flow=posterior_flow())
+                group_ndims=1, flow=posterior_flow)
 
     return net
 
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def p_net(config, observed=None, n_z=None, is_training=True):
+def p_net(observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # sample z ~ p(z)
@@ -95,18 +93,11 @@ def p_net(config, observed=None, n_z=None, is_training=True):
     return net
 
 
-@global_reuse
-@pass_global_config
-def posterior_flow(config):
-    return PlanarNormalizingFlow(config.z_dim, config.nf_layers)
-
-
 @click.command()
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 
@@ -126,8 +117,11 @@ def main(config, result_dir):
 
     # build the model
     with arg_scope([q_net, p_net], is_training=is_training):
+        # build the posterior flow
+        posterior_flow = PlanarNormalizingFlow(config.z_dim, config.nf_layers)
+
         # derive the loss and lower-bound for training
-        train_q_net = q_net(input_x)
+        train_q_net = q_net(input_x, posterior_flow)
         train_chain = train_q_net.chain(
             p_net, latent_names=['z'], latent_axis=0,
             observed={'x': input_x}
@@ -137,7 +131,7 @@ def main(config, result_dir):
         loss = vae_loss + regularization_loss()
 
         # derive the nll and logits output for testing
-        test_q_net = q_net(input_x, n_z=config.test_n_z)
+        test_q_net = q_net(input_x, posterior_flow, n_z=config.test_n_z)
         test_chain = test_q_net.chain(
             p_net, latent_names=['z'], latent_axis=0,
             observed={'x': input_x}

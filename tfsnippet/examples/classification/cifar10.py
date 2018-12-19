@@ -11,8 +11,11 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import (MLConfig, MLResults, pass_global_config,
-                                      config_options, print_with_title)
+from tfsnippet.examples.utils import (MLConfig,
+                                      MLResults,
+                                      global_config as config,
+                                      config_options,
+                                      print_with_title)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, create_session
@@ -37,8 +40,7 @@ class ExpConfig(MLConfig):
 
 
 @global_reuse
-@pass_global_config
-def model(config, x, is_training):
+def model(x, is_training):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
@@ -54,8 +56,7 @@ def model(config, x, is_training):
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 

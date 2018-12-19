@@ -19,7 +19,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       save_images_collection,
                                       collect_outputs,
                                       ClusteringClassifier,
-                                      pass_global_config,
+                                      global_config as config,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
@@ -56,8 +56,7 @@ class ExpConfig(MLConfig):
 
 
 @global_reuse
-@pass_global_config
-def gaussian_mixture_prior(config, y, z_dim, n_clusters):
+def gaussian_mixture_prior(y, z_dim, n_clusters):
     # derive the learnt z_mean
     prior_mean = tf.get_variable(
         'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
@@ -95,8 +94,7 @@ def gaussian_mixture_prior(config, y, z_dim, n_clusters):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def q_net(config, x, observed=None, n_samples=None, is_training=True):
+def q_net(x, observed=None, n_samples=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -149,8 +147,7 @@ def q_net(config, x, observed=None, n_samples=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def p_net(config, observed=None, n_y=None, n_z=None, is_training=True,
+def p_net(observed=None, n_y=None, n_z=None, is_training=True,
           n_samples=None):
     if n_samples is not None:
         warnings.warn('`n_samples` is deprecated, use `n_y` instead.')
@@ -186,8 +183,7 @@ def p_net(config, observed=None, n_y=None, n_z=None, is_training=True,
 
 
 @global_reuse
-@pass_global_config
-def reinforce_baseline_net(config, x):
+def reinforce_baseline_net(x):
     x, s1, s2 = flatten(tf.to_float(x), 2)
     with arg_scope([dense],
                    kernel_regularizer=l2_regularizer(config.l2_reg),
@@ -201,8 +197,7 @@ def reinforce_baseline_net(config, x):
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 

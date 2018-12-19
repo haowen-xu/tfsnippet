@@ -20,7 +20,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
                                       MLResults,
                                       save_images_collection,
-                                      pass_global_config,
+                                      global_config as config,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
@@ -56,8 +56,7 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def q_net(config, x, observed=None, n_z=None, is_training=True,
+def q_net(x, observed=None, n_z=None, is_training=True,
           channels_last=False):
     net = BayesianNet(observed=observed)
 
@@ -100,8 +99,7 @@ def q_net(config, x, observed=None, n_z=None, is_training=True,
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def p_net(config, observed=None, n_z=None, is_training=True,
+def p_net(observed=None, n_z=None, is_training=True,
           channels_last=False):
     net = BayesianNet(observed=observed)
 
@@ -139,8 +137,7 @@ def p_net(config, observed=None, n_z=None, is_training=True,
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 

@@ -16,8 +16,11 @@ from tfsnippet.examples.nn import (dense,
                                    l2_regularizer,
                                    regularization_loss,
                                    classification_accuracy)
-from tfsnippet.examples.utils import (MLConfig, MLResults, MultiGPU,
-                                      pass_global_config, config_options,
+from tfsnippet.examples.utils import (MLConfig,
+                                      MLResults,
+                                      MultiGPU,
+                                      global_config as config,
+                                      config_options,
                                       print_with_title)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -42,8 +45,7 @@ class ExpConfig(MLConfig):
 
 
 @global_reuse
-@pass_global_config
-def model(config, x, is_training, channels_last):
+def model(x, is_training, channels_last):
     with arg_scope([resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
@@ -75,8 +77,7 @@ def model(config, x, is_training, channels_last):
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 

@@ -14,7 +14,7 @@ from tfsnippet.examples.nn import (l2_regularizer,
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
-                                      pass_global_config,
+                                      global_config as config,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
@@ -47,8 +47,7 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def q_net(config, x, observed=None, n_z=None, is_training=True):
+def q_net(x, observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -69,8 +68,7 @@ def q_net(config, x, observed=None, n_z=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-@pass_global_config
-def p_net(config, observed=None, n_z=None, is_training=True):
+def p_net(observed=None, n_z=None, is_training=True):
     net = BayesianNet(observed=observed)
 
     # sample z ~ p(z)
@@ -93,9 +91,8 @@ def p_net(config, observed=None, n_z=None, is_training=True):
     return net
 
 
-@pass_global_config
 @global_reuse
-def baseline_net(config, x):
+def baseline_net(x):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
@@ -108,8 +105,7 @@ def baseline_net(config, x):
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
 @config_options(ExpConfig)
-@pass_global_config
-def main(config, result_dir):
+def main(result_dir):
     # print the config
     print_with_title('Configurations', config.format_config(), after='\n')
 

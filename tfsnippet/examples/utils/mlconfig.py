@@ -2,19 +2,19 @@ import codecs
 import json
 import os
 import re
-from pprint import pprint, pformat
+from pprint import pformat
 
 import click
 import six
 import yaml
 from click import pass_context
+from lazy_object_proxy import Proxy
 from yaml.parser import ParserError
 
 __all__ = [
-    'MLConfig', 'get_global_config', 'set_global_config', 'pass_global_config',
-    'config_options'
+    'MLConfig', 'get_global_config', 'global_config', 'set_global_config',
+    'pass_global_config', 'config_options'
 ]
-
 
 CONFIG_STRING_PATTERN = re.compile(
     r'^\s*([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$')
@@ -179,6 +179,24 @@ def get_global_config():
     return _global_config
 
 
+global_config = Proxy(get_global_config)
+"""
+The proxy object to the global config.
+
+Usage::
+
+    from tfsnippet.examples.utils import MLConfig, global_config, set_global_config
+
+    class YourConfig(MLConfig):
+        max_epoch = 100
+
+    set_global_config(YourConfig())  # you may also use click + config_options
+
+    assert(isinstance(global_config, YourConfig))
+    assert(global_config.max_epoch == 100)
+"""
+
+
 def set_global_config(config):
     """
     Set the global config object.
@@ -199,12 +217,16 @@ def pass_global_config(method):
         def main(config):
             assert(config is get_global_config())
 
+    A simpler way is to use the ``tfsnippet.examples.utils.global_config``
+    proxy object, which acts as if it is a regular config object.
+
     Args:
         method: The method to be decorated.
 
     Returns:
         The decorated method.
     """
+
     @six.wraps(method)
     def wrapped(*args, **kwargs):
         return method(get_global_config(), *args, **kwargs)
@@ -219,7 +241,12 @@ def config_options(cls):
     This will generate the ``-c``, ``--config`` and ``--print-config`` options.
     The parsed configuration object will be used as the global config object.
     You may retrieve the config object by calling :func:`get_global_config`,
-    or by using the :func:`pass_global_config` decorator.
+    by using the proxy ``tfsnippet.examples.utils.global_config``, or by
+    :func:`pass_global_config` decorator.
+
+    .. code-block:: python
+
+        from tfsnippet.examples.utils import global_config as config
 
         class YourConfig(MLConfig):
             max_epoch = 100
@@ -228,9 +255,8 @@ def config_options(cls):
         @click.option('--your-own-option', ...)
         @click.argument('your-own-arg', ...)
         @config_options(YourConfig)
-        @pass_global_config
-        def main(config, your_own_option, your_own_arg):
-            print(config)
+        def main(your_own_option, your_own_arg):
+            print(config.max_epoch)
 
 
     Args:
@@ -239,6 +265,7 @@ def config_options(cls):
     Returns:
         The click options decorator.
     """
+
     def ensure_ctx_config(ctx):
         ctx.ensure_object(dict)
         if 'config' not in ctx.obj:
