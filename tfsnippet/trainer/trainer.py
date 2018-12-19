@@ -1,6 +1,7 @@
 import six
 
 from tfsnippet.scaffold import TrainLoop
+from tfsnippet.utils import is_tensor_object
 from .base_trainer import BaseTrainer
 from .feed_dict import resolve_feed_dict, merge_feed_dict
 
@@ -83,14 +84,16 @@ class Trainer(BaseTrainer):
                 (default :obj:`None`)
             metrics (dict[str, tf.Tensor]): Metrics to be computed along with
                 `train_op`.  The keys are the names of metrics.
-            summaries (Iterable[tf.Tensor]): A list of summaries to be run
-                and along with `train_op`, and later to be added to
-                ``loop.summary_writer``.  If ``loop.summary_writer`` is None,
-                then no summary will be run.
+            summaries (tf.Tensor or Iterable[tf.Tensor]): A tensor or a list
+                of summaries to be run and along with `train_op`, and later
+                to be added to ``loop.summary_writer``.
+                If ``loop.summary_writer`` is None, then no summary will be run.
         """
         if loop.max_epoch is None and loop.max_step is None:
             raise ValueError('At least one of `max_epoch`, `max_step` should '
                              'be configured for `loop`.')
+        if summaries is not None and is_tensor_object(summaries):
+            summaries = [summaries]
         super(Trainer, self).__init__(loop=loop)
 
         # memorize the arguments

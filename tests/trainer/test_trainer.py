@@ -33,6 +33,9 @@ class TrainerTestCase(tf.test.TestCase):
         t = Trainer(loop, train_op, [], Mock())
         self.assertDictEqual({}, t.metrics)
 
+        t = Trainer(loop, train_op, [], Mock(), summaries=summary)
+        self.assertListEqual([summary], t.summaries)
+
         with pytest.raises(
                 ValueError, match='At least one of `max_epoch`, `max_step` '
                                   'should be configured for `loop`'):
