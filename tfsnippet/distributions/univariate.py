@@ -1,6 +1,7 @@
 import tensorflow as tf
 import zhusuan.distributions as zd
 
+from tfsnippet.utils import should_check_numerics
 from .wrapper import ZhuSuanDistribution
 
 __all__ = ['Normal', 'Bernoulli', 'Categorical', 'Discrete', 'Uniform']
@@ -17,7 +18,7 @@ class Normal(ZhuSuanDistribution):
     """
 
     def __init__(self, mean, std=None, logstd=None, is_reparameterized=True,
-                 check_numerics=False):
+                 check_numerics=None):
         """
         Construct the :class:`Normal`.
 
@@ -32,8 +33,11 @@ class Normal(ZhuSuanDistribution):
                 distribution.  Should be broadcastable against `mean`.
             is_reparameterized (bool): Whether or not the gradients can
                 be propagated through parameters? (default :obj:`True`)
-            check_numerics (bool): Whether or not to check numeric issues.
+            check_numerics (bool): Whether or not to check numerical issues.
+                Default to ``tfsnippet.utils.should_check_numerics()``.
         """
+        if check_numerics is None:
+            check_numerics = should_check_numerics()
         super(Normal, self).__init__(zd.Normal(
             mean=mean,
             std=std,
@@ -142,7 +146,7 @@ class Uniform(ZhuSuanDistribution):
     """
 
     def __init__(self, minval=0., maxval=1., is_reparameterized=True,
-                 check_numerics=False):
+                 check_numerics=None):
         """
         Construct the :class:`Uniform`.
 
@@ -154,8 +158,11 @@ class Uniform(ZhuSuanDistribution):
                 `minval`.
             is_reparameterized (bool): Whether or not the gradients can
                 be propagated through parameters? (default :obj:`True`)
-            check_numerics (bool): Whether or not to check numeric issues.
+            check_numerics (bool): Whether or not to check numerical issues.
+                Default to ``tfsnippet.utils.should_check_numerics()``.
         """
+        if check_numerics is None:
+            check_numerics = should_check_numerics()
         super(Uniform, self).__init__(
             zd.Uniform(
                 minval=minval,

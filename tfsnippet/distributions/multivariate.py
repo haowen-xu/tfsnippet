@@ -1,6 +1,7 @@
 import tensorflow as tf
 import zhusuan.distributions as zd
 
+from tfsnippet.utils import should_check_numerics
 from .wrapper import ZhuSuanDistribution
 
 __all__ = ['OnehotCategorical', 'Concrete', 'ExpConcrete']
@@ -60,7 +61,7 @@ class Concrete(ZhuSuanDistribution):
     """
 
     def __init__(self, temperature, logits, is_reparameterized=True,
-                 check_numerics=False):
+                 check_numerics=None):
         """
         Construct the :class:`ExpConcrete`.
 
@@ -71,7 +72,13 @@ class Concrete(ZhuSuanDistribution):
                 ``(..., n_categories)``.  Each slice `[i, j,..., k, :]`
                 represents the un-normalized log probabilities for all
                 categories.  :math:`\\mathrm{logits} \\propto \\log p`
+            is_reparameterized (bool): Whether or not the gradients can
+                be propagated through parameters? (default :obj:`True`)
+            check_numerics (bool): Whether or not to check numerical issues.
+                Default to ``tfsnippet.utils.should_check_numerics()``.
         """
+        if check_numerics is None:
+            check_numerics = should_check_numerics()
         super(Concrete, self).__init__(
             zd.Concrete(temperature=temperature,
                         logits=logits,
@@ -106,7 +113,7 @@ class ExpConcrete(ZhuSuanDistribution):
     """
 
     def __init__(self, temperature, logits, is_reparameterized=True,
-                 check_numerics=False):
+                 check_numerics=None):
         """
         Construct the :class:`ExpConcrete`.
 
@@ -117,7 +124,13 @@ class ExpConcrete(ZhuSuanDistribution):
                 ``(..., n_categories)``.  Each slice `[i, j,..., k, :]`
                 represents the un-normalized log probabilities for all
                 categories.  :math:`\\mathrm{logits} \\propto \\log p`
+            is_reparameterized (bool): Whether or not the gradients can
+                be propagated through parameters? (default :obj:`True`)
+            check_numerics (bool): Whether or not to check numerical issues.
+                Default to ``tfsnippet.utils.should_check_numerics()``.
         """
+        if check_numerics is None:
+            check_numerics = should_check_numerics()
         super(ExpConcrete, self).__init__(
             zd.ExpConcrete(temperature=temperature,
                            logits=logits,

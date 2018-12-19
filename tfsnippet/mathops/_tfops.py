@@ -2,6 +2,8 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
+from tfsnippet.utils import control_deps, maybe_assert
+
 name_scope = tf.name_scope
 
 
@@ -37,6 +39,6 @@ reshape = tf.reshape
 
 @contextmanager
 def assert_rank_at_least(x, rank, message=None):
-    with tf.control_dependencies(
-            [tf.assert_rank_at_least(x, rank, message=message)]):
+    assert_op = maybe_assert(tf.assert_rank_at_least, x, rank, message=message)
+    with control_deps([assert_op]):
         yield
