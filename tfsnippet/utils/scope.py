@@ -94,6 +94,15 @@ class VarScopeObject(object):
 
         o = YourVarScopeObject('object_name')
         o.foo()  # You should get a variable with name "object_name/foo/bar"
+
+    If you're using :class:`VarScopeObject` or its derived classes inside
+    any other reusing utilities, e.g., :func:`global_reuse` or even another
+    :class:`VarScopeObject`, it is highly recommended to specify ``scope``
+    when constructing such objects, to avoid the absurd behaviors mentioned
+    in :func:`instance_reuse`.
+
+    See Also:
+        :func:`tfsnippet.utils.instance_reuse`.
     """
 
     def __init__(self, name=None, scope=None):

@@ -55,39 +55,73 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
 
         class Foo(object):
 
-            @instance_reuse(scope='scope_name')
+            @instance_reuse('scope_name')
             def foo(self):
                 # name will be self.variable_scope.name + '/foo/bar'
                 return tf.get_variable('bar', ...)
 
-    If you have two methods sharing the same scope name, they will not
-    use the same variable scope.  Instead, one of these two functions will
-    have its scope name added with a suffix '_?', for example::
+    Unlike the behavior of :func:`global_reuse`, if you have two methods
+    sharing the same scope name, they will indeed use the same variable scope.
+    For example:
 
     .. code-block:: python
 
         class Foo(object):
 
-            @instance_reuse(scope='foo')
+            @instance_reuse('foo')
             def foo_1(self):
                 return tf.get_variable('bar', ...)
 
-            @instance_reuse(scope='foo')
+            @instance_reuse('foo')
             def foo_2(self):
                 return tf.get_variable('bar', ...)
 
-        foo = Foo()
-        assert(foo.foo_1().name == foo.variable_scope.name + '/foo/bar')
-        assert(foo.foo_2().name == foo.variable_scope.name + '/foo_1/bar')
 
-    The variable scope name will depend on the calling order of these
-    two functions, so you should better not guess the scope name by yourself.
+            @instance_reuse('foo')
+            def foo_2(self):
+                return tf.get_variable('bar2', ...)
+
+        foo = Foo()
+        foo.foo_1()  # its name should be variable_scope.name + '/foo/bar'
+        foo.foo_2()  # should raise an error, because 'bar' variable has
+                     # been created, but the decorator of `foo_2` does not
+                     # aware of this, so has not set ``reused = True``.
+        foo.foo_3()  # its name should be variable_scope.name + '/foo/bar2'
+
+    The reason to take this behavior is because the TensorFlow seems to have
+    some absurd behavior when using ``tf.variable_scope(..., default_name=?)``
+    to uniquify the variable scope name.  In some cases we the following
+    absurd behavior would appear:
+
+    .. code-block:: python
+
+        @global_reuse
+        def foo():
+            return VarScopeObject('obj')
+
+        obj = foo()  # obj.variable_scope.name == 'foo/obj'
+        obj = foo()  # still expected to be 'foo/obj', but sometimes would be
+                     # 'foo/obj_1'. this absurd behavior is related to the
+                     # entering and exiting of variable scopes, which is very
+                     # hard to diagnose.
+
+    In order to compensate such behavior, if you have specified the
+    ``scope`` argument of a :class:`VarScopeObject`, then it will always take
+    the desired variable scope.  And then the :func:`instance_reuse` method
+    can correctly enter the desired sub-scope according to the name.
+    This is why we do not support to uniquify the variable scope name via
+    :func:`instance_reuse`.
 
     Note:
-        If you use Keras, you SHOULD NOT create a Keras layer inside a
-        `instance_reuse` decorated function.  Instead, you should create it
-        outside the method (for example, when in the constructor of the
-        object), and then pass it into the method.
+        Because of the absurd behavior mentioned above, you should not rely
+        on :func:`global_reuse` or :func:`instance_reuse` to create instances
+        of :class:`VarScopeObject` or its derived classes, or other similar
+        objects like Keras layers, to have them reusing variable scopes.
+
+        Instead, you should create them somewhere outside the
+        :func:`global_reuse` or :func:`instance_reuse` scopes, store the
+        instances of these classes, and reuse them directly inside the
+        reused functions.
 
     See Also:
         :class:`tfsnippet.utils.VarScopeObject`,
@@ -163,7 +197,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
                         # now we are here in the object's variable scope, and
                         # its original name scope.  Thus we can now create the
                         # method's variable scope.
-                        with tf.variable_scope(None, default_name=scope) as vs:
+                        with tf.variable_scope(scope) as vs:
                             variable_scopes[obj] = vs
 
                 with tf.variable_scope(vs):
@@ -173,7 +207,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
             #   in the object's variable scope.  So we can happily create a new
             #   variable scope, and just call the method immediately.
             else:
-                with tf.variable_scope(None, default_name=scope) as vs:
+                with tf.variable_scope(scope) as vs:
                     variable_scopes[obj] = vs
                     return method(*args, **kwargs)
 
