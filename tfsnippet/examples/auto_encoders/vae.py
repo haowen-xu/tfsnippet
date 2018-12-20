@@ -145,7 +145,7 @@ def main(result_dir):
             train_op = optimizer.apply_gradients(grads)
 
     # derive the plotting function
-    with tf.name_scope('plot_x'):
+    with tf.name_scope('plotting'):
         plot_p_net = p_net(n_z=100, is_training=is_training)
         x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 

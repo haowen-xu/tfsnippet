@@ -126,36 +126,40 @@ def main(result_dir):
     # build the model
     with arg_scope([q_net, p_net], is_training=is_training):
         # derive the loss and lower-bound for training
-        train_q_net = q_net(input_x)
-        train_chain = train_q_net.chain(
-            p_net, latent_names=['z'], latent_axis=0,
-            observed={'x': input_x}
-        )
+        with tf.name_scope('training'):
+            train_q_net = q_net(input_x)
+            train_chain = train_q_net.chain(
+                p_net, latent_names=['z'], latent_axis=0,
+                observed={'x': input_x}
+            )
 
-        baseline = baseline_net(input_x)
-        cost, baseline_cost = \
-            train_chain.vi.training.reinforce(baseline=baseline)
-        loss = regularization_loss() + tf.reduce_mean(cost + baseline_cost)
+            baseline = baseline_net(input_x)
+            cost, baseline_cost = \
+                train_chain.vi.training.reinforce(baseline=baseline)
+            loss = regularization_loss() + tf.reduce_mean(cost + baseline_cost)
 
         # derive the nll and logits output for testing
-        test_q_net = q_net(input_x, n_z=config.test_n_z)
-        test_chain = test_q_net.chain(
-            p_net, latent_names=['z'], latent_axis=0,
-            observed={'x': input_x}
-        )
-        test_nll = -tf.reduce_mean(test_chain.vi.evaluation.is_loglikelihood())
-        test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())
+        with tf.name_scope('testing'):
+            test_q_net = q_net(input_x, n_z=config.test_n_z)
+            test_chain = test_q_net.chain(
+                p_net, latent_names=['z'], latent_axis=0,
+                observed={'x': input_x}
+            )
+            test_nll = -tf.reduce_mean(
+                test_chain.vi.evaluation.is_loglikelihood())
+            test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())
 
     # derive the optimizer
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-    params = tf.trainable_variables()
-    grads = optimizer.compute_gradients(loss, var_list=params)
-    with tf.control_dependencies(
-            tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-        train_op = optimizer.apply_gradients(grads)
+    with tf.name_scope('optimizing'):
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+        params = tf.trainable_variables()
+        grads = optimizer.compute_gradients(loss, var_list=params)
+        with tf.control_dependencies(
+                tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+            train_op = optimizer.apply_gradients(grads)
 
     # derive the plotting function
-    with tf.name_scope('plot_x'):
+    with tf.name_scope('plotting'):
         plot_p_net = p_net(n_z=100, is_training=is_training)
         x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 

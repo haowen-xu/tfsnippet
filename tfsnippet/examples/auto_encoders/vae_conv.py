@@ -181,47 +181,52 @@ def main(result_dir):
                 with arg_scope([p_net, q_net], is_training=is_training,
                                channels_last=multi_gpu.channels_last(dev)):
                     # derive the loss and lower-bound for training
-                    train_q_net = q_net(dev_input_x)
-                    train_chain = train_q_net.chain(
-                        p_net, latent_names=['z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
+                    with tf.name_scope('training'):
+                        train_q_net = q_net(dev_input_x)
+                        train_chain = train_q_net.chain(
+                            p_net, latent_names=['z'], latent_axis=0,
+                            observed={'x': dev_input_x}
+                        )
 
-                    dev_vae_loss = tf.reduce_mean(
-                        train_chain.vi.training.sgvb())
-                    dev_loss = dev_vae_loss + regularization_loss()
-                    losses.append(dev_loss)
+                        dev_vae_loss = tf.reduce_mean(
+                            train_chain.vi.training.sgvb())
+                        dev_loss = dev_vae_loss + regularization_loss()
+                        losses.append(dev_loss)
 
                     # derive the nll and logits output for testing
-                    test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
-                    test_chain = test_q_net.chain(
-                        p_net, latent_names=['z'], latent_axis=0,
-                        observed={'x': dev_input_x}
-                    )
-                    dev_test_nll = -tf.reduce_mean(
-                        test_chain.vi.evaluation.is_loglikelihood())
-                    dev_test_lb = tf.reduce_mean(
-                        test_chain.vi.lower_bound.elbo())
-                    test_nlls.append(dev_test_nll)
-                    test_lbs.append(dev_test_lb)
+                    with tf.name_scope('testing'):
+                        test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
+                        test_chain = test_q_net.chain(
+                            p_net, latent_names=['z'], latent_axis=0,
+                            observed={'x': dev_input_x}
+                        )
+                        dev_test_nll = -tf.reduce_mean(
+                            test_chain.vi.evaluation.is_loglikelihood())
+                        dev_test_lb = tf.reduce_mean(
+                            test_chain.vi.lower_bound.elbo())
+                        test_nlls.append(dev_test_nll)
+                        test_lbs.append(dev_test_lb)
 
                     # derive the optimizer
-                    params = tf.trainable_variables()
-                    grads.append(
-                        optimizer.compute_gradients(dev_loss, var_list=params))
+                    with tf.name_scope('optimizing'):
+                        params = tf.trainable_variables()
+                        grads.append(optimizer.compute_gradients(
+                            dev_loss, var_list=params
+                        ))
 
     # merge multi-gpu outputs and operations
-    [loss, test_lb, test_nll] = \
-        multi_gpu.average([losses, test_lbs, test_nlls], batch_size)
-    train_op = multi_gpu.apply_grads(
-        grads=multi_gpu.average_grads(grads),
-        optimizer=optimizer,
-        control_inputs=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    )
+    with tf.name_scope('optimizing'):
+        [loss, test_lb, test_nll] = \
+            multi_gpu.average([losses, test_lbs, test_nlls], batch_size)
+        train_op = multi_gpu.apply_grads(
+            grads=multi_gpu.average_grads(grads),
+            optimizer=optimizer,
+            control_inputs=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        )
 
     # derive the plotting function
     work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plot_x'):
+    with tf.device(work_dev), tf.name_scope('plotting'):
         plot_p_net = p_net(n_z=100, is_training=is_training,
                            channels_last=multi_gpu.channels_last(work_dev))
         x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))

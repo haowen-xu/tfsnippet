@@ -234,13 +234,17 @@ class MultiGPU(object):
                 yield self.main_device, True, tuple(inputs)
 
             # build the paralleled computation graph for each device
+            with tf.name_scope('data_parallel') as ns:
+                pass  # generate a name scope to place our data slicing ops
+
             k = len(self.work_devices)
             for i, device in enumerate(self.work_devices):
                 dev_inputs = []
-                for inp in inputs:
-                    slice_len = (batch_size + k - 1) // k
-                    low, high = slice_len * i, slice_len * (i + 1)
-                    dev_inputs.append(inp[low: high])
+                with tf.name_scope(ns + 'tower_gpu_{}'.format(i)):
+                    for inp in inputs:
+                        slice_len = (batch_size + k - 1) // k
+                        low, high = slice_len * i, slice_len * (i + 1)
+                        dev_inputs.append(inp[low: high])
                 yield device, False, tuple(dev_inputs)
 
     @contextmanager
