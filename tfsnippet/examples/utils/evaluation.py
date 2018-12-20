@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 from tfsnippet.distributions import Bernoulli
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.trainer import merge_feed_dict
+from tfsnippet.trainer import merge_feed_dict, resolve_feed_dict
 from tfsnippet.utils import get_default_session_or_error
 from .mlresults import MLResults
 
@@ -40,6 +40,7 @@ def collect_outputs(outputs, inputs, data_flow, feed_dict=None, session=None):
             feed_dict,
             {k: v for (k, v) in zip(inputs, batch)}
         )
+        batch_feed_dict = resolve_feed_dict(batch_feed_dict)
         for i, o in enumerate(session.run(outputs, feed_dict=batch_feed_dict)):
             collected[i].append(o)
 
