@@ -3,7 +3,7 @@ import pytest
 import tensorflow as tf
 
 from tfsnippet.distributions import *
-from tfsnippet.utils import set_check_numerics
+from tfsnippet.utils import scoped_set_check_numerics
 
 
 class NormalTestCase(tf.test.TestCase):
@@ -27,15 +27,12 @@ class NormalTestCase(tf.test.TestCase):
             np.testing.assert_allclose(normal.logstd.eval(), logstd)
 
     def test_check_numerics(self):
-        try:
-            set_check_numerics(True)
+        with scoped_set_check_numerics(True):
             normal = Normal(mean=0., std=-1.)
             with self.test_session():
                 with pytest.raises(
                         Exception, match=r'log\(std\) : Tensor had NaN values'):
                     _ = normal.logstd.eval()
-        finally:
-            set_check_numerics(False)
 
 
 class BernoulliTestCase(tf.test.TestCase):
@@ -88,12 +85,9 @@ class UniformTestCase(tf.test.TestCase):
             self.assertEqual(uniform.maxval.eval(), 2.)
 
     def test_check_numerics(self):
-        try:
-            set_check_numerics(True)
+        with scoped_set_check_numerics(True):
             uniform = Uniform(minval=-1e100, maxval=1e100)
             with self.test_session():
                 with pytest.raises(
                         Exception, match=r'log_p : Tensor had Inf values'):
                     _ = uniform.log_prob(0.).eval()
-        finally:
-            set_check_numerics(False)

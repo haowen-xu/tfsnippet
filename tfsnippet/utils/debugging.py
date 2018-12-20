@@ -1,3 +1,4 @@
+import warnings
 from contextlib import contextmanager
 
 import tensorflow as tf
@@ -5,16 +6,29 @@ import tensorflow as tf
 __all__ = [
     'is_assertion_enabled',
     'set_assertion_enabled',
+    'scoped_set_assertion_enabled',
     'maybe_assert',
     'control_deps',
     'should_check_numerics',
     'set_check_numerics',
+    'scoped_set_check_numerics',
+    'maybe_check_numerics',
     'check_numerics',
 ]
 
 
 _enable_assertion = True
 _check_numerics = False
+
+
+@contextmanager
+def _scoped_set(value, getter, setter):
+    old_value = getter()
+    try:
+        setter(value)
+        yield
+    finally:
+        setter(old_value)
 
 
 def is_assertion_enabled():
@@ -32,6 +46,11 @@ def set_assertion_enabled(enabled):
     """
     global _enable_assertion
     _enable_assertion = bool(enabled)
+
+
+def scoped_set_assertion_enabled(enabled):
+    """Set whether or not to enable assertions in a scoped context."""
+    return _scoped_set(enabled, is_assertion_enabled, set_assertion_enabled)
 
 
 def maybe_assert(assert_fn, *args, **kwargs):
@@ -90,7 +109,12 @@ def set_check_numerics(enabled):
     _check_numerics = bool(enabled)
 
 
-def check_numerics(tensor, message, name=None):
+def scoped_set_check_numerics(enabled):
+    """Set whether or not to check numerics in a scoped context."""
+    return _scoped_set(enabled, should_check_numerics, set_check_numerics)
+
+
+def maybe_check_numerics(tensor, message, name=None):
     """
     Check the numerics of `tensor`, if ``should_check_numerics()``.
 
@@ -106,3 +130,10 @@ def check_numerics(tensor, message, name=None):
         return tf.check_numerics(tensor, message, name=name)
     else:
         return tf.identity(tensor)
+
+
+def check_numerics(*args, **kwargs):  # pragma: no cover
+    warnings.warn('`check_numerics` has been deprecated, use '
+                  '`maybe_check_numerics` instead.',
+                  category=DeprecationWarning)
+    return maybe_check_numerics(*args, **kwargs)
