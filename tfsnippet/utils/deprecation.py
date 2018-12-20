@@ -62,8 +62,12 @@ class deprecated(object):
         def wrapped(*args, **kwargs):
             _deprecated_warn(msg)
             return init(*args, **kwargs)
-
         cls.__init__ = wrapped
+
+        for k in ('__module__', '__name__', '__qualname__', '__annotations__'):
+            if hasattr(init, k):
+                setattr(wrapped, k, getattr(init, k))
+
         if six.PY2:
             wrapped.__doc__ = self._update_doc(init.__doc__)
         else:
