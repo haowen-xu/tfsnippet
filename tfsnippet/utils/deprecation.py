@@ -58,7 +58,6 @@ class deprecated(object):
         # patch the __init__ of the class
         init = cls.__init__
 
-        @six.wraps(init)
         def wrapped(*args, **kwargs):
             _deprecated_warn(msg)
             return init(*args, **kwargs)
