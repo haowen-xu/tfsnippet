@@ -6,6 +6,7 @@ from tensorflow.python.ops import variable_scope as variable_scope_ops
 
 from .doc_inherit import DocInherit
 from .misc import camel_to_underscore
+from .reuse import reuse_stack_top
 
 __all__ = [
     'get_valid_name_scope_name',
@@ -95,12 +96,6 @@ class VarScopeObject(object):
         o = YourVarScopeObject('object_name')
         o.foo()  # You should get a variable with name "object_name/foo/bar"
 
-    If you're using :class:`VarScopeObject` or its derived classes inside
-    any other reusing utilities, e.g., :func:`global_reuse` or even another
-    :class:`VarScopeObject`, it is highly recommended to specify ``scope``
-    when constructing such objects, to avoid the absurd behaviors mentioned
-    in :func:`instance_reuse`.
-
     See Also:
         :func:`tfsnippet.utils.instance_reuse`.
     """
@@ -130,6 +125,13 @@ class VarScopeObject(object):
             default_name = default_name.lstrip('_')
         else:
             default_name = name
+
+        if scope is None and reuse_stack_top() is not None:
+            raise RuntimeError(
+                'It is required to specify `scope` argument when constructing '
+                'a `VarScopeObject`, if it is created inside a variable scope '
+                'opened by `global_reuse` or `instance_reuse`.'
+            )
 
         with tf.variable_scope(scope, default_name=default_name) as vs:
             self._variable_scope = vs       # type: tf.VariableScope

@@ -14,7 +14,6 @@ __all__ = [
     'set_check_numerics',
     'scoped_set_check_numerics',
     'maybe_check_numerics',
-    'check_numerics',
 ]
 
 
@@ -102,7 +101,7 @@ def set_check_numerics(enabled):
     Set whether or not to check numerics?
 
     By checking numerics, one can figure out where the NaNs and Infinities
-    originate from.  This option affects the behavior of :func:`check_numerics`,
+    originate from.  This affects the behavior of :func:`maybe_check_numerics`,
     and the default behavior of :class:`tfsnippet.distributions.Distribution`
     sub-classes.
     """
@@ -131,8 +130,3 @@ def maybe_check_numerics(tensor, message, name=None):
         return tf.check_numerics(tensor, message, name=name)
     else:
         return tf.identity(tensor)
-
-
-@deprecated('use :func:`maybe_check_numerics` instead.', version='0.2')
-def check_numerics(*args, **kwargs):  # pragma: no cover
-    return maybe_check_numerics(*args, **kwargs)

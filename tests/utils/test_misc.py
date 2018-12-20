@@ -1,5 +1,6 @@
 import os
 import unittest
+from threading import Thread
 
 from mock import Mock
 import numpy as np
@@ -117,12 +118,6 @@ class CamelToUnderscoreTestCase(unittest.TestCase):
             )
 
 
-class NotSetTestCase(unittest.TestCase):
-
-    def test_repr(self):
-        self.assertEqual(repr(NOT_SET), 'NOT_SET')
-
-
 class MaybeCloseTestCase(unittest.TestCase):
 
     def test_maybe_close(self):
@@ -199,6 +194,52 @@ class ETATestCase(unittest.TestCase):
         np.testing.assert_allclose(57.0, eta.get_eta(.05, 3))
         self.assertListEqual([0, 1, 3], eta._times)
         self.assertListEqual([0., .01, .05], eta._progresses)
+
+
+class ContextStackTestCase(unittest.TestCase):
+
+    def test_thread_local_and_initial_factory(self):
+        stack = ContextStack(dict)
+        thread_top = [None] * 10
+
+        def thread_job(i):
+            thread_top[i] = stack.top()
+
+        threads = [
+            Thread(target=thread_job, args=(i,))
+            for i, _ in enumerate(thread_top)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        for i, top in enumerate(thread_top):
+            for j, top2 in enumerate(thread_top):
+                if i != j:
+                    self.assertIsNot(top, top2)
+
+    def test_push_and_pop(self):
+        stack = ContextStack()
+        self.assertIsNone(stack.top())
+
+        # push the first layer
+        first_layer = object()
+        stack.push(first_layer)
+        self.assertIs(stack.top(), first_layer)
+
+        # push the second layer
+        second_layer = object()
+        stack.push(second_layer)
+        self.assertIs(stack.top(), second_layer)
+
+        # pop the second layer
+        stack.pop()
+        self.assertIs(stack.top(), first_layer)
+
+        # pop the first layer
+        stack.pop()
+        self.assertIsNone(stack.top())
 
 
 if __name__ == '__main__':

@@ -1,14 +1,15 @@
 import functools
 import inspect
 import weakref
+from contextlib import contextmanager
 
 import six
 import tensorflow as tf
 
-from .scope import root_variable_scope
+from .misc import ContextStack
 from .tfver import is_tensorflow_version_higher_or_equal
 
-__all__ = ['instance_reuse', 'global_reuse']
+__all__ = ['reuse_stack_top', 'instance_reuse', 'global_reuse']
 
 
 def require_at_least_tensorflow_1_5():
@@ -17,6 +18,28 @@ def require_at_least_tensorflow_1_5():
                            'TensorFlow >= 1.5.0.  Using these utilities with '
                            'any lower versions of TensorFlow are totally '
                            'not allowed.')
+
+
+_reuse_stack = ContextStack()  # stack to track the opened reuse scopes
+
+
+def reuse_stack_top():
+    """
+    Get the top of the reuse scope stack.
+
+    Returns:
+        tf.VaribleScope: The top of the reuse scope stack.
+    """
+    return _reuse_stack.top()
+
+
+@contextmanager
+def _reuse_context(vs):
+    _reuse_stack.push(vs)
+    try:
+        yield
+    finally:
+        _reuse_stack.pop()
 
 
 def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
@@ -97,31 +120,20 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
 
         @global_reuse
         def foo():
-            return VarScopeObject('obj')
+            with tf.variable_scope(None, default_name='bar') as vs:
+                return vs
 
-        obj = foo()  # obj.variable_scope.name == 'foo/obj'
-        obj = foo()  # still expected to be 'foo/obj', but sometimes would be
-                     # 'foo/obj_1'. this absurd behavior is related to the
+        vs1 = foo()  # vs.name == 'foo/bar'
+        vs2 = foo()  # still expected to be 'foo/bar', but sometimes would be
+                     # 'foo/bar_1'. this absurd behavior is related to the
                      # entering and exiting of variable scopes, which is very
                      # hard to diagnose.
 
     In order to compensate such behavior, if you have specified the
     ``scope`` argument of a :class:`VarScopeObject`, then it will always take
-    the desired variable scope.  And then the :func:`instance_reuse` method
-    can correctly enter the desired sub-scope according to the name.
-    This is why we do not support to uniquify the variable scope name via
-    :func:`instance_reuse`.
-
-    Note:
-        Because of the absurd behavior mentioned above, you should not rely
-        on :func:`global_reuse` or :func:`instance_reuse` to create instances
-        of :class:`VarScopeObject` or its derived classes, or other similar
-        objects like Keras layers, to have them reusing variable scopes.
-
-        Instead, you should create them somewhere outside the
-        :func:`global_reuse` or :func:`instance_reuse` scopes, store the
-        instances of these classes, and reuse them directly inside the
-        reused functions.
+    the desired variable scope.  Also, constructing a `VarScopeObject` within
+    a method or a function decorated by `global_reuse` or `instance_reuse` has
+    been totally disallowed.
 
     See Also:
         :class:`tfsnippet.utils.VarScopeObject`,
@@ -200,14 +212,14 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
                         with tf.variable_scope(scope) as vs:
                             variable_scopes[obj] = vs
 
-                with tf.variable_scope(vs):
+                with tf.variable_scope(vs), _reuse_context(vs):
                     return method(*args, **kwargs)
 
             # Branch #1.2: first time to enter the method, and we are just
             #   in the object's variable scope.  So we can happily create a new
             #   variable scope, and just call the method immediately.
             else:
-                with tf.variable_scope(scope) as vs:
+                with tf.variable_scope(scope) as vs, _reuse_context(vs):
                     variable_scopes[obj] = vs
                     return method(*args, **kwargs)
 
@@ -215,7 +227,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
             # Branch #2: not the first time to enter the method, so we
             #   should reopen the variable scope with reuse set to `True`.
             vs = variable_scopes[obj]
-            with tf.variable_scope(vs, reuse=True):
+            with tf.variable_scope(vs, reuse=True), _reuse_context(vs):
                 return method(*args, **kwargs)
 
     return wrapper
@@ -317,18 +329,21 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
             #   So we should exit the scope, then re-enter our desired
             #   variable scope.
             if graph.get_name_scope() or tf.get_variable_scope().name:
+                from .scope import root_variable_scope
+
                 with root_variable_scope():
                     with tf.variable_scope(None, default_name=scope) as vs:
                         variable_scopes[graph] = vs
 
-                with tf.variable_scope(vs):
+                with tf.variable_scope(vs), _reuse_context(vs):
                     return method(*args, **kwargs)
 
             # Branch #1.2: first time to enter the function, and we are just
             #   in the root variable scope.  So we can happily create a new
             #   variable scope, and just call the method immediately.
             else:
-                with tf.variable_scope(None, default_name=scope) as vs:
+                with tf.variable_scope(None, default_name=scope) as vs, \
+                        _reuse_context(vs):
                     variable_scopes[graph] = vs
                     return method(*args, **kwargs)
 
@@ -336,7 +351,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
             # Branch #2: not the first time to enter the function, so we
             #   should reopen the variable scope with reuse set to `True`.
             vs = variable_scopes[graph]
-            with tf.variable_scope(vs, reuse=True):
+            with tf.variable_scope(vs, reuse=True), _reuse_context(vs):
                 return method(*args, **kwargs)
 
     return wrapper
