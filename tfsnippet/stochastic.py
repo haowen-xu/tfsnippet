@@ -170,13 +170,14 @@ class StochasticTensor(TensorWrapper):
         """
         return self._self_is_reparameterized
 
-    def log_prob(self, group_ndims=None):
+    def log_prob(self, group_ndims=None, name=None):
         """
         Compute the log-densities of this :class:`StochasticTensor`.
 
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
+            name (str or None): Optional TensorFlow operation name.
 
         Returns:
             tf.Tensor: The log-densities.
@@ -184,29 +185,32 @@ class StochasticTensor(TensorWrapper):
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._self_log_prob is None:
                 self._self_log_prob = \
-                    self.distribution.log_prob(self.tensor, self.group_ndims)
+                    self.distribution.log_prob(
+                        self.tensor, self.group_ndims, name=name)
             return self._self_log_prob
         else:
-            return self.distribution.log_prob(self.tensor, group_ndims)
+            return self.distribution.log_prob(
+                self.tensor, group_ndims, name=name)
 
-    def prob(self, group_ndims=None):
+    def prob(self, group_ndims=None, name=None):
         """
         Compute the densities of this :class:`StochasticTensor`.
 
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
+            name (str or None): Optional TensorFlow operation name.
 
         Returns:
             tf.Tensor: The densities.
         """
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._self_prob is None:
-                with tf.name_scope('StochasticTensor.prob'):
+                with tf.name_scope(name, default_name='StochasticTensor.prob'):
                     self._self_prob = tf.exp(self.log_prob())
             return self._self_prob
         else:
-            with tf.name_scope('StochasticTensor.prob'):
+            with tf.name_scope(name, default_name='StochasticTensor.prob'):
                 log_p = self.distribution.log_prob(self.tensor, group_ndims)
                 return tf.exp(log_p)
 

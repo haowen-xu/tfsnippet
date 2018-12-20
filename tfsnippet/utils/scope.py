@@ -27,13 +27,17 @@ def get_valid_name_scope_name(name, cls_or_instance=None):
     Returns:
         str: The generated scope name.
     """
-    # TODO: add more validation here.
+    # compose the candidate name
     prefix = ''
     if cls_or_instance is not None:
         if not isinstance(cls_or_instance, six.class_types):
             cls_or_instance = cls_or_instance.__class__
         prefix = '{}.'.format(cls_or_instance.__name__).lstrip('_')
-    return prefix + name
+    name = prefix + name
+
+    # validate the name
+    name = name.lstrip('_')
+    return name
 
 
 @contextmanager
@@ -121,8 +125,8 @@ class VarScopeObject(object):
         name = name or None
 
         if not scope and not name:
-            default_name = camel_to_underscore(self.__class__.__name__)
-            default_name = default_name.lstrip('_')
+            default_name = get_valid_name_scope_name(
+                camel_to_underscore(self.__class__.__name__))
         else:
             default_name = name
 

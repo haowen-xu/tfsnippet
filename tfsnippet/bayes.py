@@ -7,6 +7,7 @@ from frozendict import frozendict
 from tfsnippet.distributions import Distribution, as_distribution
 from tfsnippet.flows import Flow, FlowDistribution
 from tfsnippet.stochastic import StochasticTensor
+from tfsnippet.utils import get_valid_name_scope_name
 
 __all__ = ['BayesianNet']
 
@@ -282,14 +283,17 @@ class BayesianNet(object):
             names (Iterable[str]): Names of the queried stochastic nodes.
 
         Returns:
-            list[tf.Tensor]: Log-densities of the queried stochastic
-                nodes.
+            list[tf.Tensor]: Log-densities of the queried stochastic nodes.
 
         Raises:
             KeyError: If non-exist name is queried.
         """
         names = self._check_names_exist(names)
-        return [self._stochastic_tensors[n].log_prob() for n in names]
+        ret = []
+        for name in names:
+            ns = '{}.log_prob'.format(get_valid_name_scope_name(name))
+            ret.append(self._stochastic_tensors[name].log_prob(name=ns))
+        return ret
 
     def local_log_prob(self, name):
         """
