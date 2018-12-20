@@ -4,14 +4,9 @@ from .evaluator import Evaluator, auto_batch_weight
 __all__ = ['Validator']
 
 
-@deprecated('use `Evaluator` instead.', version='0.1')
+@deprecated('use :class:`Evaluator` instead.', version='0.1')
 class Validator(Evaluator):
-    """
-    Class to compute validation loss and other metrics.
-
-    This class is a legacy class, which inherits :class:`Evaluator`.
-    Use :class:`Evaluator` instead if you're writing new code.
-    """
+    """Class to compute validation loss and other metrics."""
 
     def __init__(self, loop, metrics, inputs, data_flow, feed_dict=None,
                  time_metric_name='valid_time',

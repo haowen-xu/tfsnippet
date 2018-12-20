@@ -133,6 +133,6 @@ def maybe_check_numerics(tensor, message, name=None):
         return tf.identity(tensor)
 
 
-@deprecated('use `EarlyStopping` instead.', version='0.2')
+@deprecated('use :func:`maybe_check_numerics` instead.', version='0.2')
 def check_numerics(*args, **kwargs):  # pragma: no cover
     return maybe_check_numerics(*args, **kwargs)

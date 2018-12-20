@@ -164,6 +164,6 @@ class EarlyStopping(DisposableContext):
 EarlyStoppingContext = EarlyStopping  # legacy alias for EarlyStopping
 
 
-@deprecated('use `EarlyStopping` instead.', version='0.1')
+@deprecated('use :class:`EarlyStopping` instead.', version='0.1')
 def early_stopping(*args, **kwargs):  # pragma: no cover
     return EarlyStopping(*args, **kwargs)

@@ -653,6 +653,6 @@ class TrainLoop(DisposableContext):
 TrainLoopContext = TrainLoop  # legacy alias for TrainLoop
 
 
-@deprecated('use `TrainLoop` instead.', version='0.1')
+@deprecated('use :class:`TrainLoop` instead.', version='0.1')
 def train_loop(*args, **kwargs):  # pragma: no cover
     return TrainLoop(*args, **kwargs)

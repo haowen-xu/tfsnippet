@@ -8,11 +8,10 @@ from .feed_dict import merge_feed_dict
 __all__ = ['LossTrainer']
 
 
-@deprecated('use `Trainer` instead.', version='0.1')
+@deprecated('use :class:`Trainer` instead.', version='0.1')
 class LossTrainer(Trainer):
     """
     A subclass of :class:`BaseTrainer`, which optimizes a single loss.
-    This class is deprecated, use :class:`Trainer` instead.
     """
 
     def __init__(self, loop, loss, train_op, inputs, data_flow, feed_dict=None,
@@ -24,13 +23,11 @@ class LossTrainer(Trainer):
             loop (TrainLoop): The training loop object.
             loss (tf.Tensor): The training loss.
             train_op (tf.Operation): The training operation.
-            inputs (list[tf.Tensor]): The input placeholders.
-                The number of tensors, and the order of tensors, should
-                both match the arrays of each mini-batch data, provided
-                by `data_flow`.
-            data_flow (DataFlow): The training data flow.
-                Each mini-batch must contain one array for each placeholder
-                in `inputs`.
+            inputs (list[tf.Tensor]): The input placeholders. The number of
+                tensors, and the order of tensors, should both match the arrays
+                of each mini-batch data, provided by `data_flow`.
+            data_flow (DataFlow): The training data flow. Each mini-batch must
+                contain one array for each placeholder in `inputs`.
             feed_dict: The feed dict for training.  It will be merged with
                 the arrays provided by `data_flow` in each step.
                 (default :obj:`None`)

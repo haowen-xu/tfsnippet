@@ -64,7 +64,10 @@ class deprecated(object):
             return init(*args, **kwargs)
 
         cls.__init__ = wrapped
-        cls.__doc__ = self._update_doc(cls.__doc__)
+        if six.PY2:
+            wrapped.__doc__ = self._update_doc(init.__doc__)
+        else:
+            cls.__doc__ = self._update_doc(cls.__doc__)
 
         return cls
 
@@ -88,13 +91,28 @@ class deprecated(object):
         return wrapped
 
     def _update_doc(self, doc):
+        def add_indent(s, spaces):
+            return '\n'.join(spaces + l if l else '' for l in s.split('\n'))
+
         ret = '.. deprecated::'
         if self._version:
             ret += ' {}'.format(self._version)
         if self._message:
-            ret += '\n  {}'.format(self._message)
+            ret += '\n' + add_indent(self._message, '  ')
         if doc:
-            ret = '{}\n\n{}\n'.format(doc, ret)
+            # infer the indent of the doc string
+            indent = 0
+            for line in doc.split('\n'):
+                if line and line.startswith(' '):
+                    for c in line:
+                        if c != ' ':
+                            break
+                        indent += 1
+                    break
+            indent = ' ' * indent
+
+            # compose the final docstring
+            ret = '{}\n\n{}\n'.format(doc, add_indent(ret, indent))
         else:
             # The empty line before ".. deprecated" is required by sphinx
             # to correctly parse this deprecation block.
