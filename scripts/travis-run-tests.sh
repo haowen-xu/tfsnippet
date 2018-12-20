@@ -13,7 +13,6 @@ function runTest() {
   "
 
   IMAGE_NAME="haowenxu/travis-tensorflow-docker:py${PY_VER}tf${TF_VER}"
-  docker pull "${IMAGE_NAME}"
   docker run \
       -v "$(pwd)":"$(pwd)" \
       -v "/home/travis/.tfsnippet":"/root/.tfsnippet" \
