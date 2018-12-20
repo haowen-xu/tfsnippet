@@ -4,7 +4,6 @@ import copy
 import os
 import re
 import time
-import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
 
@@ -12,7 +11,7 @@ import tensorflow as tf
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.utils import (StatisticsCollector, DisposableContext,
-                             humanize_duration, ETA)
+                             humanize_duration, ETA, deprecated)
 from .early_stopping_ import EarlyStopping
 from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -654,8 +653,6 @@ class TrainLoop(DisposableContext):
 TrainLoopContext = TrainLoop  # legacy alias for TrainLoop
 
 
+@deprecated('use `TrainLoop` instead.', version='0.1')
 def train_loop(*args, **kwargs):  # pragma: no cover
-    warnings.warn('`tfsnippet.scaffold.train_loop` is deprecated, '
-                  'use `tfsnippet.scaffold.TrainLoop` instead.',
-                  DeprecationWarning)
     return TrainLoop(*args, **kwargs)

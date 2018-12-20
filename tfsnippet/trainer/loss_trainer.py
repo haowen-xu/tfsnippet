@@ -1,12 +1,14 @@
 import warnings
 
 from tfsnippet.scaffold import TrainLoop
+from tfsnippet.utils import deprecated
 from .trainer import Trainer
 from .feed_dict import merge_feed_dict
 
 __all__ = ['LossTrainer']
 
 
+@deprecated('use `Trainer` instead.', version='0.1')
 class LossTrainer(Trainer):
     """
     A subclass of :class:`BaseTrainer`, which optimizes a single loss.
@@ -34,8 +36,6 @@ class LossTrainer(Trainer):
                 (default :obj:`None`)
             metric_name (str): The metric name for collecting training loss.
         """
-        warnings.warn('`LossTrainer` is deprecated, use `Trainer` instead.',
-                      DeprecationWarning)
         super(LossTrainer, self).__init__(
             loop=loop, train_op=train_op, inputs=inputs, data_flow=data_flow,
             feed_dict=feed_dict, metrics={metric_name: loss}

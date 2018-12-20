@@ -31,7 +31,6 @@ API Docs
    api/tfsnippet.bayes
    api/tfsnippet.dataflow
    api/tfsnippet.distributions
-   api/tfsnippet.evaluation
    api/tfsnippet.examples
    api/tfsnippet.flows
    api/tfsnippet.mathops

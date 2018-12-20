@@ -1,12 +1,14 @@
 from . import (archive_file, caching, concepts, datautils, debugging,
-               doc_inherit, imported, misc, reuse, scope, session, shape_utils,
-               statistics, tensor_wrapper, tfver, typeutils)
+               deprecation, doc_inherit, imported, misc, reuse, scope,
+               session, shape_utils, statistics, tensor_wrapper,
+               tfver, typeutils)
 
 __all__ = sum(
     [m.__all__ for m in [
         archive_file, caching, concepts, datautils, debugging,
-        doc_inherit, imported, misc, reuse, scope, session, shape_utils,
-        statistics, tensor_wrapper, tfver, typeutils
+        deprecation, doc_inherit, imported, misc, reuse, scope,
+        session, shape_utils, statistics, tensor_wrapper,
+        tfver, typeutils
     ]],
     []
 )
@@ -16,6 +18,7 @@ from .caching import *
 from .concepts import *
 from .datautils import *
 from .debugging import *
+from .deprecation import *
 from .doc_inherit import *
 from .imported import *
 from .misc import *

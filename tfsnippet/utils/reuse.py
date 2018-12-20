@@ -254,7 +254,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
 
     If you have two functions sharing the same scope name, they will not
     use the same variable scope.  Instead, one of these two functions will
-    have its scope name added with a suffix '_?', for example::
+    have its scope name added with a suffix '_?', for example:
 
     .. code-block:: python
 

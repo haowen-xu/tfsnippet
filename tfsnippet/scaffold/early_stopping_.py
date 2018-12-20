@@ -7,7 +7,7 @@ from logging import getLogger
 import tensorflow as tf
 
 from tfsnippet.utils import (DisposableContext, TemporaryDirectory, makedirs,
-                             VariableSaver)
+                             VariableSaver, deprecated)
 
 __all__ = ['EarlyStopping', 'EarlyStoppingContext', 'early_stopping']
 
@@ -164,8 +164,6 @@ class EarlyStopping(DisposableContext):
 EarlyStoppingContext = EarlyStopping  # legacy alias for EarlyStopping
 
 
+@deprecated('use `EarlyStopping` instead.', version='0.1')
 def early_stopping(*args, **kwargs):  # pragma: no cover
-    warnings.warn('`tfsnippet.scaffold.early_stopping` is deprecated, '
-                  'use `tfsnippet.scaffold.EarlyStopping` instead.',
-                  DeprecationWarning)
     return EarlyStopping(*args, **kwargs)

@@ -1,7 +1,8 @@
-import warnings
 from contextlib import contextmanager
 
 import tensorflow as tf
+
+from .deprecation import deprecated
 
 __all__ = [
     'is_assertion_enabled',
@@ -132,8 +133,6 @@ def maybe_check_numerics(tensor, message, name=None):
         return tf.identity(tensor)
 
 
+@deprecated('use `EarlyStopping` instead.', version='0.2')
 def check_numerics(*args, **kwargs):  # pragma: no cover
-    warnings.warn('`check_numerics` has been deprecated, use '
-                  '`maybe_check_numerics` instead.',
-                  category=DeprecationWarning)
     return maybe_check_numerics(*args, **kwargs)
