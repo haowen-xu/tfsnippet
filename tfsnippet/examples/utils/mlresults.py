@@ -4,6 +4,7 @@ import sys
 from pprint import pformat
 
 import imageio
+import numpy as np
 import six
 from fs import open_fs
 from fs.base import FS
