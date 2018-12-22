@@ -63,7 +63,7 @@ def maybe_assert(assert_fn, *args, **kwargs):
         assert_fn: The assertion function, e.g.,
             :func:`tensorflow.assert_rank_at_least`.
         *args: The arguments to be passed to `assert_fn`.
-        \**kwargs: The named arguments to be passed to `assert_fn`.
+        \\**kwargs: The named arguments to be passed to `assert_fn`.
 
     Returns:
         tf.Operation or None: The assertion operation if the assertion is

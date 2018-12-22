@@ -122,12 +122,18 @@ class MLResults(object):
 
         Args:
             metrics (dict[str, any]): The metrics dict.
-            \**kwargs: The metrics dict, specified as named arguments.
+            \\**kwargs: The metrics dict, specified as named arguments.
         """
+        def collect_dict(d):
+            for k, v in six.iteritems(d):
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                self._metrics_dict[k] = v
+
         if metrics:
-            self._metrics_dict.update(metrics)
+            collect_dict(metrics)
         if kwargs:
-            self._metrics_dict.update(kwargs)
+            collect_dict(kwargs)
         self._commit_metrics()
 
     def format_metrics(self):
@@ -180,7 +186,7 @@ class MLResults(object):
             im: The image object.
             format (str or None): The format of the image.
                 If not specified, will guess according to `path`.
-            \**kwargs: Other parameters to be passed to `imageio.imwrite`.
+            \\**kwargs: Other parameters to be passed to `imageio.imwrite`.
         """
         if format is None:
             _, extension = os.path.splitext(path)
