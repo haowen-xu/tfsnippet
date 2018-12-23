@@ -40,7 +40,7 @@ def create_session(lock_memory=True,
             nodes.   (default :obj:`False`)
         allow_soft_placement (bool): Whether or not to allow soft placement?
             (default :obj:`True`)
-        \**kwargs: Other named parameters to be passed to `tf.ConfigProto`.
+        \\**kwargs: Other named parameters to be passed to `tf.ConfigProto`.
 
     Returns:
         tf.Session: The TensorFlow session.

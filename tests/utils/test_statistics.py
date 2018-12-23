@@ -110,6 +110,14 @@ class StatisticsCollectorTestCase(unittest.TestCase):
             collector.square,
             [[180., 205.], [232., 261.], [292., 325.]]
         )
+        np.testing.assert_almost_equal(
+            collector.var,
+            np.maximum(collector.square - collector.mean ** 2, 0.)
+        )
+        np.testing.assert_almost_equal(
+            collector.stddev,
+            np.sqrt(np.maximum(collector.square - collector.mean ** 2, 0.))
+        )
         self.assertAlmostEqual(collector.weight_sum, 10.)
 
     def test_vector_collect_batch(self):

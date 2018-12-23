@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 
 __all__ = ['StatisticsCollector']
@@ -58,7 +56,7 @@ class StatisticsCollector(object):
         """
         Get the std of the values, i.e., :math:`\\sqrt{\\operatorname{Var}[X]}`.
         """
-        return math.sqrt(self.var)
+        return np.sqrt(self.var)
 
     @property
     def weight_sum(self):

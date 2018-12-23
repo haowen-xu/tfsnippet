@@ -88,7 +88,7 @@ class VariationalInference(object):
                 functions are: 1. :func:`zhusuan.variational.elbo`
                 2. :func:`zhusuan.variational.importance_weighted_objective`
                 3. :func:`zhusuan.variational.klpq`
-            \**kwargs: Named arguments passed to `func`.
+            \\**kwargs: Named arguments passed to `func`.
 
         Returns:
             zhusuan.variational.VariationalObjective: The constructed

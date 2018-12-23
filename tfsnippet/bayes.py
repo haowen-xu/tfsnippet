@@ -349,7 +349,7 @@ class BayesianNet(object):
                 objectives. (default :obj:`None`)
             observed: Dict of ``(name, observation)`` fed into `model_builder`.
                 (default :obj:`None`)
-            \**kwargs: Additional named arguments passed to `model_builder`.
+            \\**kwargs: Additional named arguments passed to `model_builder`.
 
         Returns:
             tfsnippet.variational.VariationalChain: The object that holds this

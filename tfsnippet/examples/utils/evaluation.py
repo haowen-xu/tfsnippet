@@ -116,7 +116,7 @@ def plot_2d_log_p(x, log_p, cmap='jet', **kwargs):
         x: 3-d Tensor of shape (?, ?, 2).
         log_p: 2-d Tensor of shape (?, ?), i.e., x.shape[:2].
         cmap: The color map for plotting :math:`log p(x)`. (default "jet")
-        \**kwargs: Additional named arguments passed to ``plt.figure``.
+        \\**kwargs: Additional named arguments passed to ``plt.figure``.
 
     Returns:
         plt.Figure: The plotted figure.
