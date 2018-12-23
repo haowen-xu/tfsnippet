@@ -5,7 +5,7 @@ import six
 import tensorflow as tf
 
 from .imported import makedirs
-from .scope import VarScopeObject
+from .scope import VarScopeObject, reopen_variable_scope
 
 __all__ = [
     'create_session',
@@ -133,9 +133,9 @@ class VariableSaver(VarScopeObject):
                 versions (default is ``latest``).
             save_meta (bool): Whether or not to save meta graph (default
                 is :obj:`True`).
-            name (str): Optional name of this :class:`VariableSaver`
+            name (str): Name of this :class:`VariableSaver`
                 (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-            scope (str): Optional scope of this :class:`VariableSaver`
+            scope (str): Scope of this :class:`VariableSaver`
                 (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         """
         if not isinstance(variables, dict):
@@ -152,11 +152,11 @@ class VariableSaver(VarScopeObject):
 
         super(VariableSaver, self).__init__(scope, name)
 
-    def _variable_scope_created(self, vs):
-        self._saver = tf.train.Saver(
-            var_list=self.variables, max_to_keep=self.max_versions,
-            name='saver'
-        )
+        with reopen_variable_scope(self.variable_scope):
+            self._saver = tf.train.Saver(
+                var_list=self.variables, max_to_keep=self.max_versions,
+                name='saver'
+            )
 
     def get_latest_file(self):
         """Get the latest available checkpoint file."""
@@ -210,7 +210,7 @@ def get_uninitialized_variables(variables=None, name=None):
         variables (list[tf.Variable]): Collect only uninitialized variables
             within this list. If not specified, will collect all uninitialized
             variables within ``tf.GraphKeys.GLOBAL_VARIABLES`` collection.
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
 
     Returns:
         list[tf.Variable]: Uninitialized variables.
@@ -236,7 +236,7 @@ def ensure_variables_initialized(variables=None, name=None):
             the variables within this collection to be initialized. If not
             specified, will ensure all variables within the collection
             `tf.GraphKeys.GLOBAL_VARIABLES` to be initialized.
-        name (str): Name of this operation in TensorFlow graph. (default
+        name (str): TensorFlow name scope of the graph nodes. (default
             `ensure_variables_initialized`)
     """
     with tf.name_scope(name, default_name='ensure_variables_initialized'):

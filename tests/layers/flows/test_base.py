@@ -1,7 +1,8 @@
 import pytest
 
 from tfsnippet.mathops import npyops
-from tests.flows.helper import *
+from tfsnippet.layers import *
+from tests.layers.flows.helper import *
 
 
 class FlowTestCase(tf.test.TestCase):
@@ -26,9 +27,9 @@ class FlowTestCase(tf.test.TestCase):
 
     def test_error(self):
         with pytest.raises(TypeError, match='Expected a float dtype'):
-            _ = Flow(dtype=tf.int64)
+            _ = BaseFlow(dtype=tf.int64)
 
-        class _Flow(Flow):
+        class _Flow(BaseFlow):
             @property
             def explicitly_invertible(self):
                 return False
@@ -53,24 +54,23 @@ class MultiLayerQuadraticFlow(MultiLayerFlow):
 
     def __init__(self, n_layers):
         super(MultiLayerQuadraticFlow, self).__init__(n_layers=n_layers)
+        self._flows = []
+
+        with tf.variable_scope(None, default_name='MultiLayerQuadraticFlow'):
+            for layer_id in range(self.n_layers):
+                self._flows.append(QuadraticFlow(
+                    layer_id + 1, layer_id * 2 + 1, dtype=tf.float32))
 
     @property
     def explicitly_invertible(self):
         return True
 
-    def _create_layer_params(self, layer_id):
-        return {
-            'a': tf.get_variable('a', dtype=tf.float32, shape=[1]),
-            'flow': QuadraticFlow(
-                layer_id + 1, layer_id * 2 + 1, dtype=tf.float32)
-        }
-
     def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
-        flow = self.get_layer_params(layer_id, ['flow'])[0]
+        flow = self._flows[layer_id]
         return flow.transform(x, compute_y, compute_log_det)
 
     def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det):
-        flow = self.get_layer_params(layer_id, ['flow'])[0]
+        flow = self._flows[layer_id]
         return flow.inverse_transform(y, compute_x, compute_log_det)
 
 
@@ -87,8 +87,7 @@ class MultiLayerFlowTestCase(tf.test.TestCase):
 
         # test get parameters
         for i in range(n_layers):
-            a, f = flow.get_layer_params(i, ['a', 'flow'])
-            self.assertIn('/_{}/'.format(i), a.name)
+            f = flow._flows[i]
             self.assertEqual(f.a, i + 1.)
             self.assertEqual(f.b, i * 2 + 1.)
 

@@ -8,7 +8,7 @@ import numpy as np
 
 __all__ = [
     'humanize_duration', 'camel_to_underscore', 'maybe_close',
-    'iter_files', 'ETA', 'ContextStack'
+    'iter_files', 'ETA', 'ContextStack',
 ]
 
 

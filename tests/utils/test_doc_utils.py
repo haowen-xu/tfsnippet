@@ -1,6 +1,6 @@
 import unittest
 
-from tfsnippet.utils import DocInherit
+from tfsnippet.utils import *
 
 
 class DocInheritTestCase(unittest.TestCase):
@@ -113,3 +113,141 @@ class DocInheritTestCase(unittest.TestCase):
         self.assertEqual(ChildB().some_property, 'childB')
         self.assertEqual(GrandChildA().some_property, 'grandChildA')
         self.assertEqual(GrandChildB().some_property, 'grandChildB')
+
+
+class AppendArgToDocTestCase(unittest.TestCase):
+
+    maxDiff = None
+    arg_doc = """
+name (str): Default name of the variable scope.  Will be uniquified.
+    If not specified, generate one according to the class name.
+scope (str): The name of the variable scope."""
+
+    def test_add_to_empty(self):
+        old_doc = """
+    Header line.
+"""
+        new_doc = """
+    Header line.
+
+
+    Args:
+        name (str): Default name of the variable scope.  Will be uniquified.
+            If not specified, generate one according to the class name.
+        scope (str): The name of the variable scope.
+
+"""
+        self.assertEqual(
+            append_arg_to_doc(old_doc, self.arg_doc),
+            new_doc,
+        )
+
+    def test_add(self):
+        old_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+"""
+        new_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+        name (str): Default name of the variable scope.  Will be uniquified.
+            If not specified, generate one according to the class name.
+        scope (str): The name of the variable scope.
+"""
+        self.assertEqual(
+            append_arg_to_doc(old_doc, self.arg_doc),
+            new_doc,
+        )
+
+    def test_add_with_arg(self):
+        old_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+        \\*args: arguments
+"""
+        new_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+        name (str): Default name of the variable scope.  Will be uniquified.
+            If not specified, generate one according to the class name.
+        scope (str): The name of the variable scope.
+        \\*args: arguments
+"""
+        self.assertEqual(
+            append_arg_to_doc(old_doc, self.arg_doc),
+            new_doc,
+        )
+
+    def test_add_with_kwargs(self):
+        old_doc = """
+Header line.
+
+Args:
+    a: 1
+        this is multi-line
+    b: 2
+    \\**kwargs: the keyword arguments
+"""
+        new_doc = """
+Header line.
+
+Args:
+    a: 1
+        this is multi-line
+    b: 2
+    name (str): Default name of the variable scope.  Will be uniquified.
+        If not specified, generate one according to the class name.
+    scope (str): The name of the variable scope.
+    \\**kwargs: the keyword arguments
+"""
+        self.assertEqual(
+            append_arg_to_doc(old_doc, self.arg_doc),
+            new_doc,
+        )
+
+    def test_add_with_next_section(self):
+        old_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+    
+    Notes:
+        This is a note
+"""
+        new_doc = """
+    Header line.
+    
+    Args:
+        a: 1
+            this is multi-line
+        b: 2
+        name (str): Default name of the variable scope.  Will be uniquified.
+            If not specified, generate one according to the class name.
+        scope (str): The name of the variable scope.
+    
+    Notes:
+        This is a note
+"""
+        self.assertEqual(
+            append_arg_to_doc(old_doc, self.arg_doc),
+            new_doc,
+        )

@@ -25,7 +25,7 @@ def sgvb_estimator(values, axis=None, keepdims=False, name=None):
             If :obj:`None`, no dimensions will be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
             (default "sgvb_estimator")
 
     Returns:
@@ -63,7 +63,7 @@ def iwae_estimator(log_values, axis, keepdims=False, name=None):
         axis: The sampling dimensions to be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
             (default "iwae_estimator")
 
     Returns:

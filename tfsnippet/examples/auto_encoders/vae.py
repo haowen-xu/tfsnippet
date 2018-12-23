@@ -7,10 +7,10 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Normal, Bernoulli
+from tfsnippet.layers import dense, weight_norm, act_norm
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
-                                   regularization_loss,
-                                   dense)
+                                   regularization_loss)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
@@ -20,7 +20,8 @@ from tfsnippet.examples.utils import (MLConfig,
                                       print_with_title)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse, flatten, unflatten, create_session
+from tfsnippet.utils import (global_reuse, flatten, unflatten, create_session,
+                             ensure_variables_initialized)
 
 
 class ExpConfig(MLConfig):
@@ -46,12 +47,15 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_z=None, is_training=True):
+def q_net(x, observed=None, n_z=None, is_training=False, is_initializing=False):
     net = BayesianNet(observed=observed)
+    normalizer_fn = functools.partial(act_norm, initializing=is_initializing)
 
     # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
+                   normalizer_fn=normalizer_fn,
+                   weight_norm_fn=weight_norm,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
         h_x = dense(h_x, 500)
@@ -68,8 +72,9 @@ def q_net(x, observed=None, n_z=None, is_training=True):
 
 @global_reuse
 @add_arg_scope
-def p_net(observed=None, n_z=None, is_training=True):
+def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
     net = BayesianNet(observed=observed)
+    normalizer_fn = functools.partial(act_norm, initializing=is_initializing)
 
     # sample z ~ p(z)
     z = net.add('z', Normal(mean=tf.zeros([1, config.z_dim]),
@@ -79,6 +84,8 @@ def p_net(observed=None, n_z=None, is_training=True):
     # compute the hidden features
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
+                   normalizer_fn=normalizer_fn,
+                   weight_norm_fn=weight_norm,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_z, s1, s2 = flatten(z, 2)
         h_z = dense(h_z, 500)
@@ -107,33 +114,36 @@ def main(result_dir):
     # input placeholders
     input_x = tf.placeholder(
         dtype=tf.int32, shape=(None, config.x_dim), name='input_x')
-    is_training = tf.placeholder(
-        dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
     learning_rate_var = AnnealingDynamicValue(config.initial_lr,
                                               config.lr_anneal_factor)
 
-    # build the model
-    with arg_scope([q_net, p_net], is_training=is_training):
-        # derive the loss and lower-bound for training
-        with tf.name_scope('training'):
-            train_q_net = q_net(input_x)
-            train_chain = train_q_net.chain(
-                p_net, latent_names=['z'], latent_axis=0,
-                observed={'x': input_x}
-            )
-            vae_loss = tf.reduce_mean(train_chain.vi.training.sgvb())
-            loss = vae_loss + regularization_loss()
+    # derive the output for initialization
+    with tf.name_scope('initialization'):
+        init_q_net = q_net(input_x, is_initializing=True)
+        init_chain = init_q_net.chain(
+            p_net, latent_names=['z'], latent_axis=0, observed={'x': input_x},
+            is_initializing=True
+        )
+        init_lb = tf.reduce_mean(init_chain.vi.lower_bound.elbo())
 
-        # derive the nll and logits output for testing
-        with tf.name_scope('testing'):
-            test_q_net = q_net(input_x, n_z=config.test_n_z)
-            test_chain = test_q_net.chain(
-                p_net, latent_names=['z'], latent_axis=0,
-                observed={'x': input_x}
-            )
-            test_nll = -tf.reduce_mean(test_chain.vi.evaluation.is_loglikelihood())
-            test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())
+    # derive the loss and lower-bound for training
+    with tf.name_scope('training'):
+        train_q_net = q_net(input_x, is_training=True)
+        train_chain = train_q_net.chain(
+            p_net, latent_names=['z'], latent_axis=0, observed={'x': input_x},
+            is_training=True
+        )
+        vae_loss = tf.reduce_mean(train_chain.vi.training.sgvb())
+        loss = vae_loss + regularization_loss()
+
+    # derive the nll and logits output for testing
+    with tf.name_scope('testing'):
+        test_q_net = q_net(input_x, n_z=config.test_n_z)
+        test_chain = test_q_net.chain(
+            p_net, latent_names=['z'], latent_axis=0, observed={'x': input_x})
+        test_nll = -tf.reduce_mean(test_chain.vi.evaluation.is_loglikelihood())
+        test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())
 
     # derive the optimizer
     with tf.name_scope('optimizing'):
@@ -146,12 +156,12 @@ def main(result_dir):
 
     # derive the plotting function
     with tf.name_scope('plotting'):
-        plot_p_net = p_net(n_z=100, is_training=is_training)
+        plot_p_net = p_net(n_z=100)
         x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            images = session.run(x_plots, feed_dict={is_training: False})
+            images = session.run(x_plots)
             save_images_collection(
                 images=images,
                 filename='plotting/{}.png'.format(loop.epoch),
@@ -168,6 +178,15 @@ def main(result_dir):
 
     with create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
+        ensure_variables_initialized()
+
+        # initialize the network
+        for [x] in train_flow:
+            lb_out = session.run(init_lb, feed_dict={input_x: x})
+            print('Network initialized, first-batch loss is {:.2g}.\n'.
+                  format(lb_out))
+            break
+
         # train the network
         with TrainLoop(params,
                        var_groups=['q_net', 'p_net'],
@@ -179,7 +198,7 @@ def main(result_dir):
                        early_stopping=False) as loop:
             trainer = Trainer(
                 loop, train_op, [input_x], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True},
+                feed_dict={learning_rate: learning_rate_var},
                 metrics={'loss': loss}
             )
             trainer.anneal_after(
@@ -192,7 +211,6 @@ def main(result_dir):
                 metrics={'test_nll': test_nll, 'test_lb': test_lb},
                 inputs=[input_x],
                 data_flow=test_flow,
-                feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(
@@ -201,6 +219,7 @@ def main(result_dir):
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
             trainer.log_after_epochs(freq=1)
+            # trainer.log_after_steps(freq=1)
             trainer.run()
 
     # print the final metrics and close the results object

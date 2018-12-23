@@ -23,7 +23,7 @@ def importance_sampling_log_likelihood(log_joint, latent_log_prob, axis,
         axis: The sampling dimensions to be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
             (default "importance_sampling_log_likelihood")
 
     Returns:

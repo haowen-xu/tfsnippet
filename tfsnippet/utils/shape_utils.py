@@ -1,8 +1,10 @@
 import tensorflow as tf
 
-from .typeutils import is_tensor_object
+from .type_utils import is_tensor_object
 
-__all__ = ['int_shape', 'flatten', 'unflatten', 'get_batch_size']
+__all__ = [
+    'int_shape', 'flatten', 'unflatten', 'get_batch_size', 'get_rank',
+]
 
 
 def int_shape(tensor):
@@ -16,6 +18,7 @@ def int_shape(tensor):
         tuple[int or None] or None: The int shape tuple, or :obj:`None`
             if the tensor shape is :obj:`None`.
     """
+    tensor = tf.convert_to_tensor(tensor)
     shape = tensor.get_shape()
     if shape.ndims is None:
         shape = None
@@ -127,7 +130,7 @@ def get_batch_size(tensor, axis=0, name=None):
     Args:
         tensor (tf.Tensor): The input placeholder.
         axis (int): The axis of mini-batches.  Default is 0.
-        name (str or None): Name of this operation.
+        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         int or tf.Tensor: The batch size.
@@ -142,3 +145,21 @@ def get_batch_size(tensor, axis=0, name=None):
         if batch_size is None:
             batch_size = tf.shape(tensor)[axis]
     return batch_size
+
+
+def get_rank(tensor, name=None):
+    """
+    Get the rank of the tensor.
+
+    Args:
+        tensor (tf.Tensor): The tensor to be tested.
+        name: TensorFlow name scope of the graph nodes.
+
+    Returns:
+        int or tf.Tensor: The rank.
+    """
+    tensor = tf.convert_to_tensor(tensor)
+    tensor_shape = int_shape(tensor)
+    if tensor_shape is not None:
+        return len(tensor_shape)
+    return tf.rank(tensor, name=name)

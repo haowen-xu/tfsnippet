@@ -237,7 +237,7 @@ def bernoulli_as_pixel(x=None, uint8=True, name=None):
             If :obj:`True`, will multiple the Bernoulli probability by 255,
             then convert the dtype into tf.uint8.  Otherwise will use the
             probability (range in ``[0, 1]``) as the pixel value.
-        name (str): Optional TensorFlow operation name.
+        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         tf.Tensor: The translated pixel values.

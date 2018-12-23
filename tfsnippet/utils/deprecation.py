@@ -2,7 +2,9 @@ import warnings
 
 import six
 
-__all__ = ['deprecated']
+from .doc_utils import append_to_doc
+
+__all__ = ['deprecated', 'deprecated_arg']
 
 
 def _deprecated_warn(message):
@@ -75,7 +77,7 @@ class deprecated(object):
         return cls
 
     def _deprecate_func(self, func):
-        msg = 'Function or method `{}` is deprecated'.format(_name_of(func))
+        msg = 'Function `{}` is deprecated'.format(_name_of(func))
         if self._message:
             msg += '; {}'.format(self._message)
         else:
@@ -95,29 +97,38 @@ class deprecated(object):
 
     def _update_doc(self, doc):
         def add_indent(s, spaces):
-            return '\n'.join(spaces + l if l else '' for l in s.split('\n'))
+            return '\n'.join(spaces + l if l.strip() else ''
+                             for l in s.split('\n'))
 
-        ret = '.. deprecated::'
+        appendix = '.. deprecated::'
         if self._version:
-            ret += ' {}'.format(self._version)
+            appendix += ' {}'.format(self._version)
         if self._message:
-            ret += '\n' + add_indent(self._message, '  ')
-        if doc:
-            # infer the indent of the doc string
-            indent = 0
-            for line in doc.split('\n'):
-                if line and line.startswith(' '):
-                    for c in line:
-                        if c != ' ':
-                            break
-                        indent += 1
-                    break
-            indent = ' ' * indent
+            appendix += '\n' + add_indent(self._message, '  ')
 
-            # compose the final docstring
-            ret = '{}\n\n{}\n'.format(doc, add_indent(ret, indent))
-        else:
-            # The empty line before ".. deprecated" is required by sphinx
-            # to correctly parse this deprecation block.
-            ret = '\n{}\n'.format(ret)
-        return ret
+        return append_to_doc(doc, appendix)
+
+
+def deprecated_arg(old_arg, new_arg, version=None):
+    def wrapper(method):
+        # compose the deprecation message
+        msg = 'In function `{}`: argument `{}` is deprecated, use `{}` instead.'
+        msg = msg.format(_name_of(method), old_arg, new_arg)
+
+        @six.wraps(method)
+        def wrapped(*args, **kwargs):
+            if old_arg in kwargs:
+                arg_value = kwargs.pop(old_arg)
+                if new_arg in kwargs:
+                    raise TypeError(
+                        'You should not specify the deprecated argument `{}` '
+                        'and its replacement `{}` at the same time.'.
+                        format(old_arg, new_arg)
+                    )
+                else:
+                    _deprecated_warn(msg)
+                    kwargs[new_arg] = arg_value
+            return method(*args, **kwargs)
+
+        return wrapped
+    return wrapper

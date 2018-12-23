@@ -147,8 +147,11 @@ class InstanceReuseTestCase(tf.test.TestCase):
 
     def test_call_in_original_name_scope(self):
         class MyScopeObject(VarScopeObject):
-            def _variable_scope_created(self, vs):
-                self.vs, self.var, self.op = self.foo()
+
+            def __init__(self, *args, **kwargs):
+                super(MyScopeObject, self).__init__(*args, **kwargs)
+                with reopen_variable_scope(self.variable_scope):
+                    self.vs, self.var, self.op = self.foo()
 
             @instance_reuse('foo')
             def foo(self):
@@ -162,6 +165,7 @@ class InstanceReuseTestCase(tf.test.TestCase):
             self.assertEqual(o.vs.name, 'o/foo')
             self.assertEqual(o.var.name, 'o/foo/var:0')
             self.assertEqual(o.op.name, 'o/foo/op:0')
+            print(123)
 
             # call it for the second time within the object's variable scope
             # and the object's original name scope (this actually will not
@@ -420,18 +424,6 @@ class GlobalReuseTestCase(tf.test.TestCase):
 
 
 class ReuseCompatibilityTestCase(tf.test.TestCase):
-
-    def test_instance_reuse_inside_global_reuse_with_no_scope(self):
-        @global_reuse
-        def f():
-            return VarScopeObject()
-
-        with pytest.raises(RuntimeError,
-                           match='It is required to specify `scope` argument '
-                                 'when constructing a `VarScopeObject`, if it '
-                                 'is created inside a variable scope opened by '
-                                 '`global_reuse` or `instance_reuse`.'):
-            _ = f()
 
     def test_instance_reuse_inside_global_reuse(self):
         class MyScopeObject(VarScopeObject):

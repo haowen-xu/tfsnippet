@@ -3,10 +3,9 @@ import numpy as np
 import tensorflow as tf
 from mock import Mock
 
-from tfsnippet.distributions import Normal, Categorical
-from tfsnippet.flows import FlowDistribution
+from tfsnippet.distributions import Normal, Categorical, FlowDistribution
 from tfsnippet.utils import int_shape
-from tests.flows.helper import QuadraticFlow
+from tests.layers.flows.helper import QuadraticFlow
 
 
 class FlowDistributionTestCase(tf.test.TestCase):
@@ -14,8 +13,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
     def test_errors(self):
         normal = Normal(mean=0., std=1.)
         with pytest.raises(TypeError,
-                           match='`flow` is not an instance of '
-                                 '`tfsnippet.flows.Flow`: 123'):
+                           match='`flow` is not an instance of `Flow`: 123'):
             _ = FlowDistribution(normal, 123)
 
         flow = QuadraticFlow(2., 5., dtype=tf.float32)

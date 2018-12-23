@@ -56,7 +56,7 @@ Examples
     `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_,
     `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_.
 * Normalizing Flows:
-    `Planar Normalizing Flow <tfsnippet/examples/normalizing_flows/planar_nf.py>`_.
+    `Planar Normalizing Flow <tfsnippet/examples/auto_encoders/planar_nf.py>`_.
 
 Quick Tutorial
 --------------

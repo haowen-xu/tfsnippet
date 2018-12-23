@@ -1,9 +1,10 @@
 import tensorflow as tf
 
-from tfsnippet.distributions import (Distribution, as_distribution,
-                                     validate_group_ndims)
 from tfsnippet.stochastic import StochasticTensor
-from .base import Flow
+from tfsnippet.layers import BaseFlow
+from .base import Distribution
+from .utils import validate_group_ndims
+from .wrapper import as_distribution
 
 __all__ = ['FlowDistribution']
 
@@ -20,11 +21,11 @@ class FlowDistribution(Distribution):
         Args:
             distribution (Distribution): The distribution to transform from.
                 It must be continuous,
-            flow (Flow): A normalizing flow to transform the `distribution`.
+            flow (BaseFlow): A normalizing flow to transform the `distribution`.
         """
-        if not isinstance(flow, Flow):
-            raise TypeError('`flow` is not an instance of `tfsnippet.flows.'
-                            'Flow`: {!r}'.format(flow))
+        if not isinstance(flow, BaseFlow):
+            raise TypeError('`flow` is not an instance of `Flow`: {!r}'.
+                            format(flow))
         distribution = as_distribution(distribution)
         if not distribution.is_continuous:
             raise ValueError('{!r} cannot be transformed by a flow, because '
@@ -42,7 +43,7 @@ class FlowDistribution(Distribution):
         Get the transformation flow.
 
         Returns:
-            Flow: The transformation flow.
+            BaseFlow: The transformation flow.
         """
         return self._flow
 

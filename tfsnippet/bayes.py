@@ -4,10 +4,11 @@ import six
 import tensorflow as tf
 from frozendict import frozendict
 
-from tfsnippet.distributions import Distribution, as_distribution
-from tfsnippet.flows import Flow, FlowDistribution
+from tfsnippet.distributions import (Distribution, FlowDistribution,
+                                     as_distribution)
+from tfsnippet.layers import BaseFlow
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.utils import get_valid_name_scope_name
+from tfsnippet.utils import get_default_scope_name
 
 __all__ = ['BayesianNet']
 
@@ -156,7 +157,7 @@ class BayesianNet(object):
             is_reparameterized: Whether or not the re-parameterization trick
                 should be applied? (default :obj:`None`, following the setting
                 of `distribution`)
-            flow (Flow): If specified, transform `distribution` by the `flow`.
+            flow (BaseFlow): If specified, transform `distribution` by `flow`.
 
         Returns:
             StochasticTensor: The sampled stochastic tensor.
@@ -291,7 +292,7 @@ class BayesianNet(object):
         names = self._check_names_exist(names)
         ret = []
         for name in names:
-            ns = '{}.log_prob'.format(get_valid_name_scope_name(name))
+            ns = '{}.log_prob'.format(get_default_scope_name(name))
             ret.append(self._stochastic_tensors[name].log_prob(name=ns))
         return ret
 

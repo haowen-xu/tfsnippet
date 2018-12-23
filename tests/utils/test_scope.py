@@ -2,6 +2,7 @@ import unittest
 
 import pytest
 import tensorflow as tf
+from mock import Mock
 
 from tfsnippet.utils import *
 
@@ -13,19 +14,25 @@ def make_var_and_op(var_name, op_name):
     return vs, var, op
 
 
-class GetValidNameScopeNameTestCase(unittest.TestCase):
+class GetDefaultScopeNameTestCase(unittest.TestCase):
 
-    def test_get_valid_name_scope_name(self):
+    def test_get_default_scope_name(self):
         class _MyClass:
             pass
 
-        self.assertEqual(get_valid_name_scope_name('abc'), 'abc')
-        self.assertEqual(get_valid_name_scope_name('abc', str), 'str.abc')
-        self.assertEqual(get_valid_name_scope_name('abc', ''), 'str.abc')
-        self.assertEqual(get_valid_name_scope_name('abc', _MyClass),
+        class _MyClass2:
+            variable_scope = Mock(tf.VariableScope)
+        _MyClass2.variable_scope.name = 'x'
+
+        self.assertEqual(get_default_scope_name('abc'), 'abc')
+        self.assertEqual(get_default_scope_name('abc', str), 'str.abc')
+        self.assertEqual(get_default_scope_name('abc', ''), 'str.abc')
+        self.assertEqual(get_default_scope_name('abc', _MyClass),
                          'MyClass.abc')
-        self.assertEqual(get_valid_name_scope_name('abc', _MyClass()),
+        self.assertEqual(get_default_scope_name('abc', _MyClass()),
                          'MyClass.abc')
+        self.assertEqual(get_default_scope_name('abc', _MyClass2), 'x.abc')
+        self.assertEqual(get_default_scope_name('abc', _MyClass2()), 'x.abc')
 
 
 class ReopenVariableScopeTestCase(tf.test.TestCase):
@@ -180,12 +187,16 @@ class VarScopeObjectTestCase(tf.test.TestCase):
             self.assertEqual(o4.variable_scope.name, 'c/o')
             self.assertEqual(o4.variable_scope.original_name_scope, 'c/o/')
 
-    def test_override_variable_scope_created(self):
+    def test_reopen_variable_scope(self):
         class MyVarScopeObj(VarScopeObject):
-            def _variable_scope_created(self, vs):
-                self.vs = vs
-                self.a = tf.get_variable('a', shape=(), dtype=tf.float32)
+            def __init__(self, name=None, scope=None):
+                super(MyVarScopeObj, self).__init__(name=name, scope=scope)
+                with reopen_variable_scope(self.variable_scope) as vs:
+                    self.vs = vs
+                    self.a = tf.get_variable('a', shape=(), dtype=tf.float32)
+                    self.op = tf.add(1, 2, name='op')
 
         o = MyVarScopeObj(name='o')
         self.assertEqual(o.vs.name, 'o')
         self.assertEqual(o.a.name, 'o/a:0')
+        self.assertEqual(o.op.name, 'o/op:0')

@@ -15,6 +15,8 @@ This version introduces breaking changes. Existing code might better stick to [v
   This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
 - Constructing a `VarScopeObject` within a method or a function decorated by `global_reuse` or `instance_reuse` has been totally disallowed.
 - `Trainer` now accepts `summaries` argument on construction.
+- `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
+  can be directly found under `tfsnippet.layers` namespace.
 
 ### Removed
 - The `modules` package is now purged out of this project totally, including the `VAE` class.

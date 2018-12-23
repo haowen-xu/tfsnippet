@@ -142,7 +142,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
     require_at_least_tensorflow_1_5()
 
     if _sentinel is not None:  # pragma: no cover
-        raise TypeError('`scope` must be specified with named argument.')
+        raise TypeError('`scope` must be specified as named argument.')
 
     if isinstance(method_or_scope, six.string_types):
         scope = method_or_scope
@@ -181,7 +181,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
     variable_scopes = weakref.WeakKeyDictionary()
 
     @six.wraps(method)
-    def wrapper(*args, **kwargs):
+    def wrapped(*args, **kwargs):
         # get the instance from the arguments and its variable scope
         obj = args[0]
         obj_vs = obj.variable_scope
@@ -203,7 +203,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
             #   name scope.  So we should exit the scope, then re-enter our
             #   desired variable scope.
             if graph.get_name_scope() + '/' != obj_vs.original_name_scope or \
-                    tf.get_variable_scope() != obj_vs:
+                    tf.get_variable_scope().name != obj_vs.name:
                 with tf.variable_scope(obj_vs, auxiliary_name_scope=False):
                     with tf.name_scope(obj_vs.original_name_scope):
                         # now we are here in the object's variable scope, and
@@ -230,7 +230,7 @@ def instance_reuse(method_or_scope=None, _sentinel=None, scope=None):
             with tf.variable_scope(vs, reuse=True), _reuse_context(vs):
                 return method(*args, **kwargs)
 
-    return wrapper
+    return wrapped
 
 
 def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
@@ -295,7 +295,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
     require_at_least_tensorflow_1_5()
 
     if _sentinel is not None:  # pragma: no cover
-        raise TypeError('`scope` must be specified with named argument.')
+        raise TypeError('`scope` must be specified as named argument.')
 
     if isinstance(method_or_scope, six.string_types):
         scope = method_or_scope
@@ -317,7 +317,7 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
     variable_scopes = weakref.WeakKeyDictionary()
 
     @six.wraps(method)
-    def wrapper(*args, **kwargs):
+    def wrapped(*args, **kwargs):
         graph = tf.get_default_graph()
 
         if graph not in variable_scopes:
@@ -354,4 +354,4 @@ def global_reuse(method_or_scope=None, _sentinel=None, scope=None):
             with tf.variable_scope(vs, reuse=True), _reuse_context(vs):
                 return method(*args, **kwargs)
 
-    return wrapper
+    return wrapped

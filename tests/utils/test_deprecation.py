@@ -56,7 +56,7 @@ class DeprecatedTestCase(unittest.TestCase):
 
             self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn('Function or method `f` is deprecated; '
+            self.assertIn('Function `f` is deprecated; '
                           'use `g` instead.', str(w[-1].message))
 
         with warnings.catch_warnings(record=True) as w:
@@ -67,7 +67,7 @@ class DeprecatedTestCase(unittest.TestCase):
 
             self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn('Function or method `g` is deprecated.',
+            self.assertIn('Function `g` is deprecated.',
                           str(w[-1].message))
 
     def test_deprecated_function(self):
@@ -88,7 +88,7 @@ class DeprecatedTestCase(unittest.TestCase):
 
             self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn('Function or method `my_func` is deprecated; '
+            self.assertIn('Function `my_func` is deprecated; '
                           'use `your_func` instead.', str(w[-1].message))
 
         with warnings.catch_warnings(record=True) as w:
@@ -99,5 +99,5 @@ class DeprecatedTestCase(unittest.TestCase):
 
             self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn('Function or method `your_func` is deprecated.',
+            self.assertIn('Function `your_func` is deprecated.',
                           str(w[-1].message))

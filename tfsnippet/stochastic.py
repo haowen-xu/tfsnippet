@@ -177,7 +177,7 @@ class StochasticTensor(TensorWrapper):
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
-            name (str or None): Optional TensorFlow operation name.
+            name: TensorFlow name scope of the graph nodes.
 
         Returns:
             tf.Tensor: The log-densities.
@@ -199,7 +199,7 @@ class StochasticTensor(TensorWrapper):
         Args:
             group_ndims (int or tf.Tensor): If specified, overriding the
                 configured `group_ndims`.
-            name (str or None): Optional TensorFlow operation name.
+            name: TensorFlow name scope of the graph nodes.
 
         Returns:
             tf.Tensor: The densities.

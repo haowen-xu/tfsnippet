@@ -2,14 +2,11 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from .deprecation import deprecated
-
 __all__ = [
     'is_assertion_enabled',
     'set_assertion_enabled',
     'scoped_set_assertion_enabled',
     'maybe_assert',
-    'control_deps',
     'should_check_numerics',
     'set_check_numerics',
     'scoped_set_check_numerics',
@@ -73,24 +70,6 @@ def maybe_assert(assert_fn, *args, **kwargs):
         return assert_fn(*args, **kwargs)
 
 
-@contextmanager
-def control_deps(control_inputs):
-    """
-    A wrapper of :func:`tensorflow.control_dependencies`, where the :obj:`None`
-    in specified `control_inputs` are filtered out.
-
-    Args:
-        control_inputs (Iterable[tf.Operation or None]): The operations to
-            be executed, or :obj:`None`.
-    """
-    control_inputs = [o for o in control_inputs if o is not None]
-    if control_inputs:
-        with tf.control_dependencies(control_inputs) as r:
-            yield r
-    else:
-        yield
-
-
 def should_check_numerics():
     """Whether or not to check numerics?"""
     return _check_numerics
@@ -121,7 +100,7 @@ def maybe_check_numerics(tensor, message, name=None):
     Args:
         tensor: The tensor to be checked.
         message: The message to display when numerical issues occur.
-        name: Optional name of the check op.
+        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.
