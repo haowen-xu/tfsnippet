@@ -19,6 +19,7 @@ def dense(input, units,
           kernel_initializer=None,
           kernel_regularizer=None,
           kernel_constraint=None,
+          use_bias=None,
           bias=None,
           bias_initializer=tf.zeros_initializer(),
           bias_regularizer=None,
@@ -50,6 +51,11 @@ def dense(input, units,
             Would be ``default_kernel_initializer(...)`` if not specified.
         kernel_regularizer: The regularizer for `kernel`.
         kernel_constraint: The constraint for `kernel`.
+        use_bias (bool or None): Whether or not to use `bias`?
+            If :obj:`True`, will always use bias.
+            If :obj:`None`, will use bias only if `normalizer_fn` is not given.
+            If :obj:`False`, will never use bias.
+            Default is :obj:`None`.
         bias (Tensor): Instead of creating a new variable, use this tensor.
         bias_initializer: The initializer for `bias`.
         bias_regularizer: The regularizer for `bias`.
@@ -63,6 +69,9 @@ def dense(input, units,
     input_spec = InputSpec(shape=('...', '?', '*'), dtype=dtype)
     input = input_spec.validate(input)
     input_shape = int_shape(input)
+
+    if use_bias is None:
+        use_bias = normalizer_fn is None
 
     kernel_spec = ParamSpec(shape=(input_shape[-1], units), dtype=dtype)
     bias_spec = ParamSpec(shape=(units,), dtype=dtype)
@@ -92,7 +101,7 @@ def dense(input, units,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel, -1, None)
 
-        if bias is None:
+        if use_bias and bias is None:
             bias = tf.get_variable(
                 'bias',
                 shape=(units,),
@@ -106,11 +115,13 @@ def dense(input, units,
         # do kernel * input + bias
         if len(int_shape(input)) == 2:
             output = tf.matmul(input, kernel)
-            output = tf.nn.bias_add(output, bias)
+            if use_bias:
+                output = tf.nn.bias_add(output, bias)
         else:
             output, s1, s2 = flatten(input, 2)
             output = tf.matmul(input, kernel)
-            output = tf.nn.bias_add(output, bias)
+            if use_bias:
+                output = tf.nn.bias_add(output, bias)
             output = unflatten(output, s1, s2)
 
         # apply the normalization function if specified

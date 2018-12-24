@@ -320,7 +320,8 @@ class ActNormFuncTestCase(tf.test.TestCase):
             self.assertTupleEqual(args, ())
             self.assertDictEqual(
                 kwargs, {'var_shape': (4, 1, 2), 'trainable': False})
-            self.assertFalse(o._bias.trainable)
+            self.assertNotIn(
+                o._bias, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
 
         # test unknown shape is invalid
         with pytest.raises(TypeError,
