@@ -5,7 +5,8 @@ from tfsnippet.utils import (ParamSpec,
                              int_shape,
                              add_name_and_scope_arg_doc,
                              validate_int_or_int_tuple_arg,
-                             resolve_negative_axis)
+                             resolve_negative_axis,
+                             maybe_check_numerics)
 
 __all__ = ['weight_norm']
 
@@ -28,8 +29,10 @@ def weight_norm(kernel,
 
     Roughly speaking, the weight normalization is defined as::
 
-        kernel = scale * kernel / tf.reduce_mean(
-            kernel, axis=<dimensions not in `axis`>, keepdims=True)
+        kernel = scale * kernel / tf.sqrt(
+            tf.reduce_sum(kernel ** 2, axis=<dimensions not in `axis`>,
+                          keepdims=True)
+        )
 
     This function does not support data-dependent initialization for `scale`.
     If you do need this feature, you have to turn off `scale`, and use
@@ -37,7 +40,8 @@ def weight_norm(kernel,
 
     Args:
         kernel: Tensor, the weight `w` to be normalized.
-        axis (tuple[int]): The axis to apply weight normalization (See above).
+        axis (int or tuple[int]): The axis to apply weight normalization.
+            See above description to know what `axis` exactly is.
         use_scale (bool): Whether or not to use `scale`.  Default :obj:`True`.
         scale (Tensor): Instead of creating a new variable, use this tensor.
         scale_initializer: The initializer for `scale`.
@@ -49,6 +53,9 @@ def weight_norm(kernel,
     # check the parameters
     if not use_scale and scale is not None:
         raise ValueError('`use_scale` is False but `scale` is specified.')
+    axis = validate_int_or_int_tuple_arg('axis', axis)
+    if not axis:
+        raise ValueError('`axis` cannot be empty.')
 
     kernel = tf.convert_to_tensor(kernel)
     kernel_shape = int_shape(kernel)
@@ -61,13 +68,15 @@ def weight_norm(kernel,
         scale = var_spec.validate(scale)
 
     # any dimension not specified in `axis` should be averaged out
-    axis = resolve_negative_axis(
-        len(kernel_shape), validate_int_or_int_tuple_arg('axis', axis))
+    axis = resolve_negative_axis(len(kernel_shape), axis)
     reduce_axis = tuple(a for a in range(len(kernel_shape)) if a not in axis)
 
     with tf.variable_scope(scope, default_name=name or 'weight_norm'):
         # normalize the kernel
-        kernel = tf.nn.l2_normalize(kernel, axis=reduce_axis, epsilon=epsilon)
+        kernel = maybe_check_numerics(
+            tf.nn.l2_normalize(kernel, axis=reduce_axis, epsilon=epsilon),
+            message='weight-normalized kernel'
+        )
 
         # create the scaling variable
         if use_scale:

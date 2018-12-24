@@ -78,14 +78,14 @@ def dense(input, units,
     input_shape = int_shape(input)
 
     weight_norm_fn = validate_weight_norm_arg(
-        weight_norm, axis=-1, use_scale=normalizer_fn is not None)
+        weight_norm, axis=-1, use_scale=normalizer_fn is None)
 
     kernel_spec = ParamSpec(shape=(input_shape[-1], units), dtype=dtype)
     if kernel is not None:
         kernel = kernel_spec.validate(kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(
-            use_weight_norm=weight_norm_fn is not None
+            weight_norm=weight_norm_fn is not None
         )
 
     if use_bias is None:

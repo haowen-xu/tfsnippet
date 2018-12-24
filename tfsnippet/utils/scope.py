@@ -1,4 +1,3 @@
-import functools
 from contextlib import contextmanager
 
 import six
@@ -10,7 +9,6 @@ from .misc import camel_to_underscore
 
 __all__ = [
     'get_default_scope_name',
-    'add_name_scope',
     'reopen_variable_scope',
     'root_variable_scope',
     'VarScopeObject'
@@ -48,37 +46,6 @@ def get_default_scope_name(name, cls_or_instance=None):
     # validate the name
     name = name.lstrip('_')
     return name
-
-
-def add_name_scope(method_or_name, _sentinel=None, default_name=None):
-    if _sentinel is not None:  # pragma: no cover
-        raise TypeError('`default_name` must be specified as named argument.')
-
-    if isinstance(method_or_name, six.string_types):
-        default_name = method_or_name
-        method = None
-    else:
-        method = method_or_name
-
-    if method is None:
-        return functools.partial(add_name_scope, name=default_name)
-
-    default_name = default_name or method.__name__
-    if '/' in default_name:
-        raise ValueError('`add_name_scope` does not support "/" in scope name.')
-
-    # Until now, we have checked all the arguments, such that `method`
-    # is the function to be decorated, and `name` is the default name
-    # for the variable scope.
-    @six.wraps(method)
-    def wrapped(*args, **kwargs):
-        name = kwargs.pop('name', None)
-        scope = kwargs.pop('scope', None)
-
-        with tf.name_scope(scope, default_name=name or default_name):
-            return method(*args, **kwargs)
-
-    return wrapped
 
 
 @contextmanager

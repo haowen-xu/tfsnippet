@@ -8,7 +8,7 @@ from tfsnippet.utils import *
 from tfsnippet.utils.tensor_spec import _TensorSpec
 
 
-class TensorSpecTestCase(unittest.TestCase):
+class TensorSpecTestCase(tf.test.TestCase):
 
     def test_repr_and_properties(self):
         # test empty spec

@@ -10,12 +10,24 @@ from tests.layers.flows.helper import QuadraticFlow, invertible_flow_standard_ch
 class SequentialFlowTestCase(tf.test.TestCase):
 
     def test_errors(self):
+        class _Flow(BaseFlow):
+            pass
+
         with pytest.raises(TypeError, match='`flows` must not be empty'):
             _ = SequentialFlow([])
+
         with pytest.raises(
                 TypeError, match='The 0-th flow in `flows` is not an instance '
                                  'of `Flow`: 123'):
             _ = SequentialFlow([123])
+
+        with pytest.raises(
+                TypeError, match='`value_ndims` of the 1-th flow in `flows` '
+                                 'does not agree with the first flow: 2 vs 1'):
+            _ = SequentialFlow([
+                _Flow(value_ndims=1),
+                _Flow(value_ndims=2),
+            ])
 
     def test_sequential_with_quadratic_flows(self):
         n_layers = 3

@@ -7,7 +7,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.layers import dense, weight_norm, act_norm
+from tfsnippet.layers import dense, act_norm
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
 from tfsnippet.examples.nn import (l2_regularizer,
                                    regularization_loss)
@@ -55,7 +55,7 @@ def q_net(x, observed=None, n_z=None, is_training=False, is_initializing=False):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
-                   weight_norm_fn=weight_norm,
+                   weight_norm=True,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
         h_x = dense(h_x, 500)
@@ -85,7 +85,7 @@ def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
     with arg_scope([dense],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
-                   weight_norm_fn=weight_norm,
+                   weight_norm=True,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
         h_z, s1, s2 = flatten(z, 2)
         h_z = dense(h_z, 500)

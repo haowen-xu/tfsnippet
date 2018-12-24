@@ -30,7 +30,7 @@ class SequentialFlow(MultiLayerFlow):
         for i, flow in enumerate(flows[1:], 1):
             if flow.value_ndims != value_ndims:
                 raise TypeError('`value_ndims` of the {}-th flow in `flows` '
-                                'mismatch with the first flow: {} vs {}.'.
+                                'does not agree with the first flow: {} vs {}.'.
                                 format(i, flow.value_ndims, value_ndims))
 
         super(SequentialFlow, self).__init__(

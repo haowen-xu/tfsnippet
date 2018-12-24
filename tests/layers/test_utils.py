@@ -1,5 +1,3 @@
-import unittest
-
 import mock
 import pytest
 import tensorflow as tf
@@ -7,7 +5,7 @@ import tensorflow as tf
 from tfsnippet.layers.utils import validate_weight_norm_arg
 
 
-class ValidateWeightNormArgTestCase(unittest.TestCase):
+class ValidateWeightNormArgTestCase(tf.test.TestCase):
 
     def test_validate_weight_norm_arg(self):
         # test callable
