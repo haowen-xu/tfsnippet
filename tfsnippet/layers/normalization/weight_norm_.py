@@ -12,8 +12,8 @@ __all__ = ['weight_norm']
 @add_name_and_scope_arg_doc
 def weight_norm(kernel,
                 axis,
-                epsilon=1e-12,
                 scale_type=None,
+                epsilon=1e-12,
                 log_scale=None,
                 log_scale_initializer=None,
                 log_scale_regularizer=None,
@@ -42,12 +42,12 @@ def weight_norm(kernel,
     Args:
         kernel: Tensor, the weight `w` to be normalized.
         axis (tuple[int]): The axis to apply weight normalization (See above).
-        epsilon: Small float number to avoid dividing by zero.
         scale_type: One of {"log_scale", "scale", :obj:`None`}.
             If "log_scale", ``kernel = tf.exp(log_scale) * kernel / |kernel|``.
             If "scale", ``kernel = scale * kernel / |kernel|``.
             If :obj:`None`, kernel will not be scaled.
-            Default is :obj:`None`.
+            Default is :obj:`log_scale`.
+        epsilon: Small float number to avoid dividing by zero.
         log_scale (Tensor): Instead of creating a new variable, use this tensor.
         log_scale_initializer: The initializer for `log_scale`.
         log_scale_regularizer: The regularizer for `log_scale`.

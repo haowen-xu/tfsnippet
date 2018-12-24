@@ -15,7 +15,7 @@ __all__ = ['ActNorm', 'act_norm', 'act_norm_conv2d']
 
 class ActNorm(BaseFlow):
     """
-    ActNorm layer proposed by (Kingma & Dhariwal, 2018).
+    ActNorm proposed by (Kingma & Dhariwal, 2018).
 
     `y = (x + bias) * scale; log_det = y / scale - bias`
 
@@ -293,7 +293,7 @@ class ActNorm(BaseFlow):
 @add_arg_scope
 def act_norm(input, axis=-1, value_ndims=1, **kwargs):
     """
-    ActNorm layer proposed by (Kingma & Dhariwal, 2018).
+    ActNorm proposed by (Kingma & Dhariwal, 2018).
 
     Args:
         input (tf.Tensor): The input tensor.

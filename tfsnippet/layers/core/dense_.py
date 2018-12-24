@@ -39,10 +39,11 @@ def dense(input, units,
         units: Number of output units.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
-        weight_norm_fn ((kernel, axis) -> tf.Tensor): The weight normalization
-            function.  It can either be :func:`~tfsnippet.layers.weight_norm`,
-            or some function that calls :func:`~tfsnippet.layers.weight_norm`
-            with non-default arguments.
+        weight_norm_fn ((kernel, axis, scale_type) -> tf.Tensor):
+            The weight normalization function.
+            It can either be :func:`~tfsnippet.layers.weight_norm`,
+            or some function that accepts ``(kernel, axis, scale_type)``
+            arguments which then calls :func:`~tfsnippet.layers.weight_norm`.
         dtype: Data type of the parameters and input/output.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
@@ -89,7 +90,7 @@ def dense(input, units,
             )
 
         if weight_norm_fn is not None:
-            kernel = weight_norm_fn(kernel, -1)
+            kernel = weight_norm_fn(kernel, -1, None)
 
         if bias is None:
             bias = tf.get_variable(
