@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from tfsnippet.utils import flatten, unflatten
+from tfsnippet.utils import (flatten, unflatten, add_name_and_scope_arg_doc,
+                             reopen_variable_scope)
 from .base import MultiLayerFlow
 
 __all__ = ['PlanarNormalizingFlow']
@@ -25,6 +26,7 @@ class PlanarNormalizingFlow(MultiLayerFlow):
         \\end{aligned}
     """
 
+    @add_name_and_scope_arg_doc
     def __init__(self,
                  n_units,
                  n_layers=1,
@@ -48,28 +50,56 @@ class PlanarNormalizingFlow(MultiLayerFlow):
             w_initializer: The initializer for parameter `w`.
             b_initializer: The initializer for parameter `b`.
             u_initializer: The initializer for parameter `u`.
-            w_regularizer: The regularizer for parameter `w`, optional.
-            b_regularizer: The regularizer for parameter `b`, optional.
-            u_regularizer: The regularizer for parameter `u`, optional.
+            w_regularizer: The regularizer for parameter `w`.
+            b_regularizer: The regularizer for parameter `b`.
+            u_regularizer: The regularizer for parameter `u`.
             trainable (bool): Whether or not the parameters are trainable?
                 (default :obj:`True`)
             dtype: The data type of the transformed `y`.
-            name (str): Optional name of this :class:`Flow`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-            scope (str): Optional scope of this :class:`Flow`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         """
-        self._n_units = int(n_units)
-        self._w_initializer = w_initializer
-        self._b_initializer = b_initializer
-        self._u_initializer = u_initializer
-        self._w_regularizer = w_regularizer
-        self._b_regularizer = b_regularizer
-        self._u_regularizer = u_regularizer
-        self._trainable = trainable
-
+        n_units = int(n_units)
         super(PlanarNormalizingFlow, self).__init__(
-            n_layers=n_layers, dtype=dtype, name=name, scope=scope)
+            n_layers=n_layers,
+            value_ndims=1,
+            dtype=dtype,
+            name=name,
+            scope=scope
+        )
+
+        self._n_units = n_units
+        self._layer_params = []
+
+        with reopen_variable_scope(self.variable_scope):
+            for layer_id in range(self.n_layers):
+                with tf.variable_scope('_{}'.format(layer_id)):
+                    w = tf.get_variable(
+                        'w',
+                        shape=[1, n_units],
+                        dtype=self._dtype,
+                        initializer=w_initializer,
+                        regularizer=w_regularizer,
+                        trainable=trainable
+                    )
+                    b = tf.get_variable(
+                        'b',
+                        shape=[1],
+                        dtype=self._dtype,
+                        initializer=b_initializer,
+                        regularizer=b_regularizer,
+                        trainable=trainable
+                    )
+                    u = tf.get_variable(
+                        'u',
+                        shape=[1, n_units],
+                        dtype=self._dtype,
+                        initializer=u_initializer,
+                        regularizer=u_regularizer,
+                        trainable=trainable
+                    )
+                    wu = tf.matmul(w, u, transpose_b=True)  # wu.shape == [1]
+                    u_hat = u + (-1 + tf.nn.softplus(wu) - wu) * \
+                        w / tf.reduce_sum(tf.square(w))  # shape == [1, n_units]
+                    self._layer_params.append((w, b, u, u_hat))
 
     @property
     def n_units(self):
@@ -81,39 +111,8 @@ class PlanarNormalizingFlow(MultiLayerFlow):
         """
         return self._n_units
 
-    def _create_layer_params(self, layer_id):
-        w = tf.get_variable(
-            'w',
-            shape=[1, self._n_units],
-            dtype=self._dtype,
-            initializer=self._w_initializer,
-            regularizer=self._w_regularizer,
-            trainable=self._trainable
-        )
-        b = tf.get_variable(
-            'b',
-            shape=[1],
-            dtype=self._dtype,
-            initializer=self._b_initializer,
-            regularizer=self._b_regularizer,
-            trainable=self._trainable
-        )
-        u = tf.get_variable(
-            'u',
-            shape=[1, self._n_units],
-            dtype=self._dtype,
-            initializer=self._u_initializer,
-            regularizer=self._u_regularizer,
-            trainable=self._trainable
-        )
-        wu = tf.matmul(w, u, transpose_b=True)  # wu.shape == [1]
-        u_hat = u + (-1 + tf.nn.softplus(wu) - wu) * \
-                w / tf.reduce_sum(tf.square(w))  # shape == [1, n_units]
-        return {'w': w, 'b': b, 'u': u, 'u_hat': u_hat}
-
     def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
-        w, u, b, u_hat = \
-            self.get_layer_params(layer_id, ['w', 'u', 'b', 'u_hat'])
+        w, b, u, u_hat = self._layer_params[layer_id]
 
         # flatten x for better performance
         x, s1, s2 = flatten(x, 2)  # x.shape == [?, n_units]

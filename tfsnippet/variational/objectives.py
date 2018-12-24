@@ -25,7 +25,7 @@ def elbo_objective(log_joint, latent_log_prob, axis=None, keepdims=False,
             If :obj:`None`, no dimensions will be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
             (default "elbo_objective")
 
     Returns:
@@ -64,7 +64,7 @@ def monte_carlo_objective(log_joint, latent_log_prob, axis=None,
         axis: The sampling dimensions to be averaged out.
         keepdims (bool): When `axis` is specified, whether or not to keep
             the averaged dimensions?  (default :obj:`False`)
-        name (str): Name of this operation in TensorFlow graph.
+        name (str): TensorFlow name scope of the graph nodes.
             (default "monte_carlo_objective")
 
     Returns:

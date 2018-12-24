@@ -1,6 +1,7 @@
 import tensorflow as tf
 import zhusuan as zs
 
+from tfsnippet.utils import add_n_broadcast
 from .estimators import *
 from .evaluation import *
 from .objectives import *
@@ -33,7 +34,7 @@ class VariationalInference(object):
         self._log_joint = tf.convert_to_tensor(log_joint)
         self._latent_log_probs = tuple(tf.convert_to_tensor(t)
                                        for t in latent_log_probs)
-        self._latent_log_prob = tf.add_n(
+        self._latent_log_prob = add_n_broadcast(
             self._latent_log_probs, name='latent_log_prob')
         self._axis = axis
         self._lower_bound = VariationalLowerBounds(self)
@@ -184,7 +185,7 @@ class VariationalLowerBounds(object):
         Get the evidence lower-bound.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "elbo")
 
         Returns:
@@ -205,7 +206,7 @@ class VariationalLowerBounds(object):
         Get the importance weighted lower-bound.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "monte_carlo_objective")
 
         Returns:
@@ -242,7 +243,7 @@ class VariationalTrainingObjectives(object):
         Get the SGVB training objective.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "sgvb")
 
         Returns:
@@ -268,7 +269,7 @@ class VariationalTrainingObjectives(object):
             baseline (tf.Tensor): A trainable estimation for the scale of
                 the elbo value.
             decay (float): The moving average decay for variance normalization.
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "reinforce")
 
         Returns:
@@ -291,7 +292,7 @@ class VariationalTrainingObjectives(object):
         Get the SGVB training objective for importance weighted objective.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "iwae")
 
         Returns:
@@ -313,7 +314,7 @@ class VariationalTrainingObjectives(object):
         Get the VIMCO training objective.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "vimco")
 
         Returns:
@@ -331,7 +332,7 @@ class VariationalTrainingObjectives(object):
         Get the wake-phase Reweighted Wake-Sleep (RWS) training objective.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "rws_wake")
 
         Returns:
@@ -363,7 +364,7 @@ class VariationalEvaluation(object):
         Compute :math:`log p(x)` by importance sampling.
 
         Args:
-            name (str): Name of this operation in TensorFlow graph.
+            name (str): TensorFlow name scope of the graph nodes.
                 (default "importance_sampling_log_likelihood")
 
         Returns:

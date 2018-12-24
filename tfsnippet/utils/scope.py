@@ -4,25 +4,27 @@ import six
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as variable_scope_ops
 
-from .doc_inherit import DocInherit
+from .doc_utils import DocInherit
 from .misc import camel_to_underscore
-from .reuse import reuse_stack_top
 
 __all__ = [
-    'get_valid_name_scope_name',
+    'get_default_scope_name',
     'reopen_variable_scope',
     'root_variable_scope',
     'VarScopeObject'
 ]
 
 
-def get_valid_name_scope_name(name, cls_or_instance=None):
+def get_default_scope_name(name, cls_or_instance=None):
     """
-    Generate a valid name scope name.
+    Generate a valid default scope name.
 
     Args:
         name (str): The base name.
         cls_or_instance: The class or the instance object, optional.
+            If it has attribute ``variable_scope``, then ``variable_scope.name``
+            will be used as a hint for the name prefix.  Otherwise, its class
+            name will be used as the name prefix.
 
     Returns:
         str: The generated scope name.
@@ -30,9 +32,15 @@ def get_valid_name_scope_name(name, cls_or_instance=None):
     # compose the candidate name
     prefix = ''
     if cls_or_instance is not None:
-        if not isinstance(cls_or_instance, six.class_types):
-            cls_or_instance = cls_or_instance.__class__
-        prefix = '{}.'.format(cls_or_instance.__name__).lstrip('_')
+        if hasattr(cls_or_instance, 'variable_scope') and \
+                isinstance(cls_or_instance.variable_scope, tf.VariableScope):
+            vs_name = cls_or_instance.variable_scope.name
+            vs_name = vs_name.rsplit('/', 1)[-1]
+            prefix = '{}.'.format(vs_name)
+        else:
+            if not isinstance(cls_or_instance, six.class_types):
+                cls_or_instance = cls_or_instance.__class__
+            prefix = '{}.'.format(cls_or_instance.__name__).lstrip('_')
     name = prefix + name
 
     # validate the name
@@ -100,6 +108,18 @@ class VarScopeObject(object):
         o = YourVarScopeObject('object_name')
         o.foo()  # You should get a variable with name "object_name/foo/bar"
 
+    To build variables in the constructor of derived classes, you may use
+    ``reopen_variable_scope(self.variable_scope)`` to open the original
+    variable scope and its name scope, right after the constructor of
+    :class:`VarScopeObject` has been called, for example::
+
+        class YourVarScopeObject(VarScopeObject):
+
+            def __init__(self, name=None, scope=None):
+                super(YourVarScopeObject, self).__init__(name=name, scope=scope)
+                with reopen_variable_scope(self.variable_scope):
+                    self.w = tf.get_variable('w', ...)
+
     See Also:
         :func:`tfsnippet.utils.instance_reuse`.
     """
@@ -109,51 +129,26 @@ class VarScopeObject(object):
         Construct the :class:`VarScopeObject`.
 
         Args:
-            name (str): Name of this object.  A unique variable scope name
-                would be picked up according to this argument, if `scope` is
-                not specified.  If both this argument and `scope` is not
-                specified, the underscored class name would be considered as
-                `name`.  This argument will be stored and can be accessed via
-                :attr:`name` attribute of the instance.  If not specified,
-                :attr:`name` would be :obj:`None`.
-            scope (str): Scope of this object.  If specified, it will be used
-                as the variable scope name, even if another object has already
-                taken the same scope.  That is to say, these two objects will
-                share the same variable scope.
+            name (str): Default name of the variable scope.  Will be uniquified.
+                If not specified, generate one according to the class name.
+            scope (str): The name of the variable scope.
         """
         scope = scope or None
         name = name or None
 
         if not scope and not name:
-            default_name = get_valid_name_scope_name(
+            default_name = get_default_scope_name(
                 camel_to_underscore(self.__class__.__name__))
         else:
             default_name = name
 
-        if scope is None and reuse_stack_top() is not None:
-            raise RuntimeError(
-                'It is required to specify `scope` argument when constructing '
-                'a `VarScopeObject`, if it is created inside a variable scope '
-                'opened by `global_reuse` or `instance_reuse`.'
-            )
-
         with tf.variable_scope(scope, default_name=default_name) as vs:
             self._variable_scope = vs       # type: tf.VariableScope
             self._name = name
-            self._variable_scope_created(vs)
 
     def __repr__(self):
         return '{}({!r})'.format(
             self.__class__.__name__, self.variable_scope.name)
-
-    def _variable_scope_created(self, vs):
-        """
-        Derived classes may override this to execute code right after
-        the variable scope has been created.
-
-        Args:
-            vs (tf.VariableScope): The created variable scope.
-        """
 
     @property
     def name(self):

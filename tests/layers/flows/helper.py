@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.mathops import tfops
-from tfsnippet.flows import Flow, MultiLayerFlow
+from tfsnippet.layers import BaseFlow
 
 
 def safe_pow(ops, x, e):
@@ -20,10 +20,10 @@ def quadratic_inverse_transform(ops, y, a, b):
     )
 
 
-class QuadraticFlow(Flow):
+class QuadraticFlow(BaseFlow):
 
     def __init__(self, a, b, dtype):
-        super(QuadraticFlow, self).__init__(dtype)
+        super(QuadraticFlow, self).__init__(dtype=dtype)
         self.a = a
         self.b = b
 

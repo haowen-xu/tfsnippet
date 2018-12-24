@@ -18,7 +18,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
-from tfsnippet.flows import PlanarNormalizingFlow
+from tfsnippet.layers import PlanarNormalizingFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, flatten, unflatten, create_session

@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.flows import PlanarNormalizingFlow
+from tfsnippet.layers import PlanarNormalizingFlow
 from tfsnippet.utils import int_shape, ensure_variables_initialized
 
 
@@ -25,7 +25,7 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
 
         for i in range(flow.n_layers):
             # ensure these parameters exist
-            w, u, b, u_hat = flow.get_layer_params(i, ['w', 'u', 'b', 'u_hat'])
+            w, b, u, u_hat = flow._layer_params[i]
 
             for v in [w, u, b, u_hat]:
                 self.assertIn('/_{}/'.format(i), v.name)
@@ -40,8 +40,7 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
             ensure_variables_initialized()
 
             for i in range(flow.n_layers):
-                w, u, b, u_hat = sess.run(
-                    flow.get_layer_params(i, ['w', 'u', 'b', 'u_hat']))
+                w, b, u, u_hat = sess.run(flow._layer_params[i])
                 m = lambda a: -1 + np.log(1 + np.exp(a))
                 wu = np.dot(w, u.T)  # shape: [1]
                 np.testing.assert_allclose(
@@ -71,9 +70,9 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
             # compute the ground-truth y and log_det
             y, log_det = x, 0
             for i in range(flow.n_layers):
-                u, w, b = sess.run(
-                    flow.get_layer_params(i, ['u_hat', 'w', 'b']))
-                y, tmp = transform(y, u, w, b)
+                w, b, _, u_hat = flow._layer_params[i]
+                u_hat, w, b = sess.run([u_hat, w, b])
+                y, tmp = transform(y, u_hat, w, b)
                 log_det += tmp
 
             # check the flow-derived y and log_det

@@ -2,20 +2,32 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.flows import SequentialFlow, Flow
-from tests.flows.test_base import MultiLayerQuadraticFlow
-from tests.flows.helper import QuadraticFlow, invertible_flow_standard_check
+from tfsnippet.layers import SequentialFlow, BaseFlow
+from tests.layers.flows.test_base import MultiLayerQuadraticFlow
+from tests.layers.flows.helper import QuadraticFlow, invertible_flow_standard_check
 
 
 class SequentialFlowTestCase(tf.test.TestCase):
 
     def test_errors(self):
+        class _Flow(BaseFlow):
+            pass
+
         with pytest.raises(TypeError, match='`flows` must not be empty'):
             _ = SequentialFlow([])
+
         with pytest.raises(
-                TypeError, match='The 0-th item in `flows` is not an instance '
+                TypeError, match='The 0-th flow in `flows` is not an instance '
                                  'of `Flow`: 123'):
             _ = SequentialFlow([123])
+
+        with pytest.raises(
+                TypeError, match='`value_ndims` of the 1-th flow in `flows` '
+                                 'does not agree with the first flow: 2 vs 1'):
+            _ = SequentialFlow([
+                _Flow(value_ndims=1),
+                _Flow(value_ndims=2),
+            ])
 
     def test_sequential_with_quadratic_flows(self):
         n_layers = 3
@@ -46,7 +58,7 @@ class SequentialFlowTestCase(tf.test.TestCase):
             np.testing.assert_allclose(*sess.run([log_det_x1, log_det_x2]))
 
     def test_property(self):
-        class _Flow(Flow):
+        class _Flow(BaseFlow):
             @property
             def explicitly_invertible(self):
                 return False

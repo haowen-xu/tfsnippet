@@ -1,12 +1,15 @@
 import tensorflow as tf
 
-from tfsnippet.utils import DocInherit, VarScopeObject
+from tfsnippet.utils import (DocInherit, assert_scalar_equal, get_rank,
+                             control_deps, add_name_and_scope_arg_doc,
+                             get_default_scope_name, add_n_broadcast)
+from ..base import BaseLayer
 
-__all__ = ['Flow', 'MultiLayerFlow']
+__all__ = ['BaseFlow', 'MultiLayerFlow']
 
 
 @DocInherit
-class Flow(VarScopeObject):
+class BaseFlow(BaseLayer):
     """
     The basic class for normalizing flows.
 
@@ -16,22 +19,32 @@ class Flow(VarScopeObject):
     can derive :math:`\\log p(y)` from given :math:`\\log p(x)`.
     """
 
-    def __init__(self, dtype=tf.float32, name=None, scope=None):
+    @add_name_and_scope_arg_doc
+    def __init__(self, value_ndims=0, dtype=tf.float32, name=None, scope=None):
         """
         Construct a new :class:`Flow`.
 
         Args:
+            value_ndims (int): Number of dimensions to be considered as the
+                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
             dtype: The data type of the transformed `y`.
-            name (str): Optional name of this :class:`Flow`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-            scope (str): Optional scope of this :class:`Flow`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         """
+        super(BaseFlow, self).__init__(name=name, scope=scope)
+
         dtype = tf.as_dtype(dtype)
         if not dtype.is_floating:
             raise TypeError('Expected a float dtype, but got {}.'.format(dtype))
+
+        self._value_ndims = int(value_ndims)
         self._dtype = dtype
-        super(Flow, self).__init__(name=name, scope=scope)
+
+    @property
+    def value_ndims(self):
+        """
+        Get the number of dimensions to be considered as the value of each
+        sample of `x`.
+        """
+        return self._value_ndims
 
     @property
     def dtype(self):
@@ -75,6 +88,7 @@ class Flow(VarScopeObject):
                 log-determinant?  Default :obj:`True`.
             name (str): If specified, will use this name as the TensorFlow
                 operational name scope.
+            \\**kwargs: Other named arguments.
 
         Returns:
             (tf.Tensor, tf.Tensor): `y` and the log-determinant.
@@ -88,12 +102,24 @@ class Flow(VarScopeObject):
         if not compute_y and not compute_log_det:
             raise RuntimeError('At least one of `compute_y` and '
                                '`compute_log_det` should be True.')
+
         x = tf.convert_to_tensor(x)
         if x.dtype != self.dtype:
             x = tf.cast(x, self.dtype)
-        def_name = '{}.transform'.format(self.__class__.__name__)
-        with tf.name_scope(name, default_name=def_name, values=[x]):
-            return self._transform(x, compute_y, compute_log_det)
+        with tf.name_scope(
+                name,
+                default_name=get_default_scope_name('transform', self),
+                values=[x]):
+            y, log_det = self._transform(x, compute_y, compute_log_det)
+
+            if log_det is not None and self.value_ndims is not None:
+                log_det_assert = assert_scalar_equal(
+                    get_rank(log_det) + self.value_ndims, get_rank(x))
+                with control_deps([log_det_assert]) as have_assert:
+                    if have_assert:  # pragma: no cover
+                        log_det = tf.identity(log_det)
+
+            return y, log_det
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
         raise NotImplementedError()
@@ -129,28 +155,46 @@ class Flow(VarScopeObject):
         if not compute_x and not compute_log_det:
             raise RuntimeError('At least one of `compute_x` and '
                                '`compute_log_det` should be True.')
+
         y = tf.convert_to_tensor(y)
         if y.dtype != self.dtype:
             y = tf.cast(y, self.dtype)
-        def_name = '{}.inverse_transform'.format(self.__class__.__name__)
-        with tf.name_scope(name, default_name=def_name, values=[y]):
-            return self._inverse_transform(y, compute_x, compute_log_det)
+        with tf.name_scope(
+                name,
+                default_name=get_default_scope_name('inverse_transform', self),
+                values=[y]):
+            x, log_det = self._inverse_transform(y, compute_x, compute_log_det)
+
+            if log_det is not None and self.value_ndims is not None:
+                log_det_assert = assert_scalar_equal(
+                    get_rank(log_det) + self.value_ndims, get_rank(y))
+                with control_deps([log_det_assert]) as have_assert:
+                    if have_assert:  # pragma: no cover
+                        log_det = tf.identity(log_det)
+
+            return x, log_det
+
+    def __call__(self, x):
+        ns = get_default_scope_name('call', self)
+        y, _ = self.transform(
+            x, compute_y=True, compute_log_det=False, name=ns)
+        return y
 
 
-class MultiLayerFlow(Flow):
+class MultiLayerFlow(BaseFlow):
     """Base class for multi-layer normalizing flows."""
 
-    def __init__(self, n_layers, dtype=tf.float32, name=None, scope=None):
+    @add_name_and_scope_arg_doc
+    def __init__(self, n_layers, value_ndims=0, dtype=tf.float32,
+                 name=None, scope=None):
         """
         Construct a new :class:`MultiLayerFlow`.
 
         Args:
+            value_ndims (int): Number of dimensions to be considered as the
+                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
             n_layers (int): Number of flow layers.
             dtype: The data type of the transformed `y`.
-            name (str): Optional name of this :class:`VariableSaver`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
-            scope (str): Optional scope of this :class:`VariableSaver`
-                (argument of :class:`~tfsnippet.utils.VarScopeObject`).
         """
         n_layers = int(n_layers)
         if n_layers < 1:
@@ -159,12 +203,7 @@ class MultiLayerFlow(Flow):
         self._layer_params = []
 
         super(MultiLayerFlow, self).__init__(
-            dtype=dtype, name=name, scope=scope)
-
-    def _variable_scope_created(self, vs):
-        for i in range(self._n_layers):
-            with tf.variable_scope('_{}'.format(i)):
-                self._layer_params.append(self._create_layer_params(i))
+            value_ndims=value_ndims, dtype=dtype, name=name, scope=scope)
 
     @property
     def n_layers(self):
@@ -175,32 +214,6 @@ class MultiLayerFlow(Flow):
             int: The number of flow layers.
         """
         return self._n_layers
-
-    def _create_layer_params(self, layer_id):
-        """
-        Create layer
-
-        Args:
-            layer_id (int): The integer ID of the layer.
-
-        Returns:
-            dict[str, tf.Variable or tf.Tensor]: The layer parameters.
-        """
-        raise NotImplementedError()
-
-    def get_layer_params(self, layer_id, names):
-        """
-        Get layer parameters.
-
-        Args:
-            layer_id (int): The integer ID of the layer.
-            names (Iterable[str]): The names of the parameters to get.
-
-        Returns:
-            list[tf.Variable or tf.Tensor]: The layer parameters.
-        """
-        layer_params = self._layer_params[layer_id]
-        return [layer_params[n] for n in names]
 
     def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
         raise NotImplementedError()
@@ -222,7 +235,7 @@ class MultiLayerFlow(Flow):
         # merge the log-determinants
         log_det = None
         if compute_log_det:
-            log_det = tf.add_n(log_det_list)
+            log_det = add_n_broadcast(log_det_list)
 
         y = x if compute_y else None
         return y, log_det
@@ -247,7 +260,7 @@ class MultiLayerFlow(Flow):
         # merge the log-determinants
         log_det = None
         if compute_log_det:
-            log_det = tf.add_n(log_det_list)
+            log_det = add_n_broadcast(log_det_list)
 
         x = y if compute_x else None
         return x, log_det

@@ -2,6 +2,7 @@ import os
 import unittest
 from threading import Thread
 
+import pytest
 from mock import Mock
 import numpy as np
 
@@ -240,6 +241,60 @@ class ContextStackTestCase(unittest.TestCase):
         # pop the first layer
         stack.pop()
         self.assertIsNone(stack.top())
+
+
+class ArgValidationTestCase(unittest.TestCase):
+
+    def test_validate_enum_arg(self):
+        # test good cases
+        def good_case(value, choices, nullable):
+            self.assertEqual(
+                validate_enum_arg('arg', value, choices, nullable),
+                value
+            )
+
+        good_case(1, (1, 2, 3), True)
+        good_case(None, (1, 2, 3), True)
+        good_case(1, (1, 2, None), False)
+        good_case(None, (1, 2, None), False)
+
+        # test error cases
+        def error_case(value, choices, nullable):
+            choices = tuple(choices)
+            err_msg = 'Invalid value for argument `arg`: expected to be one ' \
+                      'of {!r}, but got {!r}'.format(choices, value)
+            err_msg = err_msg.replace('(', '\\(')
+            err_msg = err_msg.replace(')', '\\)')
+            with pytest.raises(ValueError, match=err_msg):
+                _ = validate_enum_arg('arg', value, choices, nullable)
+
+        error_case(4, (1, 2, 3), True)
+        error_case(4, (1, 2, 3), False)
+        error_case(None, (1, 2, 3), False)
+
+    def test_validate_int_or_int_tuple_arg(self):
+        # test good cases
+        def good_case(value, expected):
+            self.assertEqual(validate_int_or_int_tuple_arg('arg', value),
+                             expected)
+
+        good_case(1, (1,))
+        good_case((1, 2), (1, 2))
+        good_case(iter((1, 2)), (1, 2))
+        good_case([1, 2], (1, 2))
+
+        # test error cases
+        def error_case(value):
+            err_msg = 'Invalid value for argument `arg`: expected to be a ' \
+                      'tuple of integers, but got {!r}'.format(value)
+            err_msg = err_msg.replace('(', '\\(')
+            err_msg = err_msg.replace(')', '\\)')
+            with pytest.raises(ValueError, match=err_msg):
+                _ = validate_int_or_int_tuple_arg('arg', value)
+
+        error_case(None)
+        error_case('x')
+        error_case(('x', 1))
 
 
 if __name__ == '__main__':

@@ -4,10 +4,10 @@ import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.bayes import BayesianNet
-from tfsnippet.distributions import Normal
-from tfsnippet.flows import Flow, FlowDistribution
+from tfsnippet.distributions import Normal, FlowDistribution
+from tfsnippet.layers import BaseFlow
 from tfsnippet.stochastic import StochasticTensor
-from tests.flows.helper import QuadraticFlow
+from tests.layers.flows.helper import QuadraticFlow
 
 
 class BayesianNetTestCase(tf.test.TestCase):
@@ -98,7 +98,7 @@ class BayesianNetTestCase(tf.test.TestCase):
         self.assertIs(x.distribution.flow, flow)
 
         # ensure non-invertible flow cannot be added with observed var
-        class _Flow(Flow):
+        class _Flow(BaseFlow):
             @property
             def explicitly_invertible(self):
                 return False

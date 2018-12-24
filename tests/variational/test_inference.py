@@ -5,7 +5,7 @@ import pytest
 import tensorflow as tf
 import zhusuan as zs
 
-from tfsnippet.utils import ensure_variables_initialized
+from tfsnippet.utils import ensure_variables_initialized, add_n_broadcast
 from tfsnippet.variational import *
 
 
@@ -45,7 +45,7 @@ class VariationalInferenceTestCase(tf.test.TestCase):
 
         def log_joint_func(observed):
             net = model_func(observed)
-            return tf.add_n(net.local_log_prob(['z', 'x']))
+            return add_n_broadcast(net.local_log_prob(['z', 'x']))
 
         # derive :class:`zhusuan.variational.VariationalObjective`
         # by ZhuSuan utilities

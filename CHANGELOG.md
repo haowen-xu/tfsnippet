@@ -9,12 +9,13 @@ This version introduces breaking changes. Existing code might better stick to [v
 
 ### Added
 - `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
+- `tfsnippet.layers` package, including layers (`dense`), normalizers (`act_norm`, `weight_norm`) and flows.
 
 ### Changed
-- `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.
-  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
-- Constructing a `VarScopeObject` within a method or a function decorated by `global_reuse` or `instance_reuse` has been totally disallowed.
+- `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
 - `Trainer` now accepts `summaries` argument on construction.
+- `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
+  can be directly found under `tfsnippet.layers` namespace.
 
 ### Removed
 - The `modules` package is now purged out of this project totally, including the `VAE` class.

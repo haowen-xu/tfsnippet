@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-from tfsnippet.utils import DocInherit, get_valid_name_scope_name
+from tfsnippet.utils import DocInherit, get_default_scope_name
 
 __all__ = ['Distribution']
 
@@ -137,7 +137,7 @@ class Distribution(object):
             compute_density (bool): Whether or not to immediately compute the
                 log-density for the samples? (default :obj:`None`, determine by
                 the distribution class itself)
-            name (str): TensorFlow name scope of the graph nodes.
+            name: TensorFlow name scope of the graph nodes.
                 (default "sample").
 
         Returns:
@@ -155,7 +155,7 @@ class Distribution(object):
             group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
                 dimensions of the log-densities will be summed up.
                 (default 0)
-            name (str): TensorFlow name scope of the graph nodes.
+            name: TensorFlow name scope of the graph nodes.
                 (default "log_prob").
 
         Returns:
@@ -171,12 +171,12 @@ class Distribution(object):
             given (Tensor): The samples to be tested.
             group_ndims (int or tf.Tensor): If specified, the last `group_ndims`
                 dimensions of the log-densities will be summed up. (default 0)
-            name (str): TensorFlow name scope of the graph nodes.
+            name: TensorFlow name scope of the graph nodes.
                 (default "prob").
 
         Returns:
             tf.Tensor: The densities of `given`.
         """
         with tf.name_scope(
-                name, default_name=get_valid_name_scope_name('prob', self)):
+                name, default_name=get_default_scope_name('prob', self)):
             return tf.exp(self.log_prob(given, group_ndims=group_ndims))

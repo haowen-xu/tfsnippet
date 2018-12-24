@@ -32,7 +32,7 @@ API Docs
    api/tfsnippet.dataflow
    api/tfsnippet.distributions
    api/tfsnippet.examples
-   api/tfsnippet.flows
+   api/tfsnippet.layers
    api/tfsnippet.mathops
    api/tfsnippet.preprocessing
    api/tfsnippet.scaffold
