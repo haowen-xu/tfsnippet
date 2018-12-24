@@ -1,3 +1,4 @@
+import six
 import tensorflow as tf
 
 from .doc_utils import DocInherit
@@ -5,6 +6,13 @@ from .shape_utils import int_shape
 from .type_utils import is_integer
 
 __all__ = ['InputSpec', 'ParamSpec']
+
+
+def _try_parse_int(x):
+    try:
+        return int(x)
+    except (ValueError, TypeError):
+        return None
 
 
 @DocInherit
@@ -24,6 +32,9 @@ class _TensorSpec(object):
                 *  A positive integer: indicates a dimension with known size.
 
                 *  -1, :obj:`None`, or '?': indicates a dimension with any size.
+
+                * str(a positive integer) + '?': indicate a dimension with
+                    known size equal to the number, or unknown size.
 
                 * '*': indicates a dimension with any DETERMINED size.
 
@@ -48,6 +59,11 @@ class _TensorSpec(object):
                     allow_more_dims = True
                 elif s == '?' or s is None or s == -1:
                     value_shape.append('?')
+                elif isinstance(s, six.string_types) and \
+                        s.endswith('?') and \
+                        _try_parse_int(s[:-1]) is not None and \
+                        _try_parse_int(s[:-1]) > 0:
+                    value_shape.append(s)
                 elif s == '*':
                     value_shape.append('*')
                 elif is_integer(s) and s > 0:
@@ -163,7 +179,13 @@ class _TensorSpec(object):
                 if b == '*':
                     if a is None:
                         raise_error()
-                elif b != '?':
+                elif b == '?':
+                    pass
+                elif isinstance(b, six.string_types) and b.endswith('?'):
+                    if a is not None and a != int(b[:-1]):
+                        raise_error()
+                else:  # b is an integer
+                    assert(is_integer(b))
                     if a != b:
                         raise_error()
 

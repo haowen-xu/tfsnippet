@@ -1,9 +1,13 @@
+import functools
+
 import tensorflow as tf
 
+from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
     'int_shape', 'flatten', 'unflatten', 'get_batch_size', 'get_rank',
+    'get_shape', 'get_dimensions_size', 'concat_shapes',
 ]
 
 
@@ -28,6 +32,7 @@ def int_shape(tensor):
     return shape
 
 
+@add_name_arg_doc
 def flatten(x, k, name=None):
     """
     Flatten the front dimensions of `x`, such that the resulting tensor
@@ -36,7 +41,6 @@ def flatten(x, k, name=None):
     Args:
         x (Tensor): The tensor to be flatten.
         k (int): The maximum number of dimensions for the resulting tensor.
-        name (str or None): Name of this operation.
 
     Returns:
         (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or (tf.Tensor, None, None):
@@ -80,6 +84,7 @@ def flatten(x, k, name=None):
             return x, static_front_shape, front_shape
 
 
+@add_name_arg_doc
 def unflatten(x, static_front_shape, front_shape, name=None):
     """
     The inverse transformation of :func:`flatten`.
@@ -91,7 +96,6 @@ def unflatten(x, static_front_shape, front_shape, name=None):
         x (Tensor): The tensor to be unflatten.
         static_front_shape (tuple[int or None] or None): The static front shape.
         front_shape (tuple[int] or tf.Tensor or None): The front shape.
-        name (str or None): Name of this operation.
 
     Returns:
         tf.Tensor: The unflatten x.
@@ -123,6 +127,7 @@ def unflatten(x, static_front_shape, front_shape, name=None):
         return x
 
 
+@add_name_arg_doc
 def get_batch_size(tensor, axis=0, name=None):
     """
     Infer the mini-batch size according to `tensor`.
@@ -130,7 +135,6 @@ def get_batch_size(tensor, axis=0, name=None):
     Args:
         tensor (tf.Tensor): The input placeholder.
         axis (int): The axis of mini-batches.  Default is 0.
-        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         int or tf.Tensor: The batch size.
@@ -163,3 +167,60 @@ def get_rank(tensor, name=None):
     if tensor_shape is not None:
         return len(tensor_shape)
     return tf.rank(tensor, name=name)
+
+
+@add_name_arg_doc
+def get_dimensions_size(tensor, axis=None, name=None):
+    """
+    Get the size of `tensor` of specified `axis`.
+
+    If `axis` is :obj:`None`, select the size of all dimensions.
+
+    Args:
+        tensor (tf.Tensor): The tensor to be tested.
+        axis (tuple[int] or None): The dimensions to be selected.
+
+    Returns:
+        tuple[int] or tf.Tensor: A tuple of integers if all selected
+            dimensions have static sizes.  Otherwise a tensor.
+    """
+    tensor = tf.convert_to_tensor(tensor)
+
+    with tf.name_scope(name, default_name='get_dimensions_size',
+                       values=[tensor]):
+        shape = int_shape(tensor)
+        if shape is not None and axis is not None:
+            shape = [shape[a] for a in axis]
+        if shape is None or None in shape:
+            shape = tf.shape(tensor)
+            if axis is not None:
+                shape = tf.stack([shape[i] for i in axis], axis=0)
+        else:
+            shape = tuple(shape)
+        return shape
+
+
+get_shape = functools.partial(get_dimensions_size, axis=None)
+
+
+@add_name_arg_doc
+def concat_shapes(shapes, name=None):
+    """
+    Concat shapes from `shapes`.
+
+    Args:
+        shapes (Iterable[tuple[int] or tf.Tensor]): List of shape tuples
+            or tensors.
+
+    Returns:
+        tuple[int] or tf.Tensor: The concatenated shape.
+    """
+    if any(is_tensor_object(s) for s in shapes):
+        shapes = [
+            s if is_tensor_object(s) else tf.constant(s, dtype=tf.int32)
+            for s in shapes
+        ]
+        with tf.name_scope(name, default_name='concat_shapes', values=shapes):
+            return tf.concat(shapes, axis=0)
+    else:
+        return sum((tuple(s) for s in shapes), ())

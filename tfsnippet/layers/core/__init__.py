@@ -1,10 +1,10 @@
-from . import dense
+from . import dense_
 
 __all__ = sum(
     [m.__all__ for m in [
-        dense
+        dense_
     ]],
     []
 )
 
-from .dense import *
+from .dense_ import *

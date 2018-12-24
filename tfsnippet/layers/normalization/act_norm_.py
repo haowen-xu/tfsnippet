@@ -4,7 +4,8 @@ from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              int_shape, reopen_variable_scope,
-                             maybe_check_numerics)
+                             maybe_check_numerics, get_dimensions_size,
+                             get_shape, concat_shapes)
 from ..flows import BaseFlow
 from ..utils import validate_int_tuple_arg
 
@@ -45,7 +46,7 @@ class ActNorm(BaseFlow):
         Construct a new :class:`ActNorm` instance.
 
         Args:
-            var_shape (tuple[int]): The shape of the normalization variables.
+            var_shape (Iterable[int]): The shape of the normalization variables.
                 Typically, the `1`s in the `var_shape` should indicate an
                 axis to be reduced out when normalizing the input, and the
                 non-`1`s should indicate an axis of the individual features
@@ -80,18 +81,22 @@ class ActNorm(BaseFlow):
         var_indices = tuple(i - len(var_shape) for i in range(len(var_shape)))
         # all `1`s should be reduced out
         reduce_axis = tuple(i for i, s in zip(var_indices, var_shape) if s == 1)
-        # all non-`1`s should be kept
-        keep_axis = tuple(i for i, s in zip(var_indices, var_shape) if s != 1)
+        # the input shape should be ('?') for `1`s
+        input_spec = InputSpec(
+            shape=('...',) + tuple(a if a != 1 else '?' for a in var_shape),
+            dtype=dtype
+        )
 
         self._var_shape = var_shape
         self._var_spec = var_spec
+        self._input_spec = input_spec
         self._reduce_axis = reduce_axis
-        self._kept_axis = keep_axis
         self._use_log_scale = use_log_scale
         self._epsilon = epsilon
         self._initialized = not initializing
 
-        super(ActNorm, self).__init__(
+        BaseFlow.__init__(
+            self,
             value_ndims=len(var_shape),
             dtype=dtype,
             name=name,
@@ -129,6 +134,10 @@ class ActNorm(BaseFlow):
                 )
 
     @property
+    def explicitly_invertible(self):
+        return True
+
+    @property
     def var_shape(self):
         """
         Get the shape of the normalization variables.
@@ -139,18 +148,17 @@ class ActNorm(BaseFlow):
         return self._var_shape
 
     def _check_shape(self, x):
-        input_spec = InputSpec(shape=('...',) + self.var_shape,
-                               dtype=self.dtype)
-        x = input_spec.validate(x)
+        x = self._input_spec.validate(x)
         shape = int_shape(x)
-
         reduce_axis = self._reduce_axis
         if len(shape) > len(self.var_shape):
-            reduce_axis += tuple(
+            front_axis = tuple(
                 -i - len(self.var_shape) - 1
                 for i in range(len(shape) - len(self.var_shape))
             )
-
+        else:
+            front_axis = ()
+        reduce_axis += front_axis
         return x, shape, reduce_axis
 
     def _transform(self, x, compute_y, compute_log_det):
@@ -159,6 +167,13 @@ class ActNorm(BaseFlow):
 
         # prepare for the parameters
         if not self._initialized:
+            if len(shape) == len(self.var_shape):
+                raise TypeError('Initializing ActNorm requires multiple '
+                                '`x` samples, thus `x` must have at least '
+                                'one more dimension than `var_shape`: '
+                                'x.shape {} vs var_shape {}.'.
+                                format(shape, self.var_shape))
+
             with tf.name_scope('initialization'):
                 x_mean = tf.reshape(
                     tf.reduce_mean(x, axis=reduce_axis, keepdims=True),
@@ -193,58 +208,82 @@ class ActNorm(BaseFlow):
             log_scale = self._log_scale
 
         # compute y
+        y = None
         if compute_y:
             if log_scale is not None:
                 y = (x + bias) * tf.exp(log_scale, name='scale')
             else:
                 y = (x + bias) * scale
-        else:
-            y = None
 
         # compute log_det
+        log_det = None
         if compute_log_det:
             if log_scale is None:
                 log_scale = tf.log(tf.abs(scale), name='log_scale')
             # the reduce axis has been averaged out, thus the log-det computed
             # from log_scale is smaller than the real log-det by this factor.
-            log_det_factor = tf.constant(
-                np.prod(shape[i] for i in reduce_axis), dtype=log_scale.dtype)
+            local_reduce_shape = get_dimensions_size(x, self._reduce_axis)
+            if isinstance(local_reduce_shape, tuple):
+                log_det_factor = np.prod(local_reduce_shape, dtype=np.float32)
+            else:
+                log_det_factor = tf.cast(
+                    tf.reduce_prod(local_reduce_shape), dtype=log_scale.dtype)
             log_det = tf.reduce_sum(log_scale) * log_det_factor
-        else:
-            log_det = None
+
+            # `rank(log_det) == len([s for s in var_shape if s != 1])`,
+            # but this is not expected by the Flow, which requires
+            # `rank(log_det) == rank(x) - value_ndims`.
+            # since `value_ndims == len([s for s in var_shape if s != 1])`,
+            # we need to expand the dimension of `log_det` at the front
+            if len(shape) > len(self.var_shape):
+                log_det_shape = concat_shapes([
+                    [1] * (len(shape) - len(self.var_shape)),
+                    get_shape(log_det)
+                ])
+                log_det = tf.reshape(log_det, log_det_shape)
 
         return y, log_det
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
         if not self._initialized:
-            raise RuntimeError('ActNorm layer {!r} has not been initialized '
-                               'by data.'.format(self))
+            raise RuntimeError('{!r} has not been initialized by data.'.
+                               format(self))
 
         # check the argument
         y, shape, reduce_axis = self._check_shape(y)
 
         # compute x
+        x = None
         if compute_x:
             if self._use_log_scale:
-                x = y * tf.exp(-self._use_log_scale) - self._bias
+                x = y * tf.exp(-self._log_scale) - self._bias
             else:
                 x = y / self._scale - self._bias
-        else:
-            x = None
 
         # compute log_det
+        log_det = None
         if compute_log_det:
             if self._use_log_scale:
                 log_scale = self._log_scale
             else:
                 log_scale = tf.log(tf.abs(self._scale), name='log_scale')
-            # the reduce axis has been averaged out, thus the log-det computed
-            # from log_scale is smaller than the real log-det by this factor.
-            log_det_factor = tf.constant(
-                np.prod(shape[i] for i in reduce_axis), dtype=log_scale.dtype)
+
+            # see `_transform`
+            local_reduce_shape = get_dimensions_size(x, self._reduce_axis)
+            if isinstance(local_reduce_shape, tuple):
+                log_det_factor = np.prod(local_reduce_shape, dtype=np.float32)
+            else:
+                log_det_factor = tf.cast(
+                    tf.reduce_prod(local_reduce_shape), dtype=log_scale.dtype)
             log_det = -tf.reduce_sum(log_scale) * log_det_factor
-        else:
-            log_det = None
+
+            # see `_transform`
+            if len(shape) > len(self.var_shape):
+                log_det_shape = concat_shapes([
+                    [1] * (len(shape) - len(self.var_shape)),
+                    get_shape(log_det)
+                ])
+                log_det = tf.reshape(log_det, log_det_shape)
 
         return x, log_det
 
@@ -256,8 +295,8 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
 
     Args:
         input (tf.Tensor): The input tensor.
-        axis (int or tuple[int]): The axis to apply ActNorm.
-            Dimensions not in `axis will be averaged out when computing
+        axis (int or Iterable[int]): The axis to apply ActNorm.
+            Dimensions not in `axis` will be averaged out when computing
             the mean of activations. Default `-1`, the last dimension.
         value_ndims (int): The number of dimensions for each input sample.
             The other dimensions will be regarded as mini-batch dimension
@@ -303,5 +342,5 @@ def act_norm_conv2d(input, channels_last=False, **kwargs):
             where the last 3 dimensions are the image pixels.
         channels_last (bool): Whether or not the last dimension is the channel?
     """
-    axis = -1 if channels_last else -3
+    axis = -1 if bool(channels_last) else -3
     return act_norm(input, axis=axis, value_ndims=3, **kwargs)
