@@ -219,7 +219,6 @@ def main(result_dir):
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)
             trainer.log_after_epochs(freq=1)
-            # trainer.log_after_steps(freq=1)
             trainer.run()
 
     # print the final metrics and close the results object

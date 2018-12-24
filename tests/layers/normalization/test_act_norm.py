@@ -306,7 +306,8 @@ class ActNormFuncTestCase(tf.test.TestCase):
             _ = act_norm(x, axis=(), value_ndims=0, epsilon=.5)
             args, kwargs, o = captured[0]
             self.assertTupleEqual(args, ())
-            self.assertDictEqual(kwargs, {'var_shape': (), 'epsilon': .5})
+            self.assertDictEqual(kwargs, {'var_shape': (), 'epsilon': .5,
+                                          'dtype': tf.float32})
             self.assertEqual(o._epsilon, .5)
 
         # test len(var_shape) == 1
@@ -324,7 +325,8 @@ class ActNormFuncTestCase(tf.test.TestCase):
             args, kwargs, o = captured[0]
             self.assertTupleEqual(args, ())
             self.assertDictEqual(
-                kwargs, {'var_shape': (4, 1, 2), 'trainable': False})
+                kwargs, {'var_shape': (4, 1, 2), 'trainable': False,
+                         'dtype': tf.float32})
             self.assertNotIn(
                 o._bias, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
 

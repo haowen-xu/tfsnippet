@@ -27,7 +27,6 @@ def dense(input, units,
           bias_regularizer=None,
           bias_constraint=None,
           trainable=True,
-          dtype=tf.float32,
           name=None,
           scope=None):
     """
@@ -67,12 +66,13 @@ def dense(input, units,
         bias_regularizer: The regularizer for `bias`.
         bias_constraint: The constraint for `bias`.
         trainable: Whether or not the parameters are trainable?
-        dtype: Data type of the parameters and input/output.
 
     Returns:
         tf.Tensor: The output tensor.
     """
     # check the arguments
+    input = tf.convert_to_tensor(input)
+    dtype = input.dtype.base_dtype
     input_spec = InputSpec(shape=('...', '?', '*'), dtype=dtype)
     input = input_spec.validate(input)
     input_shape = int_shape(input)
@@ -129,7 +129,7 @@ def dense(input, units,
                 output = tf.nn.bias_add(output, bias)
         else:
             output, s1, s2 = flatten(input, 2)
-            output = tf.matmul(input, kernel)
+            output = tf.matmul(output, kernel)
             if use_bias:
                 output = tf.nn.bias_add(output, bias)
             output = unflatten(output, s1, s2)

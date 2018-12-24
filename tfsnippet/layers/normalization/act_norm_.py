@@ -311,6 +311,7 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
     # check the arguments.
     axis = validate_int_or_int_tuple_arg('axis', axis)
     input = tf.convert_to_tensor(input)
+    dtype = input.dtype.base_dtype
     shape = int_shape(input)
     if shape is None:
         raise TypeError('The ndims of `input` must be known.')
@@ -328,6 +329,7 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
     else:
         var_shape = ()
 
+    kwargs.setdefault('dtype', dtype)
     layer = ActNorm(var_shape=var_shape, **kwargs)
     return layer(input)
 
