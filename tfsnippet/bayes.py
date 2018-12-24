@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict
 
 import six
@@ -378,6 +379,13 @@ class BayesianNet(object):
             n: t
             for n, t in zip(latent_names, self.outputs(latent_names))
         })
+
+        for n in self:
+            if n not in latent_names:  # pragma: no cover
+                warnings.warn('The stochastic tensor `{}` in {!r} is not fed '
+                              'into `model_builder` as observed variable when '
+                              'building the variational chain.'.
+                              format(n, self))
 
         # build the model and its log-joint
         model_and_log_joint = model_builder(merged_obs, **kwargs)

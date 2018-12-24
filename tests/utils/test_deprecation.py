@@ -1,10 +1,12 @@
 import unittest
 import warnings
 
+import pytest
+
 from tfsnippet.utils import *
 
 
-class DeprecatedTestCase(unittest.TestCase):
+class DeprecationTestCase(unittest.TestCase):
 
     def test_deprecated_class_and_method(self):
         @deprecated('use `YourClass` instead.', version='1.2.3')
@@ -101,3 +103,39 @@ class DeprecatedTestCase(unittest.TestCase):
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
             self.assertIn('Function `your_func` is deprecated.',
                           str(w[-1].message))
+
+    def test_deprecated_arg(self):
+        @deprecated_arg('a', 'b', version='1.2.3')
+        def my_func(b, c):
+            return b, c
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.assertEqual(my_func(b=1, c=2), (1, 2))
+            self.assertEqual(len(w), 0)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.assertEqual(my_func(a=1, c=2), (1, 2))
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertIn('In function `my_func`: argument `a` is deprecated '
+                          'since 1.2.3, use `b` instead', str(w[-1].message))
+
+        with pytest.raises(
+                TypeError, match='You should not specify the deprecated '
+                                 'argument `a` and its replacement `b` '
+                                 'at the same time.'):
+            _ = my_func(a=1, b=2, c=3)
+
+        @deprecated_arg('a', 'b')
+        def no_version(b, c):
+            return b, c
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.assertEqual(no_version(a=1, c=2), (1, 2))
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertIn('In function `no_version`: argument `a` is '
+                          'deprecated, use `b` instead', str(w[-1].message))

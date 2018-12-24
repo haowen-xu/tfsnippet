@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from tfsnippet.utils import (DocInherit, assert_scalar_equal, get_rank,
                              control_deps, add_name_and_scope_arg_doc,
-                             get_default_scope_name)
+                             get_default_scope_name, add_n_broadcast)
 from ..base import BaseLayer
 
 __all__ = ['BaseFlow', 'MultiLayerFlow']
@@ -235,7 +235,7 @@ class MultiLayerFlow(BaseFlow):
         # merge the log-determinants
         log_det = None
         if compute_log_det:
-            log_det = tf.add_n(log_det_list)
+            log_det = add_n_broadcast(log_det_list)
 
         y = x if compute_y else None
         return y, log_det
@@ -260,7 +260,7 @@ class MultiLayerFlow(BaseFlow):
         # merge the log-determinants
         log_det = None
         if compute_log_det:
-            log_det = tf.add_n(log_det_list)
+            log_det = add_n_broadcast(log_det_list)
 
         x = y if compute_x else None
         return x, log_det

@@ -6,9 +6,12 @@ from contextlib import contextmanager
 
 import numpy as np
 
+from .type_utils import is_integer
+
 __all__ = [
     'humanize_duration', 'camel_to_underscore', 'maybe_close',
-    'iter_files', 'ETA', 'ContextStack',
+    'iter_files', 'ETA', 'ContextStack', 'validate_enum_arg',
+    'validate_int_or_int_tuple_arg',
 ]
 
 
@@ -224,3 +227,53 @@ class ContextStack(object):
         items = self.items
         if items:
             return items[-1]
+
+
+def validate_enum_arg(arg_name, arg_value, choices, nullable=False):
+    """
+    Validate the value of a enumeration argument.
+
+    Args:
+        arg_name: Name of the argument.
+        arg_value: Value of the argument.
+        choices: Valid choices of the argument value.
+        nullable: Whether or not the argument can be None?
+
+    Returns:
+        The validated argument value.
+
+    Raises:
+        ValueError: If `arg_value` is not valid.
+    """
+    choices = tuple(choices)
+
+    if not (nullable and arg_value is None) and (arg_value not in choices):
+        raise ValueError('Invalid value for argument `{}`: expected to be one '
+                         'of {!r}, but got {!r}.'.
+                         format(arg_name, choices, arg_value))
+
+    return arg_value
+
+
+def validate_int_or_int_tuple_arg(arg_name, arg_value):
+    """
+    Validate an integer or a tuple of integers.
+
+    Args:
+        arg_name (str): Name of the argument.
+        arg_value (int or Iterable[int]): An integer, or an iterable collection
+            of integers, to be casted into tuples of integers.
+
+    Returns:
+        tuple[int]: The tuple of integers.
+    """
+    if is_integer(arg_value):
+        arg_value = (arg_value,)
+    else:
+        try:
+            arg_value = tuple(int(v) for v in arg_value)
+        except (ValueError, TypeError):
+            raise ValueError('Invalid value for argument `{}`: expected to be '
+                             'a tuple of integers, but got {!r}.'.
+                             format(arg_name, arg_value))
+    return arg_value

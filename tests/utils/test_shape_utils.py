@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.utils import flatten, unflatten, int_shape, get_batch_size
+from tfsnippet.utils import *
 
 
 class IntShapeTestCase(tf.test.TestCase):
@@ -12,6 +12,19 @@ class IntShapeTestCase(tf.test.TestCase):
         self.assertEqual(int_shape(tf.placeholder(tf.float32, [None, 2, 3])),
                          (None, 2, 3))
         self.assertIsNone(int_shape(tf.placeholder(tf.float32, None)))
+
+
+class ResolveNegativeAxisTestCase(tf.test.TestCase):
+
+    def test_resolve_negative_axis(self):
+        # good case
+        self.assertEqual(resolve_negative_axis(4, (0, 1, 2)), (0, 1, 2))
+        self.assertEqual(resolve_negative_axis(4, (0, -1, -2)), (0, 3, 2))
+
+        # bad case
+        with pytest.raises(ValueError, match='`axis` out of range: \\(-5,\\) '
+                                             'vs ndims 4.'):
+            _ = resolve_negative_axis(4, (-5,))
 
 
 class FlattenUnflattenTestCase(tf.test.TestCase):
@@ -134,3 +147,115 @@ class GetBatchSizeTestCase(tf.test.TestCase):
             run_check(sess, x, 1, x_in, dynamic=True)
             run_check(sess, x, 2, x_in, dynamic=True)
             run_check(sess, x, -1, x_in, dynamic=True)
+
+
+class GetRankTestCase(tf.test.TestCase):
+
+    def test_get_rank(self):
+        with self.test_session() as sess:
+            # test static shape
+            ph = tf.placeholder(tf.float32, (1, 2, 3))
+            self.assertEqual(get_rank(ph), 3)
+
+            # test partially dynamic shape
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            self.assertEqual(get_rank(ph), 3)
+
+            # test totally dynamic shape
+            ph = tf.placeholder(tf.float32, None)
+            self.assertEqual(
+                sess.run(get_rank(ph), feed_dict={
+                    ph: np.arange(6, dtype=np.float32).reshape((1, 2, 3))
+                }),
+                3
+            )
+
+
+class GetDimensionSizeTestCase(tf.test.TestCase):
+
+    def test_get_dimensions_size(self):
+        with self.test_session() as sess:
+            # test empty query
+            ph = tf.placeholder(tf.float32, None)
+            self.assertTupleEqual(get_dimensions_size(ph, ()), ())
+
+            # test static shape
+            ph = tf.placeholder(tf.float32, (1, 2, 3))
+            self.assertTupleEqual(get_dimensions_size(ph), (1, 2, 3))
+            self.assertTupleEqual(get_dimensions_size(ph, [0]), (1,))
+            self.assertTupleEqual(get_dimensions_size(ph, [1]), (2,))
+            self.assertTupleEqual(get_dimensions_size(ph, [2]), (3,))
+            self.assertTupleEqual(get_dimensions_size(ph, [2, 0, 1]), (3, 1, 2))
+
+            # test dynamic shape, but no dynamic axis is queried
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            self.assertTupleEqual(get_dimensions_size(ph, [0]), (1,))
+            self.assertTupleEqual(get_dimensions_size(ph, [2]), (3,))
+            self.assertTupleEqual(get_dimensions_size(ph, [2, 0]), (3, 1))
+
+            # test dynamic shape
+            def _assert_equal(a, b):
+                ph_in = np.arange(6, dtype=np.float32).reshape((1, 2, 3))
+                self.assertIsInstance(a, tf.Tensor)
+                np.testing.assert_equal(sess.run(a, feed_dict={ph: ph_in}), b)
+
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            _assert_equal(get_dimensions_size(ph), (1, 2, 3))
+            _assert_equal(get_dimensions_size(ph, [1]), (2,))
+            _assert_equal(get_dimensions_size(ph, [2, 0, 1]), (3, 1, 2))
+
+            # test fully dynamic shape
+            ph = tf.placeholder(tf.float32, None)
+            _assert_equal(get_dimensions_size(ph), (1, 2, 3))
+            _assert_equal(get_dimensions_size(ph, [0]), (1,))
+            _assert_equal(get_dimensions_size(ph, [1]), (2,))
+            _assert_equal(get_dimensions_size(ph, [2]), (3,))
+            _assert_equal(get_dimensions_size(ph, [2, 0, 1]), (3, 1, 2))
+
+    def test_get_shape(self):
+        with self.test_session() as sess:
+            # test static shape
+            ph = tf.placeholder(tf.float32, (1, 2, 3))
+            self.assertTupleEqual(get_shape(ph), (1, 2, 3))
+
+            # test dynamic shape
+            def _assert_equal(a, b):
+                ph_in = np.arange(6, dtype=np.float32).reshape((1, 2, 3))
+                self.assertIsInstance(a, tf.Tensor)
+                np.testing.assert_equal(sess.run(a, feed_dict={ph: ph_in}), b)
+
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            _assert_equal(get_shape(ph), (1, 2, 3))
+
+            # test fully dynamic shape
+            ph = tf.placeholder(tf.float32, None)
+            _assert_equal(get_shape(ph), (1, 2, 3))
+
+
+class ConcatShapesTestCase(tf.test.TestCase):
+
+    def test_concat_shapes(self):
+        with self.test_session() as sess:
+            # test empty
+            self.assertTupleEqual(concat_shapes(()), ())
+
+            # test static shapes
+            self.assertTupleEqual(
+                concat_shapes(iter([
+                    (1, 2),
+                    (3,),
+                    (),
+                    (4, 5)
+                ])),
+                (1, 2, 3, 4, 5)
+            )
+
+            # test having dynamic shape
+            shape = concat_shapes([
+                (1, 2),
+                tf.constant([3], dtype=tf.int32),
+                (),
+                tf.constant([4, 5], dtype=tf.int32),
+            ])
+            self.assertIsInstance(shape, tf.Tensor)
+            np.testing.assert_equal(sess.run(shape), (1, 2, 3, 4, 5))

@@ -142,9 +142,7 @@ def append_arg_to_doc(doc, arg_doc):
     Returns:
         str: The updated doc string.
     """
-    if not doc:
-        raise ValueError('`doc` must not be empty.')
-
+    doc = doc or ''
     section_start = re.search(r'^([ ]*)Args:[ ]*$', doc, re.M)
 
     # case #1: generate an args section

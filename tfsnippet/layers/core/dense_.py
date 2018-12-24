@@ -2,19 +2,21 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (int_shape, flatten, unflatten, InputSpec,
-                             ParamSpec, add_name_and_scope_arg_doc)
+                             ParamSpec, add_name_and_scope_arg_doc,
+                             deprecated_arg)
 from ..initialization import default_kernel_initializer
+from ..utils import validate_weight_norm_arg
 
 __all__ = ['dense']
 
 
 @add_arg_scope
 @add_name_and_scope_arg_doc
+@deprecated_arg('weight_norm_fn', 'weight_norm', version='0.2.0-a1')
 def dense(input, units,
           activation_fn=None,
           normalizer_fn=None,
-          weight_norm_fn=None,
-          dtype=tf.float32,
+          weight_norm=False,
           kernel=None,
           kernel_initializer=None,
           kernel_regularizer=None,
@@ -25,6 +27,7 @@ def dense(input, units,
           bias_regularizer=None,
           bias_constraint=None,
           trainable=True,
+          dtype=tf.float32,
           name=None,
           scope=None):
     """
@@ -40,12 +43,15 @@ def dense(input, units,
         units: Number of output units.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
-        weight_norm_fn ((kernel, axis, scale_type) -> tf.Tensor):
-            The weight normalization function.
-            It can either be :func:`~tfsnippet.layers.weight_norm`,
-            or some function that accepts ``(kernel, axis, scale_type)``
-            arguments which then calls :func:`~tfsnippet.layers.weight_norm`.
-        dtype: Data type of the parameters and input/output.
+        weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
+            If :obj:`True`, apply :func:`~tfsnippet.layers.weight_norm` on
+            `kernel`.  `use_scale` will be :obj:`True` if `normalizer_fn`
+            is not specified, and :obj:`False` otherwise.  The axis reduction
+            will be determined by the layer.
+
+            If it is a callable function, then it will be used to normalize
+            the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
+            The user must ensure the axis reduction is correct by themselves.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
@@ -61,6 +67,7 @@ def dense(input, units,
         bias_regularizer: The regularizer for `bias`.
         bias_constraint: The constraint for `bias`.
         trainable: Whether or not the parameters are trainable?
+        dtype: Data type of the parameters and input/output.
 
     Returns:
         tf.Tensor: The output tensor.
@@ -70,19 +77,22 @@ def dense(input, units,
     input = input_spec.validate(input)
     input_shape = int_shape(input)
 
-    if use_bias is None:
-        use_bias = normalizer_fn is None
+    weight_norm_fn = validate_weight_norm_arg(
+        weight_norm, axis=-1, use_scale=normalizer_fn is not None)
 
     kernel_spec = ParamSpec(shape=(input_shape[-1], units), dtype=dtype)
-    bias_spec = ParamSpec(shape=(units,), dtype=dtype)
     if kernel is not None:
         kernel = kernel_spec.validate(kernel)
-    if bias is not None:
-        bias = bias_spec.validate(bias)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(
             use_weight_norm=weight_norm_fn is not None
         )
+
+    if use_bias is None:
+        use_bias = normalizer_fn is None
+    bias_spec = ParamSpec(shape=(units,), dtype=dtype)
+    if bias is not None:
+        bias = bias_spec.validate(bias)
 
     # the main part of the dense layer
     with tf.variable_scope(scope, default_name=name or 'dense'):
@@ -99,7 +109,7 @@ def dense(input, units,
             )
 
         if weight_norm_fn is not None:
-            kernel = weight_norm_fn(kernel, -1, None)
+            kernel = weight_norm_fn(kernel)
 
         if use_bias and bias is None:
             bias = tf.get_variable(

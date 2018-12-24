@@ -1,48 +1,33 @@
-from tfsnippet.utils import is_integer
+import functools
 
-__all__ = ['validate_int_tuple_arg', 'resolve_negative_axis']
+from .normalization import weight_norm as weight_norm_fn
+
+__all__ = ['validate_weight_norm_arg']
 
 
-def validate_int_tuple_arg(arg_name, value):
+def validate_weight_norm_arg(weight_norm, axis, use_scale):
     """
-    Validate the specified argument as a tuple of integers.
+    Validate the specified `weight_norm` argument.
 
     Args:
-        arg_name (str): Name of the argument.
-        value (int or Iterable[int]): An integer, or an iterable collection
-            of integers, to be casted into tuples of integers.
+        weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
+            If :obj:`True`, wraps :func:`~tfsnippet.layers.weight_norm`
+            with `axis` and `use_scale` argument.  If a callable function,
+            it will be returned directly.
+        axis (int): The axis argument for `weight_norm`.
+        use_scale (bool): The `use_scale` argument for `weight_norm`.
 
     Returns:
-        tuple[int]: The tuple of integers.
+        None or (tf.Tensor) -> tf.Tensor: The weight normalization function,
+            or None if weight normalization is not enabled.
     """
-    if is_integer(value):
-        value = (value,)
+    if callable(weight_norm):
+        return weight_norm
+    elif weight_norm is True:
+        return functools.partial(weight_norm_fn, axis=axis, use_scale=use_scale)
+    elif weight_norm is False:
+        return None
     else:
-        try:
-            value = tuple(int(v) for v in value)
-        except (ValueError, TypeError):
-            raise TypeError('`{}` cannot be converted to a tuple of integers: '
-                            '{!r}'.format(arg_name, value))
-    return value
-
-
-def resolve_negative_axis(ndims, axis):
-    """
-    Resolve all negative `axis` indices.
-
-    Args:
-        ndims (int): Number of total dimensions.
-        axis (tuple[int]): The axis indices.
-
-    Returns:
-        tuple[int]: The resolved axis indices.
-    """
-    axis = tuple(int(a) for a in axis)
-    ret = []
-    for a in axis:
-        a += ndims
-        if a < 0 or a >= ndims:
-            raise ValueError('`axis` out of range: {} vs ndims {}.'.
-                             format(axis, ndims))
-        ret.append(a)
-    return tuple(ret)
+        raise TypeError('Invalid value for argument `weight_norm`: expected '
+                        'a bool or a callable function, got {!r}.'.
+                        format(weight_norm))

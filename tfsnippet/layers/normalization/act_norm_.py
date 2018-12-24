@@ -5,9 +5,9 @@ from tensorflow.contrib.framework import add_arg_scope
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              int_shape, reopen_variable_scope,
                              maybe_check_numerics, get_dimensions_size,
-                             get_shape, concat_shapes)
+                             get_shape, concat_shapes, validate_enum_arg,
+                             validate_int_or_int_tuple_arg)
 from ..flows import BaseFlow
-from ..utils import validate_int_tuple_arg
 
 
 __all__ = ['ActNorm', 'act_norm', 'act_norm_conv2d']
@@ -30,7 +30,6 @@ class ActNorm(BaseFlow):
     def __init__(self,
                  var_shape,
                  initializing=False,
-                 epsilon=1e-6,
                  scale_type='log_scale',
                  bias_regularizer=None,
                  bias_constraint=None,
@@ -39,6 +38,7 @@ class ActNorm(BaseFlow):
                  scale_regularizer=None,
                  scale_constraint=None,
                  trainable=True,
+                 epsilon=1e-6,
                  dtype=tf.float32,
                  name=None,
                  scope=None):
@@ -60,7 +60,6 @@ class ActNorm(BaseFlow):
             initializing (bool): Whether or not to use the first input `x`
                 in the forward pass to initialize the layer parameters?
                 (default :obj:`True`)
-            epsilon: Small float added to variance to avoid dividing by zero.
             scale_type: One of {"log_scale", "scale"}.
                 If "log_scale", ``y = (x + bias) * tf.exp(log_scale)``.
                 If "scale", ``y = (x + bias) * scale``.
@@ -72,13 +71,13 @@ class ActNorm(BaseFlow):
             scale_regularizer: The regularizer for `scale`.
             scale_constraint: The constraint for `scale`.
             trainable (bool): Whether or not the variables are trainable?
+            epsilon: Small float added to variance to avoid dividing by zero.
             dtype: The data type of the transformed `y`.
         """
-        if scale_type not in ('scale', 'log_scale'):
-            raise ValueError('`scale_type` must one of {{"scale", "log_scale"'
-                             '}}: got {!r}.'.format(scale_type))
+        scale_type = validate_enum_arg(
+            'scale_type', scale_type, ['scale', 'log_scale'])
 
-        var_shape = validate_int_tuple_arg('var_shape', var_shape)
+        var_shape = validate_int_or_int_tuple_arg('var_shape', var_shape)
         var_spec = ParamSpec(var_shape)
 
         # for each dimension in var_shape, generate its negative index
@@ -310,7 +309,7 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
         tf.Tensor: The output after the ActNorm has been applied.
     """
     # check the arguments.
-    axis = validate_int_tuple_arg('axis', axis)
+    axis = validate_int_or_int_tuple_arg('axis', axis)
     input = tf.convert_to_tensor(input)
     shape = int_shape(input)
     if shape is None:

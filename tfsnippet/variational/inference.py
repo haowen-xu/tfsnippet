@@ -1,6 +1,7 @@
 import tensorflow as tf
 import zhusuan as zs
 
+from tfsnippet.utils import add_n_broadcast
 from .estimators import *
 from .evaluation import *
 from .objectives import *
@@ -33,7 +34,7 @@ class VariationalInference(object):
         self._log_joint = tf.convert_to_tensor(log_joint)
         self._latent_log_probs = tuple(tf.convert_to_tensor(t)
                                        for t in latent_log_probs)
-        self._latent_log_prob = tf.add_n(
+        self._latent_log_prob = add_n_broadcast(
             self._latent_log_probs, name='latent_log_prob')
         self._axis = axis
         self._lower_bound = VariationalLowerBounds(self)

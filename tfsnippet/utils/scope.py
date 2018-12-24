@@ -7,7 +7,6 @@ from tensorflow.python.ops import variable_scope as variable_scope_ops
 
 from .doc_utils import DocInherit
 from .misc import camel_to_underscore
-from .reuse import reuse_stack_top
 
 __all__ = [
     'get_default_scope_name',

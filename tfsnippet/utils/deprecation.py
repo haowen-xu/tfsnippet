@@ -112,8 +112,10 @@ class deprecated(object):
 def deprecated_arg(old_arg, new_arg, version=None):
     def wrapper(method):
         # compose the deprecation message
-        msg = 'In function `{}`: argument `{}` is deprecated, use `{}` instead.'
-        msg = msg.format(_name_of(method), old_arg, new_arg)
+        since = ' since {}'.format(version) if version else ''
+        msg = 'In function `{}`: argument `{}` is deprecated{}, use `{}` ' \
+              'instead.'
+        msg = msg.format(_name_of(method), old_arg, since, new_arg)
 
         @six.wraps(method)
         def wrapped(*args, **kwargs):

@@ -6,8 +6,10 @@ from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'int_shape', 'flatten', 'unflatten', 'get_batch_size', 'get_rank',
-    'get_shape', 'get_dimensions_size', 'concat_shapes',
+    'int_shape', 'resolve_negative_axis',
+    'flatten', 'unflatten',
+    'get_batch_size', 'get_rank', 'get_shape', 'get_dimensions_size',
+    'concat_shapes',
 ]
 
 
@@ -30,6 +32,36 @@ def int_shape(tensor):
         shape = tuple((int(v) if v is not None else None)
                       for v in shape.as_list())
     return shape
+
+
+def resolve_negative_axis(ndims, axis):
+    """
+    Resolve all negative `axis` indices according to `ndims` into positive.
+
+    Usage::
+
+        resolve_negative_axis(4, [0, -1, -2])  # output: (0, 3, 2)
+
+    Args:
+        ndims (int): Number of total dimensions.
+        axis (Iterable[int]): The axis indices.
+
+    Returns:
+        tuple[int]: The resolved positive axis indices.
+
+    Raises:
+        ValueError: If any index in `axis` is out of range.
+    """
+    axis = tuple(int(a) for a in axis)
+    ret = []
+    for a in axis:
+        if a < 0:
+            a += ndims
+        if a < 0 or a >= ndims:
+            raise ValueError('`axis` out of range: {} vs ndims {}.'.
+                             format(axis, ndims))
+        ret.append(a)
+    return tuple(ret)
 
 
 @add_name_arg_doc
@@ -178,25 +210,32 @@ def get_dimensions_size(tensor, axis=None, name=None):
 
     Args:
         tensor (tf.Tensor): The tensor to be tested.
-        axis (tuple[int] or None): The dimensions to be selected.
+        axis (Iterable[int] or None): The dimensions to be selected.
 
     Returns:
         tuple[int] or tf.Tensor: A tuple of integers if all selected
             dimensions have static sizes.  Otherwise a tensor.
     """
     tensor = tf.convert_to_tensor(tensor)
+    if axis is not None:
+        axis = tuple(axis)
+        if not axis:
+            return ()
 
     with tf.name_scope(name, default_name='get_dimensions_size',
                        values=[tensor]):
         shape = int_shape(tensor)
+
         if shape is not None and axis is not None:
-            shape = [shape[a] for a in axis]
+            shape = tuple(shape[a] for a in axis)
+
         if shape is None or None in shape:
-            shape = tf.shape(tensor)
-            if axis is not None:
-                shape = tf.stack([shape[i] for i in axis], axis=0)
-        else:
-            shape = tuple(shape)
+            dynamic_shape = tf.shape(tensor)
+            if axis is None:
+                shape = dynamic_shape
+            else:
+                shape = tf.stack([dynamic_shape[i] for i in axis], axis=0)
+
         return shape
 
 
@@ -215,6 +254,7 @@ def concat_shapes(shapes, name=None):
     Returns:
         tuple[int] or tf.Tensor: The concatenated shape.
     """
+    shapes = tuple(shapes)
     if any(is_tensor_object(s) for s in shapes):
         shapes = [
             s if is_tensor_object(s) else tf.constant(s, dtype=tf.int32)

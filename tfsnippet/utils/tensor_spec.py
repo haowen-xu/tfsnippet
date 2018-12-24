@@ -48,11 +48,15 @@ class _TensorSpec(object):
         """
         # check the shape argument
         if shape is not None:
-            allow_more_dims = False
             shape = tuple(shape)
+            if shape == ('...',):  # this should be equivalent to shape == None
+                shape = None
+
+        if shape is not None:
+            allow_more_dims = False
             value_shape = []
             for i, s in enumerate(shape):
-                if s == '...' or s is Ellipsis:
+                if s == '...':
                     if i != 0:
                         raise ValueError('`...` should only be the first item '
                                          'of `shape`.')
@@ -101,9 +105,9 @@ class _TensorSpec(object):
 
     def __repr__(self):
         spec = []
-        if self._value_shape:
+        if self._value_shape is not None:
             spec.append('shape=' + self._format_shape())
-        if self._dtype:
+        if self._dtype is not None:
             spec.append('dtype=' + self._dtype.name)
         return '{}({})'.format(self.__class__.__name__, ','.join(spec))
 
@@ -152,7 +156,11 @@ class _TensorSpec(object):
         return self._dtype
 
     def _format_shape(self):
-        return '({})'.format(','.join(str(s) for s in self.shape))
+        shape = self.shape
+        if len(shape) == 1:
+            return '({},)'.format(shape[0])
+        else:
+            return '({})'.format(','.join(str(s) for s in shape))
 
     def _validate_shape(self, x):
         if self._value_shape is None:
@@ -234,6 +242,7 @@ class ParamSpec(_TensorSpec):
 
     def __init__(self, *args, **kwargs):
         super(ParamSpec, self).__init__(*args, **kwargs)
-        if self._allow_more_dims or any(s is None for s in self._value_shape):
+        if self.shape is None or any(not is_integer(s) for s in self.shape):
+            shape_format = None if self.shape is None else self._format_shape()
             raise ValueError('The shape of a `ParamSpec` must be fully '
-                             'determined: got {}.'.format(self._format_shape()))
+                             'determined: got {}.'.format(shape_format))

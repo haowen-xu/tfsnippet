@@ -34,6 +34,11 @@ def _assert_allclose(*args, **kwargs):
 
 class ActNormClassTestCase(tf.test.TestCase):
 
+    def test_error(self):
+        with pytest.raises(ValueError,
+                           match='Invalid value for argument `scale_type`'):
+            _ = ActNorm((), scale_type='xyz')
+
     def test_initializing(self):
         shape = (6, 4, 3, 2)
         var_shape = (4, 1, 2)

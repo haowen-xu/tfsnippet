@@ -2,6 +2,8 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
+from .doc_utils import add_name_arg_doc
+
 __all__ = [
     'is_assertion_enabled',
     'set_assertion_enabled',
@@ -93,6 +95,7 @@ def scoped_set_check_numerics(enabled):
     return _scoped_set(enabled, should_check_numerics, set_check_numerics)
 
 
+@add_name_arg_doc
 def maybe_check_numerics(tensor, message, name=None):
     """
     Check the numerics of `tensor`, if ``should_check_numerics()``.
@@ -100,7 +103,6 @@ def maybe_check_numerics(tensor, message, name=None):
     Args:
         tensor: The tensor to be checked.
         message: The message to display when numerical issues occur.
-        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.

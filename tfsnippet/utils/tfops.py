@@ -3,13 +3,37 @@ from contextlib import contextmanager
 import tensorflow as tf
 
 from .debugging import maybe_assert
+from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'smart_cond', 'control_deps', 'get_variable', 'assert_scalar_equal',
+    'add_n_broadcast', 'smart_cond', 'control_deps', 'get_variable',
+    'assert_scalar_equal',
 ]
 
 
+@add_name_arg_doc
+def add_n_broadcast(tensors, name=None):
+    """
+    Add zero or many tensors with broadcasting.
+
+    Args:
+        tensors (Iterable[Tensor]): A list of tensors to be summed.
+
+    Returns:
+        tf.Tensor: The summed tensor.
+    """
+    tensors = [tf.convert_to_tensor(t) for t in tensors]
+    if not tensors:
+        raise ValueError('`tensors` must not be empty.')
+    with tf.name_scope(name, default_name='add_n_broadcast', values=tensors):
+        ret = tensors[0]
+        for t in tensors[1:]:
+            ret += t
+        return ret
+
+
+@add_name_arg_doc
 def smart_cond(cond, true_fn, false_fn, name=None):
     """
     Execute `true_fn` or `false_fn` according to `cond`.
@@ -18,7 +42,6 @@ def smart_cond(cond, true_fn, false_fn, name=None):
         cond (bool or tf.Tensor): A bool constant or a tensor.
         true_fn (() -> tf.Tensor): The function of the true branch.
         false_fn (() -> tf.Tensor): The function of the false branch.
-        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         tf.Tensor: The output tensor.
@@ -101,6 +124,7 @@ def get_variable(name,
     return v
 
 
+@add_name_arg_doc
 def assert_scalar_equal(a, b, message=None, name=None):
     """
     Assert 0-d scalar `a` == `b`.
@@ -109,7 +133,6 @@ def assert_scalar_equal(a, b, message=None, name=None):
         a: A 0-d tensor.
         b: A 0-d tensor.
         message: Operational message when assertion failed.
-        name: TensorFlow name scope of the graph nodes.
 
     Returns:
         tf.Operation or None: The TensorFlow assertion operation,

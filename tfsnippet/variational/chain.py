@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 from tfsnippet.bayes import BayesianNet
+from tfsnippet.utils import add_n_broadcast
 from .inference import VariationalInference
 
 __all__ = ['VariationalChain']
@@ -50,7 +51,8 @@ class VariationalChain(object):
         with tf.name_scope('VariationalChain'):
             if log_joint is None:
                 with tf.name_scope('model_log_joint'):
-                    log_joint = tf.add_n(model.local_log_probs(iter(model)))
+                    log_joint = add_n_broadcast(
+                        model.local_log_probs(iter(model)))
             with tf.name_scope('latent_log_probs'):
                 latent_log_probs = variational.local_log_probs(latent_names)
 
