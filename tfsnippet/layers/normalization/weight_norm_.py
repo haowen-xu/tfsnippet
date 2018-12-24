@@ -13,12 +13,11 @@ __all__ = ['weight_norm']
 def weight_norm(kernel,
                 axis,
                 epsilon=1e-12,
-                use_log_scale=False,
+                scale_type=None,
                 log_scale=None,
                 log_scale_initializer=None,
                 log_scale_regularizer=None,
                 log_scale_constraint=None,
-                use_scale=False,
                 scale=None,
                 scale_initializer=None,
                 scale_regularizer=None,
@@ -44,13 +43,15 @@ def weight_norm(kernel,
         kernel: Tensor, the weight `w` to be normalized.
         axis (tuple[int]): The axis to apply weight normalization (See above).
         epsilon: Small float number to avoid dividing by zero.
-        use_log_scale (bool): If :obj:`True`, use ``tf.exp(log_scale)`` as
-            the scale.  `use_log_scale` and `use_scale` cannot be both True.
+        scale_type: One of {"log_scale", "scale", :obj:`None`}.
+            If "log_scale", ``kernel = tf.exp(log_scale) * kernel / |kernel|``.
+            If "scale", ``kernel = scale * kernel / |kernel|``.
+            If :obj:`None`, kernel will not be scaled.
+            Default is :obj:`None`.
         log_scale (Tensor): Instead of creating a new variable, use this tensor.
         log_scale_initializer: The initializer for `log_scale`.
         log_scale_regularizer: The regularizer for `log_scale`.
         log_scale_constraint: The constraint for `log_scale`.
-        use_scale (bool): If :obj:`True`, use `scale` directly.
         scale (Tensor): Instead of creating a new variable, use this tensor.
         scale_initializer: The initializer for `scale`.
         scale_regularizer: The regularizer for `scale`.
@@ -58,14 +59,15 @@ def weight_norm(kernel,
         trainable (bool): Whether or not `log_scale` and `scale` are trainable?
     """
     # check the parameters
-    if use_log_scale and use_scale:
-        raise ValueError('`use_scale` and `use_log_scale` cannot be both '
+    if scale_type not in ('log_scale', 'scale', None):
+        raise ValueError('`scale_type` must be one of {{"log_scale", "scale", '
+                         'None}}: got {!r}.'.format(scale_type))
+    if scale_type == 'log_scale' and scale is not None:
+        raise ValueError('`scale_type` is "log_scale", but `scale` is '
                          'specified.')
-    if not use_log_scale and log_scale is not None:
-        raise ValueError('`log_scale` specified, but `use_log_scale` is '
-                         'False.')
-    if not use_scale and scale is not None:
-        raise ValueError('`scale` specified, but `use_scale` is False.')
+    if scale_type == 'scale' and log_scale is not None:
+        raise ValueError('`scale_type` is "scale", but `log_scale` is '
+                         'specified.')
 
     kernel = tf.convert_to_tensor(kernel)
     kernel_shape = int_shape(kernel)
@@ -92,28 +94,30 @@ def weight_norm(kernel,
         kernel = tf.nn.l2_normalize(kernel, axis=reduce_axis, epsilon=epsilon)
 
         # create the scaling variable
-        if use_log_scale and log_scale is None:
-            log_scale = tf.get_variable(
-                'log_scale',
-                shape=kernel_shape,
-                dtype=dtype,
-                initializer=log_scale_initializer,
-                regularizer=log_scale_regularizer,
-                constraint=log_scale_constraint,
-                trainable=trainable
-            )
+        if scale_type == 'log_scale':
+            if log_scale is None:
+                log_scale = tf.get_variable(
+                    'log_scale',
+                    shape=kernel_shape,
+                    dtype=dtype,
+                    initializer=log_scale_initializer,
+                    regularizer=log_scale_regularizer,
+                    constraint=log_scale_constraint,
+                    trainable=trainable
+                )
             kernel = kernel * tf.exp(log_scale)
 
-        if use_scale and scale is None:
-            scale = tf.get_variable(
-                'scale',
-                shape=kernel_shape,
-                dtype=dtype,
-                initializer=scale_initializer,
-                regularizer=scale_regularizer,
-                constraint=scale_constraint,
-                trainable=trainable
-            )
+        elif scale_type == 'scale':
+            if scale is None:
+                scale = tf.get_variable(
+                    'scale',
+                    shape=kernel_shape,
+                    dtype=dtype,
+                    initializer=scale_initializer,
+                    regularizer=scale_regularizer,
+                    constraint=scale_constraint,
+                    trainable=trainable
+                )
             kernel = kernel * scale
 
         # now return the normalized weight

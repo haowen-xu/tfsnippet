@@ -31,9 +31,9 @@ class ActNorm(BaseFlow):
                  var_shape,
                  initializing=False,
                  epsilon=1e-6,
+                 scale_type='log_scale',
                  bias_regularizer=None,
                  bias_constraint=None,
-                 use_log_scale=True,
                  log_scale_regularizer=None,
                  log_scale_constraint=None,
                  scale_regularizer=None,
@@ -61,12 +61,12 @@ class ActNorm(BaseFlow):
                 in the forward pass to initialize the layer parameters?
                 (default :obj:`True`)
             epsilon: Small float added to variance to avoid dividing by zero.
+            scale_type: One of {"log_scale", "scale"}.
+                If "log_scale", ``y = (x + bias) * tf.exp(log_scale)``.
+                If "scale", ``y = (x + bias) * scale``.
+                Default is "log_scale".
             bias_regularizer: The regularizer for `bias`.
             bias_constraint: The constraint for `bias`.
-            use_log_scale (bool): Whether or not to fit log-scale of data?
-                If :obj:`True`, fit `log_scale` variable and scale the input
-                `x` by ``x * tf.exp(log_scale)``.  Otherwise fit `scale`
-                variable and scale the input `x` by ``x * scale``.
             log_scale_regularizer: The regularizer for `log_scale`.
             log_scale_constraint: The constraint for `log_scale`.
             scale_regularizer: The regularizer for `scale`.
@@ -74,6 +74,10 @@ class ActNorm(BaseFlow):
             trainable (bool): Whether or not the variables are trainable?
             dtype: The data type of the transformed `y`.
         """
+        if scale_type not in ('scale', 'log_scale'):
+            raise ValueError('`scale_type` must one of {{"scale", "log_scale"'
+                             '}}: got {!r}.'.format(scale_type))
+
         var_shape = validate_int_tuple_arg('var_shape', var_shape)
         var_spec = ParamSpec(var_shape)
 
@@ -91,7 +95,7 @@ class ActNorm(BaseFlow):
         self._var_spec = var_spec
         self._input_spec = input_spec
         self._reduce_axis = reduce_axis
-        self._use_log_scale = use_log_scale
+        self._scale_type = scale_type
         self._epsilon = epsilon
         self._initialized = not initializing
 
@@ -112,7 +116,7 @@ class ActNorm(BaseFlow):
                 constraint=bias_constraint,
                 trainable=trainable
             )
-            if self._use_log_scale:
+            if self._scale_type == 'log_scale':
                 self._log_scale = tf.get_variable(
                     'log_scale',
                     dtype=self.dtype,
@@ -184,20 +188,18 @@ class ActNorm(BaseFlow):
                                    keepdims=True),
                     self.var_shape
                 )
-                bias = self._bias.assign(-x_mean, name='init_bias')
-                if self._use_log_scale:
+                bias = self._bias.assign(-x_mean)
+                if self._scale_type == 'log_scale':
                     scale = None
                     log_scale = self._log_scale.assign(
                         -tf.constant(.5, dtype=self.dtype) *
-                        tf.log(x_var + self._epsilon),
-                        name='log_scale'
+                        tf.log(x_var + self._epsilon)
                     )
                     log_scale = maybe_check_numerics(log_scale, 'log_scale')
                 else:
                     scale = self._scale.assign(
                         tf.constant(1., dtype=self.dtype) /
-                        tf.sqrt(x_var + self._epsilon),
-                        name='scale'
+                        tf.sqrt(x_var + self._epsilon)
                     )
                     scale = maybe_check_numerics(scale, 'scale')
                     log_scale = None
@@ -255,7 +257,7 @@ class ActNorm(BaseFlow):
         # compute x
         x = None
         if compute_x:
-            if self._use_log_scale:
+            if self._scale_type == 'log_scale':
                 x = y * tf.exp(-self._log_scale) - self._bias
             else:
                 x = y / self._scale - self._bias
@@ -263,7 +265,7 @@ class ActNorm(BaseFlow):
         # compute log_det
         log_det = None
         if compute_log_det:
-            if self._use_log_scale:
+            if self._scale_type == 'log_scale':
                 log_scale = self._log_scale
             else:
                 log_scale = tf.log(tf.abs(self._scale), name='log_scale')

@@ -46,7 +46,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=False,
+                scale_type='scale',
             )
             self.assertEqual(act_norm.value_ndims, 3)
             y_out = sess.run(act_norm(x))
@@ -60,12 +60,18 @@ class ActNormClassTestCase(tf.test.TestCase):
             _assert_allclose(bias_out, bias)
             _assert_allclose(scale_out, scale)
 
+            # use an initialized act_norm will not initialize it again
+            _ = sess.run(act_norm(np.random.uniform(size=shape)))
+            bias_out, scale_out = sess.run([act_norm._bias, act_norm._scale])
+            _assert_allclose(bias_out, bias)
+            _assert_allclose(scale_out, scale)
+
         # test initialize log_scale & bias
         with self.test_session() as sess:
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=True,
+                scale_type='log_scale',
             )
             self.assertEqual(act_norm.value_ndims, 3)
             y_out = sess.run(act_norm(x))
@@ -114,7 +120,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=False,
+                scale_type='scale',
             )
             self.assertEqual(act_norm.value_ndims, 3)
             y_out = sess.run(act_norm(x))
@@ -132,7 +138,7 @@ class ActNormClassTestCase(tf.test.TestCase):
         @global_reuse
         def f(x, initializing=False):
             act_norm = ActNorm(var_shape=(3,), initializing=initializing,
-                               use_log_scale=False)
+                               scale_type='scale')
             self.assertEqual(act_norm.value_ndims, 1)
             return act_norm._bias, act_norm._scale, act_norm(x)
 
@@ -178,7 +184,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=True,
+                scale_type='log_scale',
             )
             y_out, log_det_out = sess.run(act_norm.transform(x))
             self.assertEqual(y_out.shape, shape)
@@ -192,7 +198,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=False,
+                scale_type='scale',
             )
             y_out, log_det_out = sess.run(act_norm.transform(x))
             self.assertEqual(y_out.shape, shape)
@@ -210,7 +216,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=False,
+                scale_type='scale',
             )
             y_out, log_det_out = sess.run(act_norm.transform(x))
             self.assertEqual(y_out.shape, shape)
@@ -238,7 +244,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             act_norm = ActNorm(
                 var_shape=var_shape,
                 initializing=True,
-                use_log_scale=False,
+                scale_type='scale',
             )
             self.assertEqual(act_norm.value_ndims, 3)
             y_out, log_det_out = sess.run(
