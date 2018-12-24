@@ -101,11 +101,19 @@ def append_to_doc(doc, content):
     Returns:
         str: The modified doc string.
     """
+    content = '\n'.join(l.rstrip() for l in content.split('\n'))
+    content = content.lstrip('\n')
+    content = content.rstrip('\n')
+
     # fast path: doc is empty, just wrap the content
     if not doc:
         # the empty line before the content might be required for the
         # sphinx to correctly parse the section.
-        return '\n{}\n'.format(content)
+        if not content.startswith('\n'):
+            content = '\n' + content
+        if not content.endswith('\n'):
+            content = content + '\n'
+        return content
 
     # slow path: doc is not empty, parse it
     # find the indent of the doc string.
@@ -120,14 +128,16 @@ def append_to_doc(doc, content):
     indent = ' ' * indent
 
     # compose the docstring
-    contents = [doc, '\n', '\n']
+    contents = [doc, '\n']
+    if not doc.endswith('\n'):
+        contents.append('\n')
+
     for line in content.split('\n'):
         if not line.strip():
             contents.append('\n')
         else:
             contents.append(indent + line + '\n')
 
-    contents.append('\n')
     return ''.join(contents)
 
 

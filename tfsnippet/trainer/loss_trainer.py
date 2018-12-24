@@ -1,7 +1,7 @@
 import warnings
 
 from tfsnippet.scaffold import TrainLoop
-from tfsnippet.utils import deprecated
+from tfsnippet.utils import deprecated, deprecated_arg
 from .trainer import Trainer
 from .feed_dict import merge_feed_dict
 
@@ -48,6 +48,7 @@ class LossTrainer(Trainer):
         """Get the metric name for collecting training loss."""
         return list(self.metrics.keys())[0]
 
+    @deprecated_arg('feed_dict', version='0.1')
     def run(self, feed_dict=None):
         """
         Run training loop.
@@ -59,8 +60,6 @@ class LossTrainer(Trainer):
         old_feed_dict = self._feed_dict
         try:
             if feed_dict is not None:  # pragma: no cover
-                warnings.warn('`feed_dict` argument is deprecated.',
-                              DeprecationWarning)
                 self._feed_dict = merge_feed_dict(self._feed_dict, feed_dict)
             super(LossTrainer, self).run()
         finally:

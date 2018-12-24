@@ -115,6 +115,93 @@ class DocInheritTestCase(unittest.TestCase):
         self.assertEqual(GrandChildB().some_property, 'grandChildB')
 
 
+class AppendToDocTestCase(unittest.TestCase):
+
+    def test_append_single_line_to_empty_doc(self):
+        old_doc = None
+        content = 'new content'
+        expected = '\nnew content\n'
+        self.assertEqual(append_to_doc(old_doc, content), expected)
+
+    def test_append_block_to_empty_doc(self):
+        old_doc = None
+        content = '''
+Args:
+    a: this is an argument
+'''
+        expected = '''
+Args:
+    a: this is an argument
+'''
+        self.assertEqual(append_to_doc(old_doc, content), expected)
+
+    def test_append_single_line_to_single_line_doc(self):
+        old_doc = '''This is a doc string.'''
+        content = 'new content'
+        expected = '''This is a doc string.
+
+new content
+'''
+        doc = append_to_doc(old_doc, content)
+        self.assertEqual(doc, expected)
+
+    def test_append_block_to_single_line_doc(self):
+        old_doc = '''This is a doc string.'''
+        content = '''
+Args:
+    a: this is an argument.
+
+Notes:
+    This is the note.
+'''
+        expected = '''This is a doc string.
+
+Args:
+    a: this is an argument.
+
+Notes:
+    This is the note.
+'''
+        doc = append_to_doc(old_doc, content)
+        self.assertEqual(doc, expected)
+
+    def test_append_single_line_to_doc(self):
+        old_doc = '''
+    This is a doc string.
+'''
+        content = 'new content'
+        expected = '''
+    This is a doc string.
+
+    new content
+'''
+        doc = append_to_doc(old_doc, content)
+        self.assertEqual(doc, expected)
+
+    def test_append_block_to_doc(self):
+        old_doc = '''
+    This is a doc string.
+'''
+        content = '''
+Args:
+    a: this is an argument.
+
+Notes:
+    This is the note.
+'''
+        expected = '''
+    This is a doc string.
+
+    Args:
+        a: this is an argument.
+
+    Notes:
+        This is the note.
+'''
+        doc = append_to_doc(old_doc, content)
+        self.assertEqual(doc, expected)
+
+
 class AppendArgToDocTestCase(unittest.TestCase):
 
     maxDiff = None
@@ -130,12 +217,10 @@ scope (str): The name of the variable scope."""
         new_doc = """
     Header line.
 
-
     Args:
         name (str): Default name of the variable scope.  Will be uniquified.
             If not specified, generate one according to the class name.
         scope (str): The name of the variable scope.
-
 """
         self.assertEqual(
             append_arg_to_doc(old_doc, self.arg_doc),
@@ -145,7 +230,7 @@ scope (str): The name of the variable scope."""
     def test_add(self):
         old_doc = """
     Header line.
-    
+
     Args:
         a: 1
             this is multi-line
@@ -153,7 +238,7 @@ scope (str): The name of the variable scope."""
 """
         new_doc = """
     Header line.
-    
+
     Args:
         a: 1
             this is multi-line

@@ -2,8 +2,7 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (int_shape, flatten, unflatten, InputSpec,
-                             ParamSpec, add_name_and_scope_arg_doc,
-                             deprecated_arg)
+                             ParamSpec, add_name_and_scope_arg_doc)
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
@@ -12,7 +11,6 @@ __all__ = ['dense']
 
 @add_arg_scope
 @add_name_and_scope_arg_doc
-@deprecated_arg('weight_norm_fn', 'weight_norm', version='0.2.0-a1')
 def dense(input, units,
           activation_fn=None,
           normalizer_fn=None,

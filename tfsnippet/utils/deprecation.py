@@ -109,28 +109,41 @@ class deprecated(object):
         return append_to_doc(doc, appendix)
 
 
-def deprecated_arg(old_arg, new_arg, version=None):
-    def wrapper(method):
-        # compose the deprecation message
-        since = ' since {}'.format(version) if version else ''
-        msg = 'In function `{}`: argument `{}` is deprecated{}, use `{}` ' \
-              'instead.'
-        msg = msg.format(_name_of(method), old_arg, since, new_arg)
+def deprecated_arg(old_arg, new_arg=None, version=None):
+    since = ' since {}'.format(version) if version else ''
 
-        @six.wraps(method)
-        def wrapped(*args, **kwargs):
-            if old_arg in kwargs:
-                arg_value = kwargs.pop(old_arg)
-                if new_arg in kwargs:
-                    raise TypeError(
-                        'You should not specify the deprecated argument `{}` '
-                        'and its replacement `{}` at the same time.'.
-                        format(old_arg, new_arg)
-                    )
-                else:
+    if new_arg is None:
+        def wrapper(method):
+            msg = 'In function `{}`: argument `' + str(old_arg) + \
+                  '` is deprecated' + since + '.'
+            msg = msg.format(_name_of(method))
+
+            @six.wraps(method)
+            def wrapped(*args, **kwargs):
+                if old_arg in kwargs:
                     _deprecated_warn(msg)
-                    kwargs[new_arg] = arg_value
-            return method(*args, **kwargs)
+                return method(*args, **kwargs)
+            return wrapped
 
-        return wrapped
+    else:
+        def wrapper(method):
+            msg = 'In function `{}`: argument `' + str(old_arg) + \
+                  '` is deprecated' + since + ', use `' + str(new_arg) + \
+                  '` instead.'
+            msg = msg.format(_name_of(method))
+
+            @six.wraps(method)
+            def wrapped(*args, **kwargs):
+                if old_arg in kwargs:
+                    if new_arg in kwargs:
+                        raise TypeError(
+                            'You should not specify the deprecated argument '
+                            '`{}` and its replacement `{}` at the same time.'.
+                            format(old_arg, new_arg)
+                        )
+                    else:
+                        _deprecated_warn(msg)
+                return method(*args, **kwargs)
+            return wrapped
+
     return wrapper

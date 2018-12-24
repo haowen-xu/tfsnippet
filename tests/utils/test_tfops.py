@@ -104,6 +104,11 @@ class TFOpsTestCase(tf.test.TestCase):
             with pytest.raises(ValueError, match=msg):
                 _ = assert_scalar_equal(1, 2, message='abcdefg')
 
+            # test static comparison without message
+            msg = 'Assertion failed for a == b: 1 != 2'
+            with pytest.raises(ValueError, match=msg):
+                _ = assert_scalar_equal(1, 2)
+
             # prepare dynamic comparison
             msg = 'abcdefg'
             x_in = tf.placeholder(dtype=tf.int32, shape=())
