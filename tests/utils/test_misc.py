@@ -272,6 +272,24 @@ class ArgValidationTestCase(unittest.TestCase):
         error_case(4, (1, 2, 3), False)
         error_case(None, (1, 2, 3), False)
 
+    def test_validate_positive_int_arg(self):
+        # test good cases
+        self.assertEqual(validate_positive_int_arg('arg', 1), 1)
+
+        # test error cases
+        def error_case(value):
+            err_msg = 'Invalid value for argument `arg`: expected to be a ' \
+                      'positive integer, but got {!r}'.format(value)
+            err_msg = err_msg.replace('(', '\\(')
+            err_msg = err_msg.replace(')', '\\)')
+            with pytest.raises(ValueError, match=err_msg):
+                _ = validate_positive_int_arg('arg', value)
+
+        error_case(None)
+        error_case('x')
+        error_case(0)
+        error_case(-1)
+
     def test_validate_int_or_int_tuple_arg(self):
         # test good cases
         def good_case(value, expected):

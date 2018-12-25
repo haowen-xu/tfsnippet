@@ -22,6 +22,7 @@ class ValidateWeightNormArgTestCase(tf.test.TestCase):
 
         # test False: should return None
         self.assertIsNone(validate_weight_norm_arg(False, -1, True))
+        self.assertIsNone(validate_weight_norm_arg(None, -1, True))
 
         # test others: should raise error
         with pytest.raises(TypeError,

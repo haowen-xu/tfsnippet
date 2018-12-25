@@ -25,7 +25,7 @@ def validate_weight_norm_arg(weight_norm, axis, use_scale):
         return weight_norm
     elif weight_norm is True:
         return functools.partial(weight_norm_fn, axis=axis, use_scale=use_scale)
-    elif weight_norm is False:
+    elif weight_norm in (False, None):
         return None
     else:
         raise TypeError('Invalid value for argument `weight_norm`: expected '

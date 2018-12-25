@@ -20,7 +20,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       print_with_title)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import (global_reuse, flatten, unflatten, create_session,
+from tfsnippet.utils import (global_reuse, create_session,
                              ensure_variables_initialized)
 
 
@@ -87,12 +87,12 @@ def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
                    normalizer_fn=normalizer_fn,
                    weight_norm=True,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_z, s1, s2 = flatten(z, 2)
+        h_z = z
         h_z = dense(h_z, 500)
         h_z = dense(h_z, 500)
 
     # sample x ~ p(x|z)
-    x_logits = unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
+    x_logits = dense(h_z, config.x_dim, name='x_logits')
     x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
 
     return net

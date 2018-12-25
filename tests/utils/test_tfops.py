@@ -65,36 +65,18 @@ class TFOpsTestCase(tf.test.TestCase):
             self.assertEqual(sess.run(v), 456.)
             self.assertEqual(sess.run(w), 123.)
 
-    def test_get_variable(self):
-        # test error argument
-        with pytest.raises(TypeError,
-                           match='`initial_value` and `initializer` cannot be '
-                                 'both specified'):
-            _ = get_variable(
-                'v', shape=(), dtype=tf.float32, initial_value=123.,
-                initializer=tf.zeros_initializer()
-            )
-
+    def test_get_variable_ddi(self):
         @global_reuse
         def f(initial_value, initializing=False):
-            return get_variable('x', shape=(), initial_value=initial_value,
-                                initializing=initializing)
+            return get_variable_ddi(
+                'x', initial_value, shape=(), initializing=initializing)
 
         with self.test_session() as sess:
-            # test data-dependent initialization
             x_in = tf.placeholder(dtype=tf.float32, shape=())
             x = f(x_in, initializing=True)
             self.assertEqual(sess.run(x, feed_dict={x_in: 123.}), 123.)
             x = f(x_in, initializing=False)
             self.assertEqual(sess.run(x, feed_dict={x_in: 456.}), 123.)
-
-            # test not data-dependent initialization
-            y = get_variable('y', shape=(), initializer=tf.ones_initializer(),
-                             trainable=False)
-            self.assertNotIn(
-                y, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
-            sess.run(y.initializer)
-            self.assertEqual(sess.run(y), 1.)
 
     def test_assert_scalar_equal(self):
         with self.test_session() as sess, scoped_set_assertion_enabled(True):

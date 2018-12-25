@@ -7,7 +7,7 @@ from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'add_n_broadcast', 'smart_cond', 'control_deps', 'get_variable',
+    'add_n_broadcast', 'smart_cond', 'control_deps', 'get_variable_ddi',
     'assert_scalar_equal',
 ]
 
@@ -77,29 +77,25 @@ def control_deps(control_inputs):
         yield False
 
 
-def get_variable(name,
-                 shape=None,
-                 dtype=tf.float32,
-                 initial_value=None,
-                 initializing=False,
-                 initializer=None,
-                 regularizer=None,
-                 constraint=None,
-                 trainable=True,
-                 **kwargs):
+def get_variable_ddi(name,
+                     initial_value,
+                     shape=None,
+                     dtype=tf.float32,
+                     initializing=False,
+                     regularizer=None,
+                     constraint=None,
+                     trainable=True,
+                     **kwargs):
     """
     Wraps :func:`tf.get_variable` to support data-dependent initialization.
 
     Args:
         name: Name of the variable.
+        initial_value: The data-dependent initial value of the variable.
         shape: Shape of the variable.
         dtype: Data type of the variable.
-        initial_value: The data-dependent initial value of the variable.
-            Only one of `initial_value` and `initializer` can be specified.
         initializing (bool): Whether or not it is building the graph for
             data-dependent initialization? Ignored if `initial_value` is absent.
-        initializer: Initializer of the variable
-            Only one of `initial_value` and `initializer` can be specified.
         regularizer: Regularizer of the variable.
         constraint: Constraint of the variable.
         trainable (bool): Whether or not to the variable is trainable?
@@ -108,19 +104,14 @@ def get_variable(name,
     Returns:
         tf.Variable or tf.Tensor: The variable or the tensor.
     """
-    if initial_value is not None and initializer is not None:
-        raise TypeError('`initial_value` and `initializer` cannot be both '
-                        'specified.')
-
+    # TODO: detect shape from `initial_value` if not specified
     v = tf.get_variable(
-        name, shape=shape, dtype=dtype, initializer=initializer,
-        regularizer=regularizer, constraint=constraint, trainable=trainable,
+        name, shape=shape, dtype=dtype, regularizer=regularizer,
+        constraint=constraint, trainable=trainable,
         **kwargs
     )
-
-    if initial_value is not None and initializing:
+    if initializing:
         v = v.assign(initial_value)
-
     return v
 
 
