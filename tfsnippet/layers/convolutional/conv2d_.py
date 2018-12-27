@@ -12,7 +12,7 @@ __all__ = ['conv2d']
 def validate_conv2d_size_tuple(arg_name, arg_value):
     """
     Validate the `arg_value`, ensure it is a tuple of two integers, such that
-    it can be used as the kernel size, the strides or the dilation rate.
+    it can be used as the kernel size, the strides or the dilations.
 
     Args:
         arg_name (str): Name of the argument.
@@ -38,10 +38,10 @@ def validate_conv2d_size_tuple(arg_name, arg_value):
 def conv2d(input,
            filters,
            kernel_size,
-           channels_last=False,
+           channels_last=True,
            padding='same',
            strides=(1, 1),
-           dilations=(1, 1),
+           dilations=1,
            activation_fn=None,
            normalizer_fn=None,
            weight_norm=False,
@@ -57,7 +57,48 @@ def conv2d(input,
            trainable=True,
            name=None,
            scope=None):
-    """"""
+    """
+    2D convolutional layer.
+
+    Args:
+        input (Tensor): The input tensor, at least 4-d.
+        filters (int): Number of filters (the channel numbers of the output).
+        kernel_size (int or (int, int)): Size of the kernel.
+        channels_last (bool): Whether or not the channel axis is the last
+            axis in `input`? (i.e., the data format is "NHWC")
+        padding: One of {"valid", "same"}, case in-sensitive.
+        strides (int or (int, int)): The stride of the convolution.
+        dilations (int): The dilation factor of the convolution kernel.
+        activation_fn: The activation function.
+        normalizer_fn: The normalizer function.
+        weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
+            If :obj:`True`, apply :func:`~tfsnippet.layers.weight_norm` on
+            `kernel`.  `use_scale` will be :obj:`True` if `normalizer_fn`
+            is not specified, and :obj:`False` otherwise.  The axis reduction
+            will be determined by the layer.
+
+            If it is a callable function, then it will be used to normalize
+            the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
+            The user must ensure the axis reduction is correct by themselves.
+        kernel (Tensor): Instead of creating a new variable, use this tensor.
+        kernel_initializer: The initializer for `kernel`.
+            Would be ``default_kernel_initializer(...)`` if not specified.
+        kernel_regularizer: The regularizer for `kernel`.
+        kernel_constraint: The constraint for `kernel`.
+        use_bias (bool or None): Whether or not to use `bias`?
+            If :obj:`True`, will always use bias.
+            If :obj:`None`, will use bias only if `normalizer_fn` is not given.
+            If :obj:`False`, will never use bias.
+            Default is :obj:`None`.
+        bias (Tensor): Instead of creating a new variable, use this tensor.
+        bias_initializer: The initializer for `bias`.
+        bias_regularizer: The regularizer for `bias`.
+        bias_constraint: The constraint for `bias`.
+        trainable (bool): Whether or not the parameters are trainable?
+
+    Returns:
+        tf.Tensor: The output tensor.
+    """
     # get the specification of inputs
     if channels_last:
         input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
@@ -83,12 +124,19 @@ def conv2d(input,
         return value
 
     padding = validate_enum_arg(
-        'padding', str(padding).lower(), ['valid', 'same'])
+        'padding', str(padding).upper(), ['VALID', 'SAME'])
     strides = validate_size_tuple('strides', strides)
-    dilations = validate_size_tuple('dilations', dilations)
+    dilations = validate_positive_int_arg('dilations', dilations)
+
+    if dilations > 1 and not channels_last:
+        raise ValueError('`channels_last` == False is incompatible with '
+                         '`dilations` > 1.')
+
+    if any(i > 1 for i in strides) and dilations > 1:
+        raise ValueError('`strides` > 1 is incompatible with `dilations` > 1.')
 
     weight_norm_fn = validate_weight_norm_arg(
-        weight_norm, axis=channel_axis, use_scale=normalizer_fn is None)
+        weight_norm, axis=-1, use_scale=normalizer_fn is None)
     if use_bias is None:
         use_bias = normalizer_fn is None
 
@@ -137,14 +185,22 @@ def conv2d(input,
         output, s1, s2 = flatten(input, 4)
 
         # do convolution
-        output = tf.nn.conv2d(
-            input=output,
-            filter=kernel,
-            strides=strides,
-            padding=padding,
-            data_format=data_format,
-            dilations=dilations
-        )
+        if dilations > 1:
+            output = tf.nn.atrous_conv2d(
+                value=output,
+                filters=kernel,
+                rate=dilations,
+                padding=padding
+            )
+        else:
+            output = tf.nn.conv2d(
+                input=output,
+                filter=kernel,
+                strides=strides,
+                padding=padding,
+                data_format=data_format,
+                dilations=[1] * 4
+            )
 
         # add bias
         if use_bias:

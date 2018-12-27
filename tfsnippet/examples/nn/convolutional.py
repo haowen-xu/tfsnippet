@@ -7,7 +7,8 @@ from tensorflow.contrib.framework import add_arg_scope
 from tfsnippet.examples.utils import (validate_strides_or_kernel_size,
                                       add_variable_scope)
 from tfsnippet.utils import int_shape
-from .wrapper import conv2d, deconv2d
+from tfsnippet.layers import conv2d
+from .wrapper import deconv2d
 
 __all__ = [
     'global_average_pooling',

@@ -35,8 +35,8 @@ def dense(input, units,
             normalizer_fn(tf.matmul(input, weight_norm_fn(kernel)) + bias))
 
     Args:
-        input: The input tensor, at least 2-d.
-        units: Number of output units.
+        input (Tensor): The input tensor, at least 2-d.
+        units (int): Number of output units.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
