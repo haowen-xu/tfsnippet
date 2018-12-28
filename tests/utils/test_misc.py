@@ -314,6 +314,10 @@ class ArgValidationTestCase(unittest.TestCase):
         error_case('x')
         error_case(('x', 1))
 
+        # test good case for nullable
+        self.assertIsNone(
+            validate_int_or_int_tuple_arg('arg', None, nullable=True))
+
 
 if __name__ == '__main__':
     unittest.main()

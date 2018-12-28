@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.mathops import log_mean_exp, tfops
+from tfsnippet.nn import log_mean_exp
 from tfsnippet.variational import *
 
 
@@ -36,7 +36,7 @@ class ImportanceSamplingLogLikelihoodTestCase(tf.test.TestCase):
             ll_shape = ll.get_shape().as_list()
             assert_allclose(*sess.run([
                 ll,
-                log_mean_exp(tfops, log_p - log_q, axis=0)
+                log_mean_exp(log_p - log_q, axis=0)
             ]))
 
             ll_k = importance_sampling_log_likelihood(
@@ -45,7 +45,7 @@ class ImportanceSamplingLogLikelihoodTestCase(tf.test.TestCase):
                 [1] + ll_shape, ll_k.get_shape().as_list())
             assert_allclose(*sess.run([
                 ll_k,
-                log_mean_exp(tfops, log_p - log_q, axis=0, keepdims=True)
+                log_mean_exp(log_p - log_q, axis=0, keepdims=True)
             ]))
 
 

@@ -277,7 +277,7 @@ def validate_positive_int_arg(arg_name, arg_value):
                          format(arg_name, arg_value))
 
 
-def validate_int_or_int_tuple_arg(arg_name, arg_value):
+def validate_int_or_int_tuple_arg(arg_name, arg_value, nullable=False):
     """
     Validate an integer or a tuple of integers.
 
@@ -285,11 +285,14 @@ def validate_int_or_int_tuple_arg(arg_name, arg_value):
         arg_name (str): Name of the argument.
         arg_value (int or Iterable[int]): An integer, or an iterable collection
             of integers, to be casted into tuples of integers.
+        nullable (bool): Whether or not :obj:`None` value is accepted?
 
     Returns:
         tuple[int]: The tuple of integers.
     """
-    if is_integer(arg_value):
+    if arg_value is None and nullable:
+        pass
+    elif is_integer(arg_value):
         arg_value = (arg_value,)
     else:
         try:

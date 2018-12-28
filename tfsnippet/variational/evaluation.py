@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.mathops import log_mean_exp, tfops
+from tfsnippet.nn import log_mean_exp
 from .utils import _require_multi_samples
 
 __all__ = ['importance_sampling_log_likelihood']
@@ -35,5 +35,5 @@ def importance_sampling_log_likelihood(log_joint, latent_log_prob, axis,
     with tf.name_scope(name, default_name='importance_sampling_log_likelihood',
                        values=[log_joint, latent_log_prob]):
         log_p = log_mean_exp(
-            tfops, log_joint - latent_log_prob, axis=axis, keepdims=keepdims)
+            log_joint - latent_log_prob, axis=axis, keepdims=keepdims)
         return log_p

@@ -1,8 +1,20 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.mathops import tfops
 from tfsnippet.layers import BaseFlow
+
+
+class Ops(object):
+    pass
+
+
+tfops = Ops()
+for attr in ('log', 'abs', 'exp', 'sign'):
+    setattr(tfops, attr, getattr(tf, attr))
+
+npyops = Ops()
+for attr in ('log', 'abs', 'exp', 'sign'):
+    setattr(npyops, attr, getattr(np, attr))
 
 
 def safe_pow(ops, x, e):

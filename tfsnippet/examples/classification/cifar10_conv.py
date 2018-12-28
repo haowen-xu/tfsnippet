@@ -7,21 +7,16 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_cifar10
-from tfsnippet.examples.nn import (dense,
-                                   batch_norm_2d,
-                                   resnet_block,
-                                   softmax_classification_loss,
-                                   softmax_classification_output,
-                                   l2_regularizer,
-                                   regularization_loss,
-                                   classification_accuracy, conv2d)
+from tfsnippet.examples.nn import (batch_norm_2d,
+                                   resnet_block)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
-from tfsnippet.layers import global_avg_pool2d
+from tfsnippet.layers import dense, conv2d, l2_regularizer, global_avg_pool2d
+from tfsnippet.nn import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
@@ -134,9 +129,10 @@ def main(result_dir):
                     is_training=is_training,
                     channels_last=multi_gpu.channels_last(dev)
                 )
-                dev_softmax_loss = \
-                    softmax_classification_loss(dev_logits, dev_input_y)
-                dev_loss = dev_softmax_loss + regularization_loss()
+                dev_cls_loss = tf.losses.sparse_softmax_cross_entropy(
+                    dev_input_y, dev_logits
+                )
+                dev_loss = dev_cls_loss + tf.losses.get_regularization_loss()
                 dev_y = softmax_classification_output(dev_logits)
                 dev_acc = classification_accuracy(dev_y, dev_input_y)
                 losses.append(dev_loss)

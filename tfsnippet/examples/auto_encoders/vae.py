@@ -7,10 +7,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.layers import dense, act_norm
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (l2_regularizer,
-                                   regularization_loss)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
@@ -18,6 +15,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       global_config as config,
                                       bernoulli_as_pixel,
                                       print_with_title)
+from tfsnippet.layers import dense, act_norm, l2_regularizer
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, create_session,
@@ -135,7 +133,7 @@ def main(result_dir):
             is_training=True
         )
         vae_loss = tf.reduce_mean(train_chain.vi.training.sgvb())
-        loss = vae_loss + regularization_loss()
+        loss = vae_loss + tf.losses.get_regularization_loss()
 
     # derive the nll and logits output for testing
     with tf.name_scope('testing'):

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.mathops import log_mean_exp, tfops
+from tfsnippet.nn import log_mean_exp
 from tfsnippet.variational import *
 
 
@@ -66,7 +66,7 @@ class MonteCarloObjectiveTestCase(tf.test.TestCase):
             obj_shape = obj.get_shape().as_list()
             assert_allclose(*sess.run([
                 obj,
-                log_mean_exp(tfops, log_p - log_q, axis=0)
+                log_mean_exp(log_p - log_q, axis=0)
             ]))
 
             obj_k = monte_carlo_objective(log_p, log_q, axis=0, keepdims=True)
@@ -74,7 +74,7 @@ class MonteCarloObjectiveTestCase(tf.test.TestCase):
                 [1] + obj_shape, obj_k.get_shape().as_list())
             assert_allclose(*sess.run([
                 obj_k,
-                log_mean_exp(tfops, log_p - log_q, axis=0, keepdims=True)
+                log_mean_exp(log_p - log_q, axis=0, keepdims=True)
             ]))
 
 

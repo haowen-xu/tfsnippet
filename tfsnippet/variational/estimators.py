@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.mathops import tfops, log_mean_exp
+from tfsnippet.nn import log_mean_exp
 from .utils import _require_multi_samples
 
 __all__ = [
@@ -74,6 +74,5 @@ def iwae_estimator(log_values, axis, keepdims=False, name=None):
     log_values = tf.convert_to_tensor(log_values)
     with tf.name_scope(name, default_name='iwae_estimator',
                        values=[log_values]):
-        estimator = log_mean_exp(
-            tfops, log_values, axis=axis, keepdims=keepdims)
+        estimator = log_mean_exp(log_values, axis=axis, keepdims=keepdims)
         return estimator

@@ -8,13 +8,9 @@ from tfsnippet.bayes import BayesianNet
 
 from tfsnippet.distributions import Normal, Bernoulli
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (dense,
-                                   resnet_block,
+from tfsnippet.examples.nn import (resnet_block,
                                    deconv_resnet_block,
                                    reshape_conv2d_to_flat,
-                                   l2_regularizer,
-                                   regularization_loss,
-                                   conv2d,
                                    batch_norm_2d)
 from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
@@ -24,6 +20,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
+from tfsnippet.layers import dense, conv2d, l2_regularizer
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
@@ -190,7 +187,8 @@ def main(result_dir):
 
                         dev_vae_loss = tf.reduce_mean(
                             train_chain.vi.training.sgvb())
-                        dev_loss = dev_vae_loss + regularization_loss()
+                        dev_loss = dev_vae_loss + \
+                            tf.losses.get_regularization_loss()
                         losses.append(dev_loss)
 
                     # derive the nll and logits output for testing

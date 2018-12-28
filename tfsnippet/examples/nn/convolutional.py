@@ -11,7 +11,6 @@ from tfsnippet.layers import conv2d
 from .wrapper import deconv2d
 
 __all__ = [
-    'global_average_pooling',
     'resnet_block',
     'deconv_resnet_block',
     'reshape_conv2d_to_flat',
@@ -30,30 +29,6 @@ except AttributeError:
             obj,
             assigned=(name for name in attr_names if hasattr(obj, name))
         )
-
-
-@add_arg_scope
-@add_variable_scope
-def global_average_pooling(inputs, channels_last=False):
-    """
-    Global average pooling layer.
-
-    Args:
-        inputs: The inputs feature map.
-        channels_last: Whether or not the channels are the last dimension?
-            (default :obj:`False`)
-
-    Returns:
-        The output feature map.
-    """
-    if channels_last:
-        kernel_size = int_shape(inputs)[1: 3]
-        data_format = 'channels_last'
-    else:
-        kernel_size = int_shape(inputs)[2: 4]
-        data_format = 'channels_first'
-    return tf.layers.average_pooling2d(inputs, kernel_size, (1, 1),
-                                       padding='valid', data_format=data_format)
 
 
 def _resnet_block(conv_fn, inputs, input_shape, output_shape,

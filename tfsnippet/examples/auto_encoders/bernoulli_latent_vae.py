@@ -8,9 +8,6 @@ from tfsnippet.bayes import BayesianNet
 
 from tfsnippet.distributions import Bernoulli
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (l2_regularizer,
-                                   regularization_loss,
-                                   dense)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
@@ -18,6 +15,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
+from tfsnippet.layers import dense, l2_regularizer
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_default_session_or_error,
@@ -136,7 +134,8 @@ def main(result_dir):
             baseline = baseline_net(input_x)
             cost, baseline_cost = \
                 train_chain.vi.training.reinforce(baseline=baseline)
-            loss = regularization_loss() + tf.reduce_mean(cost + baseline_cost)
+            loss = tf.losses.get_regularization_loss() + \
+                tf.reduce_mean(cost + baseline_cost)
 
         # derive the nll and logits output for testing
         with tf.name_scope('testing'):
