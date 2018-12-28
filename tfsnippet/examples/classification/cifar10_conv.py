@@ -10,7 +10,6 @@ from tfsnippet.examples.datasets import load_cifar10
 from tfsnippet.examples.nn import (dense,
                                    batch_norm_2d,
                                    resnet_block,
-                                   global_average_pooling,
                                    softmax_classification_loss,
                                    softmax_classification_output,
                                    l2_regularizer,
@@ -22,6 +21,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
+from tfsnippet.layers import global_avg_pool2d
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
@@ -82,9 +82,8 @@ def model(x, is_training, channels_last, k=4, n=2):
         for i in range(n):
             h_x = resnet_block(h_x, 64 * k)
 
-        h_x = global_average_pooling(
-            h_x, channels_last=channels_last)  # output: (64 * k, 1, 1)
-        h_x = tf.reshape(h_x, [-1, 64 * k])
+        h_x = global_avg_pool2d(
+            h_x, channels_last=channels_last)  # output: (64 * k,)
     logits = dense(h_x, 10, name='logits')
     return logits
 

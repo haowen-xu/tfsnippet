@@ -5,32 +5,10 @@ from tensorflow.contrib.framework import add_arg_scope
 from tfsnippet.utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
+from .utils import (validate_conv2d_size_tuple, validate_conv2d_strides_tuple,
+                    validate_conv2d_input)
 
 __all__ = ['conv2d']
-
-
-def validate_conv2d_size_tuple(arg_name, arg_value):
-    """
-    Validate the `arg_value`, ensure it is a tuple of two integers, such that
-    it can be used as the kernel size, the strides or the dilations.
-
-    Args:
-        arg_name (str): Name of the argument.
-        arg_value: An integer, or a tuple of two integers.
-            If it is one integer, it will be duplicated as the two integers.
-            Both integers must be positive (>= 1).
-
-    Returns:
-        (int, int): The validated two integers.
-    """
-    arg_value = validate_int_or_int_tuple_arg(arg_name, arg_value)
-    if len(arg_value) not in (1, 2) or any(a < 1 for a in arg_value):
-        raise ValueError('Invalid value for argument `{}`: expected to be '
-                         'one or two positive integers, but got {!r}.'.
-                         format(arg_name, arg_value))
-    if len(arg_value) == 1:
-        arg_value = arg_value * 2
-    return arg_value
 
 
 @add_arg_scope
@@ -63,12 +41,12 @@ def conv2d(input,
     Args:
         input (Tensor): The input tensor, at least 4-d.
         filters (int): Number of filters (the channel numbers of the output).
-        kernel_size (int or (int, int)): Size of the kernel.
+        kernel_size (int or (int, int)): Kernel size over spatial dimensions.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
         padding: One of {"valid", "same"}, case in-sensitive.
-        strides (int or (int, int)): The stride of the convolution.
-        dilations (int): The dilation factor of the convolution kernel.
+        strides (int or (int, int)): Strides over spatial dimensions.
+        dilations (int): The dilation factor over spatial dimensions.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
@@ -99,33 +77,14 @@ def conv2d(input,
     Returns:
         tf.Tensor: The output tensor.
     """
-    # get the specification of inputs
-    if channels_last:
-        input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
-        channel_axis = -1
-        data_format = 'NHWC'
-    else:
-        input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
-        channel_axis = -3
-        data_format = 'NCHW'
-
-    input = input_spec.validate(input)
+    input, in_channels, data_format = \
+        validate_conv2d_input(input, channels_last)
     dtype = input.dtype.base_dtype
-    input_shape = int_shape(input)
-    in_channels = input_shape[channel_axis]
 
     # check functional arguments
-    def validate_size_tuple(name, value):
-        value = validate_conv2d_size_tuple(name, value)
-        if channels_last:
-            value = (1,) + value + (1,)
-        else:
-            value = (1, 1) + value
-        return value
-
     padding = validate_enum_arg(
         'padding', str(padding).upper(), ['VALID', 'SAME'])
-    strides = validate_size_tuple('strides', strides)
+    strides = validate_conv2d_strides_tuple('strides', strides, channels_last)
     dilations = validate_positive_int_arg('dilations', dilations)
 
     if dilations > 1 and not channels_last:

@@ -33,11 +33,9 @@ class Conv2dTestCase(tf.test.TestCase):
     def conv2d_ans(input, padding, kernel, bias, strides, dilations,
                    activation_fn=None, normalizer_fn=None):
         """Produce the expected answer of conv2d."""
-        if is_integer(strides):
-            strides = (strides,) * 2
-        else:
-            strides = tuple(strides)
+        strides = (strides,) * 2 if is_integer(strides) else tuple(strides)
         strides = (1,) + strides + (1,)
+
         session = tf.get_default_session()
         input, s1, s2 = flatten(input, 4)
         padding = padding.upper()
