@@ -8,10 +8,7 @@ from tfsnippet.bayes import BayesianNet
 
 from tfsnippet.distributions import Normal, Bernoulli
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (resnet_block,
-                                   deconv_resnet_block,
-                                   reshape_conv2d_to_flat,
-                                   batch_norm_2d)
+from tfsnippet.examples.nn import resnet_block, deconv_resnet_block
 from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
                                       MLResults,
@@ -20,7 +17,8 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
-from tfsnippet.layers import dense, conv2d, l2_regularizer
+from tfsnippet.layers import (dense, conv2d, l2_regularizer,
+                              conv2d_flatten_spatial_channel)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
@@ -59,8 +57,8 @@ def q_net(x, observed=None, n_z=None, is_training=True,
 
     # compute the hidden features
     normalizer_fn = None if not config.batch_norm else functools.partial(
-        batch_norm_2d,
-        channels_last=channels_last,
+        tf.layers.batch_normalization,
+        axis=-1 if channels_last else -3,
         training=is_training,
     )
     dropout_fn = None if not config.dropout else functools.partial(
@@ -83,7 +81,7 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
         h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
         h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
-    h_x = reshape_conv2d_to_flat(h_x)
+    h_x = conv2d_flatten_spatial_channel(h_x)
 
     # sample z ~ q(z|x)
     z_mean = dense(h_x, config.z_dim, name='z_mean')

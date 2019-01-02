@@ -550,3 +550,19 @@ class Conv2dMaybeTransposeAxisTestCase(tf.test.TestCase):
             np.testing.assert_allclose(g(x, True), x)
             np.testing.assert_allclose(g(y, False), x)
 
+
+class Conv2dFlattenSpatialChannelTestCase(tf.test.TestCase):
+
+    def test_conv2d_flatten_spatial_channel(self):
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        y = np.reshape(x, [17, 11, -1])
+
+        with self.test_session() as sess:
+            # test static
+            np.testing.assert_equal(
+                sess.run(conv2d_flatten_spatial_channel(tf.constant(x))), y)
+
+            # test dynamic
+            ph = tf.placeholder(dtype=tf.float32, shape=[None] * 5)
+            np.testing.assert_equal(
+                sess.run(conv2d_flatten_spatial_channel(ph), feed_dict={ph: x}), y)

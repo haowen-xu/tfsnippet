@@ -7,8 +7,7 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_cifar10
-from tfsnippet.examples.nn import (batch_norm_2d,
-                                   resnet_block)
+from tfsnippet.examples.nn import resnet_block
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
@@ -46,8 +45,8 @@ def model(x, is_training, channels_last, k=4, n=2):
     with arg_scope([resnet_block],
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
-                       batch_norm_2d,
-                       channels_last=channels_last,
+                       tf.layers.batch_normalization,
+                       axis=-1 if channels_last else -3,
                        training=is_training,
                    ),
                    dropout_fn=functools.partial(

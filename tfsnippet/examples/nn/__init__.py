@@ -1,11 +1,10 @@
-from . import convolutional, wrapper
+from . import convolutional
 
 __all__ = sum(
     [m.__all__ for m in [
-         convolutional, wrapper
+         convolutional
     ]],
     []
 )
 
 from .convolutional import *
-from .wrapper import *

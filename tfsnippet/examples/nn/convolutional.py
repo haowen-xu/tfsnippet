@@ -7,13 +7,11 @@ from tensorflow.contrib.framework import add_arg_scope
 from tfsnippet.examples.utils import (validate_strides_or_kernel_size,
                                       add_variable_scope)
 from tfsnippet.utils import int_shape
-from tfsnippet.layers import conv2d
-from .wrapper import deconv2d
+from tfsnippet.layers import conv2d, deconv2d
 
 __all__ = [
     'resnet_block',
     'deconv_resnet_block',
-    'reshape_conv2d_to_flat',
 ]
 
 # This code snippet is to deal with Python 2.x fail to apply `wraps` on a
@@ -208,29 +206,3 @@ def deconv_resnet_block(inputs,
         normalizer_fn=normalizer_fn,
         dropout_fn=dropout_fn,
     )
-
-
-def reshape_conv2d_to_flat(inputs, name=None):
-    """
-    Reshape the 2-d convolutional output `inputs` to flat vector.
-
-    Args:
-        inputs: 4-d Tensor or higher dimensional Tensor.
-        name (None or str): Name of this operation.
-
-    Returns:
-        tf.Tensor: 2-d flatten vector.
-    """
-    with tf.name_scope(name, default_name='reshape_conv_to_flat',
-                       values=[inputs]):
-        if inputs.get_shape() is None or len(inputs.get_shape()) < 4:
-            raise ValueError('The rank of `inputs` must be known and >= 4: '
-                             '{!r}'.format(inputs.get_shape()))
-        out_shape = int_shape(inputs)[-4:] + (-1,) + \
-            (int(np.prod(int_shape(inputs)[-3:], dtype=np.int32)),)
-        if None in out_shape:
-            out_shape = tf.concat(
-                [tf.shape(inputs)[:-3], [np.prod(int_shape(inputs)[-3:])]],
-                axis=0
-            )
-        return tf.reshape(inputs, out_shape)
