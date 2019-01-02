@@ -9,7 +9,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 
 ### Added
 - `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
-- `tfsnippet.layers` package, including layers (`dense`), normalizers (`act_norm`, `weight_norm`), convolutional layers (`conv2d`, `avg_pool2d`, `max_pool2d`, `global_avg_pool2d`) and flows.
+- `tfsnippet.layers` package, including layers (`dense`), normalizers (`act_norm`, `weight_norm`), convolutional layers (`conv2d`, `deconv2d`, `avg_pool2d`, `max_pool2d`, `global_avg_pool2d`) and flows.
 
 ### Changed
 - `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.

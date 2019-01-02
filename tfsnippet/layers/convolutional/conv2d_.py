@@ -7,7 +7,10 @@ from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
-__all__ = ['conv2d', 'deconv2d']
+__all__ = [
+    'conv2d', 'deconv2d', 'conv2d_maybe_transpose_axis',
+    'conv2d_channels_last_to_x', 'conv2d_channels_x_to_last',
+]
 
 
 @add_arg_scope
@@ -413,3 +416,74 @@ def deconv2d(input,
         output = unflatten(output, s1, s2)
 
     return output
+
+
+def conv2d_maybe_transpose_axis(input, from_channels_last, to_channels_last):
+    """
+    Ensure the channels axis of `input` tensor to be placed at the desired axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        from_channels_last (bool): Whether or not the channels axis
+            is the last axis in `input`? (i.e., the data format is "NHWC")
+        to_channels_last (bool): Whether or not the channels axis
+            should be the last axis in the output tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    if from_channels_last:
+        input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
+    else:
+        input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
+    input = input_spec.validate(input)
+    input_shape = int_shape(input)
+    sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
+
+    # check whether or not axis should be transpose
+    if from_channels_last and not to_channels_last:
+        transpose_axis = [-1, -3, -2]
+    elif not from_channels_last and to_channels_last:
+        transpose_axis = [-2, -1, -3]
+    else:
+        transpose_axis = None
+
+    # transpose the axis
+    if transpose_axis is not None:
+        transpose_axis = [i + len(input_shape) for i in transpose_axis]
+        input = tf.transpose(input, sample_and_batch_axis + transpose_axis)
+
+    return input
+
+
+def conv2d_channels_last_to_x(input, channels_last):
+    """
+    Ensure the channels axis (known to be the last axis) of `input` tensor
+    to be placed at the desired axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        channels_last (bool): Whether or not the channels axis
+            should be the last axis in the output tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    return conv2d_maybe_transpose_axis(
+        input, from_channels_last=True, to_channels_last=channels_last)
+
+
+def conv2d_channels_x_to_last(input, channels_last):
+    """
+    Ensure the channels axis of `input` tensor to be placed at the last axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        channels_last (bool): Whether or not the channels axis
+            is the last axis in the `input` tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    return conv2d_maybe_transpose_axis(
+        input, from_channels_last=channels_last, to_channels_last=True)

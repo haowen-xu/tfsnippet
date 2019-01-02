@@ -5,7 +5,7 @@ from mock import mock
 
 from tests.layers.convolutional.helper import *
 from tests.layers.helper import l2_normalize
-from tfsnippet.layers import conv2d, deconv2d
+from tfsnippet.layers import *
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
 from tfsnippet.utils import flatten, unflatten, is_integer
 
@@ -109,7 +109,7 @@ class Conv2dTestCase(tf.test.TestCase):
                 self.test_session() as sess:
             np.random.seed(1234)
 
-            x = np.random.normal(size=[17, 11, 32, 32, 5]).astype(np.float32)
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
             kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
             bias = np.random.random(size=[7]).astype(np.float32)
 
@@ -213,7 +213,7 @@ class Conv2dTestCase(tf.test.TestCase):
                 self.test_session() as sess:
             np.random.seed(1234)
 
-            x = np.random.normal(size=[17, 11, 32, 32, 5]).astype(np.float32)
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
             kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
             normalized_kernel = l2_normalize(kernel, axis=(0, 1, 2))
             kernel = kernel.astype(np.float32)
@@ -454,7 +454,7 @@ class Deconv2dTestCase(tf.test.TestCase):
                 self.test_session() as sess:
             np.random.seed(1234)
 
-            x = np.random.normal(size=[17, 11, 32, 32, 5]).astype(np.float32)
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
             kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
             bias = np.random.random(size=[5]).astype(np.float32)
 
@@ -463,13 +463,13 @@ class Deconv2dTestCase(tf.test.TestCase):
             self.check(x, 'valid', kernel, bias, strides=(3, 2))
             self.check(x, 'same', kernel, bias, strides=(3, 2))
             # special check: strides == x.shape
-            self.check(x, 'valid', kernel, bias, strides=(32, 32))
-            self.check(x, 'same', kernel, bias, strides=(32, 32))
+            self.check(x, 'valid', kernel, bias, strides=(32, 31))
+            self.check(x, 'same', kernel, bias, strides=(32, 31))
 
     def test_deconv2d_vars(self):
         np.random.seed(1234)
 
-        x = np.random.normal(size=[17, 11, 32, 32, 7]).astype(np.float32)
+        x = np.random.normal(size=[17, 11, 32, 31, 7]).astype(np.float32)
         kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
         bias = np.random.random(size=[5]).astype(np.float32)
 
@@ -501,4 +501,52 @@ class Deconv2dTestCase(tf.test.TestCase):
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(kernel_var.shape, kernel.shape)
             self.assertTrue(kernel_var.name.endswith('/kernel:0'))
+
+
+class Conv2dMaybeTransposeAxisTestCase(tf.test.TestCase):
+
+    def test_conv2d_maybe_transpose_axis(self):
+        np.random.seed(1234)
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        x_ph = tf.placeholder(tf.float32, [None, None, None, None, 5])
+        y = np.transpose(x, [0, 1, 4, 2, 3])
+        self.assertEqual(y.shape, (17, 11, 5, 32, 31))
+        y_ph = tf.placeholder(tf.float32, [None, None, 5, None, None])
+
+        g = lambda x, f, t, ph=None: sess.run(
+            conv2d_maybe_transpose_axis(tf.constant(x), f, t),
+            feed_dict=({ph: x} if ph is not None else None)
+        )
+
+        with self.test_session() as sess:
+            # test static shape
+            np.testing.assert_allclose(g(x, True, True), x)
+            np.testing.assert_allclose(g(x, True, False), y)
+            np.testing.assert_allclose(g(y, False, True), x)
+            np.testing.assert_allclose(g(y, False, False), y)
+
+            # test dynamic shape
+            np.testing.assert_allclose(g(x, True, True, x_ph), x)
+            np.testing.assert_allclose(g(x, True, False, x_ph), y)
+            np.testing.assert_allclose(g(y, False, True, y_ph), x)
+            np.testing.assert_allclose(g(y, False, False, y_ph), y)
+
+    def test_conv2d_channels_x_to_x(self):
+        np.random.seed(1234)
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        y = np.transpose(x, [0, 1, 4, 2, 3])
+        self.assertEqual(y.shape, (17, 11, 5, 32, 31))
+
+        with self.test_session() as sess:
+            # test conv2d_channels_last_to_x
+            g = lambda t, c: sess.run(
+                conv2d_channels_last_to_x(tf.constant(t), c))
+            np.testing.assert_allclose(g(x, True), x)
+            np.testing.assert_allclose(g(x, False), y)
+
+            # test conv2d_channels_x_to_last
+            g = lambda t, c: sess.run(
+                conv2d_channels_x_to_last(tf.constant(t), c))
+            np.testing.assert_allclose(g(x, True), x)
+            np.testing.assert_allclose(g(y, False), x)
 
