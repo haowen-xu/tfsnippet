@@ -1,10 +1,11 @@
 from tfsnippet.utils import (validate_int_or_int_tuple_arg, InputSpec,
-                             int_shape)
+                             int_shape, validate_enum_arg)
 
 __all__ = [
     'validate_conv2d_input',
     'validate_conv2d_size_tuple',
-    'validate_conv2d_strides_tuple'
+    'validate_conv2d_strides_tuple',
+    'get_deconv_output_length',
 ]
 
 
@@ -78,3 +79,25 @@ def validate_conv2d_strides_tuple(arg_name, arg_value, channels_last):
     else:
         value = (1, 1) + value
     return value
+
+
+def get_deconv_output_length(input_length, kernel_size, strides, padding):
+    """
+    Get the output length of deconvolution at a specific dimension.
+
+    Args:
+        input_length: Input tensor length.
+        kernel_size: The size of the kernel.
+        strides: The stride of convolution.
+        padding: One of {"same", "valid"}, case in-sensitive
+
+    Returns:
+        int: The output length of deconvolution.
+    """
+    padding = validate_enum_arg(
+        'padding', str(padding).upper(), ['SAME', 'VALID'])
+    output_length = input_length * strides
+    if padding == 'VALID':
+        output_length += max(kernel_size - strides, 0)
+    return output_length
+
