@@ -1,8 +1,7 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.utils import (int_shape, flatten, unflatten, InputSpec,
-                             ParamSpec, add_name_and_scope_arg_doc)
+from tfsnippet.utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
@@ -36,8 +35,8 @@ def dense(input, units,
             normalizer_fn(tf.matmul(input, weight_norm_fn(kernel)) + bias))
 
     Args:
-        input: The input tensor, at least 2-d.
-        units: Number of output units.
+        input (Tensor): The input tensor, at least 2-d.
+        units (int): Number of output units.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
@@ -68,29 +67,31 @@ def dense(input, units,
     Returns:
         tf.Tensor: The output tensor.
     """
-    # check the arguments
-    input = tf.convert_to_tensor(input)
-    dtype = input.dtype.base_dtype
-    input_spec = InputSpec(shape=('...', '?', '*'), dtype=dtype)
+    # get the specification of inputs
+    input_spec = InputSpec(shape=('...', '?', '*'))
     input = input_spec.validate(input)
+    dtype = input.dtype.base_dtype
     input_shape = int_shape(input)
+    in_units = input_shape[-1]
 
+    # check functional arguments
     weight_norm_fn = validate_weight_norm_arg(
         weight_norm, axis=-1, use_scale=normalizer_fn is None)
-
-    kernel_spec = ParamSpec(shape=(input_shape[-1], units), dtype=dtype)
-    if kernel is not None:
-        kernel = kernel_spec.validate(kernel)
-    if kernel_initializer is None:
-        kernel_initializer = default_kernel_initializer(
-            weight_norm=weight_norm_fn is not None
-        )
-
     if use_bias is None:
         use_bias = normalizer_fn is None
-    bias_spec = ParamSpec(shape=(units,), dtype=dtype)
+
+    # get the specification of outputs and parameters
+    out_units = validate_positive_int_arg('units', units)
+    kernel_shape = (in_units, out_units)
+    bias_shape = (out_units,)
+
+    # validate the parameters
+    if kernel is not None:
+        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+    if kernel_initializer is None:
+        kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = bias_spec.validate(bias)
+        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
 
     # the main part of the dense layer
     with tf.variable_scope(scope, default_name=name or 'dense'):
@@ -98,7 +99,7 @@ def dense(input, units,
         if kernel is None:
             kernel = tf.get_variable(
                 'kernel',
-                shape=(input_shape[-1], units),
+                shape=kernel_shape,
                 dtype=dtype,
                 initializer=kernel_initializer,
                 regularizer=kernel_regularizer,
@@ -112,7 +113,7 @@ def dense(input, units,
         if use_bias and bias is None:
             bias = tf.get_variable(
                 'bias',
-                shape=(units,),
+                shape=bias_shape,
                 dtype=dtype,
                 initializer=bias_initializer,
                 regularizer=bias_regularizer,
@@ -120,17 +121,13 @@ def dense(input, units,
                 trainable=trainable,
             )
 
+        # flatten to 2d
+        output, s1, s2 = flatten(input, 2)
+
         # do kernel * input + bias
-        if len(int_shape(input)) == 2:
-            output = tf.matmul(input, kernel)
-            if use_bias:
-                output = tf.nn.bias_add(output, bias)
-        else:
-            output, s1, s2 = flatten(input, 2)
-            output = tf.matmul(output, kernel)
-            if use_bias:
-                output = tf.nn.bias_add(output, bias)
-            output = unflatten(output, s1, s2)
+        output = tf.matmul(output, kernel)
+        if use_bias:
+            output = tf.nn.bias_add(output, bias)
 
         # apply the normalization function if specified
         if normalizer_fn is not None:
@@ -139,5 +136,8 @@ def dense(input, units,
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
+
+        # unflatten back to original shape
+        output = unflatten(output, s1, s2)
 
     return output

@@ -4,7 +4,7 @@ from tensorflow.contrib.framework import add_arg_scope
 from tfsnippet.utils import (ParamSpec,
                              int_shape,
                              add_name_and_scope_arg_doc,
-                             validate_int_or_int_tuple_arg,
+                             validate_int_tuple_arg,
                              resolve_negative_axis,
                              maybe_check_numerics)
 
@@ -53,7 +53,7 @@ def weight_norm(kernel,
     # check the parameters
     if not use_scale and scale is not None:
         raise ValueError('`use_scale` is False but `scale` is specified.')
-    axis = validate_int_or_int_tuple_arg('axis', axis)
+    axis = validate_int_tuple_arg('axis', axis)
     if not axis:
         raise ValueError('`axis` cannot be empty.')
 

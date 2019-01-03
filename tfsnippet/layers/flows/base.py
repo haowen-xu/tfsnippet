@@ -174,8 +174,8 @@ class BaseFlow(BaseLayer):
 
             return x, log_det
 
-    def __call__(self, x):
-        ns = get_default_scope_name('call', self)
+    def apply(self, x):
+        ns = get_default_scope_name('apply', self)
         y, _ = self.transform(
             x, compute_y=True, compute_log_det=False, name=ns)
         return y

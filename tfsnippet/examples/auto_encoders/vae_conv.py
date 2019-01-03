@@ -8,14 +8,6 @@ from tfsnippet.bayes import BayesianNet
 
 from tfsnippet.distributions import Normal, Bernoulli
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (dense,
-                                   resnet_block,
-                                   deconv_resnet_block,
-                                   reshape_conv2d_to_flat,
-                                   l2_regularizer,
-                                   regularization_loss,
-                                   conv2d,
-                                   batch_norm_2d)
 from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
                                       MLResults,
@@ -24,6 +16,9 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       bernoulli_as_pixel,
                                       print_with_title)
+from tfsnippet.layers import (dense, conv2d, l2_regularizer,
+                              conv2d_flatten_spatial_channel,
+                              resnet_conv2d_block, resnet_deconv2d_block)
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
@@ -37,6 +32,7 @@ class ExpConfig(MLConfig):
     batch_norm = True
     dropout = False
     l2_reg = 0.0001
+    kernel_size = 3
     shortcut_kernel_size = 1
 
     # training parameters
@@ -62,8 +58,8 @@ def q_net(x, observed=None, n_z=None, is_training=True,
 
     # compute the hidden features
     normalizer_fn = None if not config.batch_norm else functools.partial(
-        batch_norm_2d,
-        channels_last=channels_last,
+        tf.layers.batch_normalization,
+        axis=-1 if channels_last else -3,
         training=is_training,
     )
     dropout_fn = None if not config.dropout else functools.partial(
@@ -71,7 +67,8 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         training=is_training
     )
 
-    with arg_scope([resnet_block],
+    with arg_scope([resnet_conv2d_block],
+                   kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
@@ -81,12 +78,12 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         h_x = tf.to_float(x)
         h_x = tf.reshape(
             h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
-    h_x = reshape_conv2d_to_flat(h_x)
+        h_x = resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
+    h_x = conv2d_flatten_spatial_channel(h_x)
 
     # sample z ~ q(z|x)
     z_mean = dense(h_x, config.z_dim, name='z_mean')
@@ -109,7 +106,8 @@ def p_net(observed=None, n_z=None, is_training=True,
                 group_ndims=1, n_samples=n_z)
 
     # compute the hidden features
-    with arg_scope([deconv_resnet_block],
+    with arg_scope([resnet_deconv2d_block],
+                   kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=l2_regularizer(config.l2_reg),
@@ -117,10 +115,10 @@ def p_net(observed=None, n_z=None, is_training=True,
         h_z, s1, s2 = flatten(z, 2)
         h_z = tf.reshape(dense(h_z, 64 * 7 * 7),
                          [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
-        h_z = deconv_resnet_block(h_z, 64)  # output: (64, 7, 7)
-        h_z = deconv_resnet_block(h_z, 32, strides=2)  # output: (32, 14, 14)
-        h_z = deconv_resnet_block(h_z, 32)  # output: (32, 14, 14)
-        h_z = deconv_resnet_block(h_z, 16, strides=2)  # output: (16, 28, 28)
+        h_z = resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
+        h_z = resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
+        h_z = resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
+        h_z = resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
     h_z = conv2d(
         h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
         channels_last=channels_last)  # output: (1, 28, 28)
@@ -190,7 +188,8 @@ def main(result_dir):
 
                         dev_vae_loss = tf.reduce_mean(
                             train_chain.vi.training.sgvb())
-                        dev_loss = dev_vae_loss + regularization_loss()
+                        dev_loss = dev_vae_loss + \
+                            tf.losses.get_regularization_loss()
                         losses.append(dev_loss)
 
                     # derive the nll and logits output for testing

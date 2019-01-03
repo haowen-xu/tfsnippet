@@ -11,7 +11,7 @@ from .type_utils import is_integer
 __all__ = [
     'humanize_duration', 'camel_to_underscore', 'maybe_close',
     'iter_files', 'ETA', 'ContextStack', 'validate_enum_arg',
-    'validate_int_or_int_tuple_arg',
+    'validate_positive_int_arg', 'validate_int_tuple_arg',
 ]
 
 
@@ -255,19 +255,44 @@ def validate_enum_arg(arg_name, arg_value, choices, nullable=False):
     return arg_value
 
 
-def validate_int_or_int_tuple_arg(arg_name, arg_value):
+def validate_positive_int_arg(arg_name, arg_value):
     """
-    Validate an integer or a tuple of integers.
+    Validate a positive integer argument.
+
+    Args:
+        arg_name (str): Name of the argument.
+        arg_value (int): The value to be validated.
+
+    Returns:
+        int: The validated positive integer.
+    """
+    try:
+        arg_value = int(arg_value)
+        if arg_value < 1:
+            raise ValueError()
+        return arg_value
+    except (ValueError, TypeError):
+        raise ValueError('Invalid value for argument `{}`: expected to be a '
+                         'positive integer, but got {!r}.'.
+                         format(arg_name, arg_value))
+
+
+def validate_int_tuple_arg(arg_name, arg_value, nullable=False):
+    """
+    Validate an integer or a tuple of integers, as a tuple of integers.
 
     Args:
         arg_name (str): Name of the argument.
         arg_value (int or Iterable[int]): An integer, or an iterable collection
             of integers, to be casted into tuples of integers.
+        nullable (bool): Whether or not :obj:`None` value is accepted?
 
     Returns:
         tuple[int]: The tuple of integers.
     """
-    if is_integer(arg_value):
+    if arg_value is None and nullable:
+        pass
+    elif is_integer(arg_value):
         arg_value = (arg_value,)
     else:
         try:

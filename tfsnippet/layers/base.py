@@ -21,9 +21,9 @@ class BaseLayer(VarScopeObject):
         """Construct a new :class:`BaseLayer`."""
         super(BaseLayer, self).__init__(name=name, scope=scope)
 
-    def __call__(self, input):
+    def apply(self, input):
         """
-        Call the layer to build output for specified `input`.
+        Apply the layer on `input`, to produce output.
 
         Derived classes should override this to actually build the output.
 
@@ -34,3 +34,6 @@ class BaseLayer(VarScopeObject):
             The output tensor, or a list of output tensors.
         """
         raise NotImplementedError()
+
+    def __call__(self, input):
+        return self.apply(input)

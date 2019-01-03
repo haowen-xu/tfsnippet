@@ -5,17 +5,13 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_cifar10
-from tfsnippet.examples.nn import (dense,
-                                   softmax_classification_loss,
-                                   softmax_classification_output,
-                                   l2_regularizer,
-                                   regularization_loss,
-                                   classification_accuracy)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
+from tfsnippet.layers import dense, l2_regularizer
+from tfsnippet.nn import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, create_session
@@ -77,8 +73,8 @@ def main(result_dir):
 
     # derive the loss, output and accuracy
     logits = model(input_x, is_training=is_training)
-    softmax_loss = softmax_classification_loss(logits, input_y)
-    loss = softmax_loss + regularization_loss()
+    cls_loss = tf.losses.sparse_softmax_cross_entropy(input_y, logits)
+    loss = cls_loss + tf.losses.get_regularization_loss()
     y = softmax_classification_output(logits)
     acc = classification_accuracy(y, input_y)
 

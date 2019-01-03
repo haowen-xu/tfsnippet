@@ -7,21 +7,15 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_cifar10
-from tfsnippet.examples.nn import (dense,
-                                   batch_norm_2d,
-                                   resnet_block,
-                                   global_average_pooling,
-                                   softmax_classification_loss,
-                                   softmax_classification_output,
-                                   l2_regularizer,
-                                   regularization_loss,
-                                   classification_accuracy, conv2d)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
+from tfsnippet.layers import (dense, conv2d, l2_regularizer, global_avg_pool2d,
+                              resnet_conv2d_block)
+from tfsnippet.nn import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session
@@ -32,6 +26,7 @@ class ExpConfig(MLConfig):
     x_shape = (3, 32, 32)
     l2_reg = 0.0001
     dropout = 0.5
+    kernel_size = 3
 
     # training parameters
     write_summary = False
@@ -48,11 +43,12 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 def model(x, is_training, channels_last, k=4, n=2):
-    with arg_scope([resnet_block],
+    with arg_scope([resnet_conv2d_block],
+                   kernel_size=config.kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
-                       batch_norm_2d,
-                       channels_last=channels_last,
+                       tf.layers.batch_normalization,
+                       axis=-1 if channels_last else -3,
                        training=is_training,
                    ),
                    dropout_fn=functools.partial(
@@ -70,21 +66,20 @@ def model(x, is_training, channels_last, k=4, n=2):
 
         # 1st group, (16 * k, 32, 32)
         for i in range(n):
-            h_x = resnet_block(h_x, 16 * k)
+            h_x = resnet_conv2d_block(h_x, 16 * k)
 
         # 2nd group, (32 * k, 16, 16)
-        h_x = resnet_block(h_x, 32 * k, strides=2)
+        h_x = resnet_conv2d_block(h_x, 32 * k, strides=2)
         for i in range(n):
-            h_x = resnet_block(h_x, 32 * k)
+            h_x = resnet_conv2d_block(h_x, 32 * k)
 
         # 3rd group, (64 * k, 8, 8)
-        h_x = resnet_block(h_x, 64 * k, strides=2)
+        h_x = resnet_conv2d_block(h_x, 64 * k, strides=2)
         for i in range(n):
-            h_x = resnet_block(h_x, 64 * k)
+            h_x = resnet_conv2d_block(h_x, 64 * k)
 
-        h_x = global_average_pooling(
-            h_x, channels_last=channels_last)  # output: (64 * k, 1, 1)
-        h_x = tf.reshape(h_x, [-1, 64 * k])
+        h_x = global_avg_pool2d(
+            h_x, channels_last=channels_last)  # output: (64 * k,)
     logits = dense(h_x, 10, name='logits')
     return logits
 
@@ -135,9 +130,10 @@ def main(result_dir):
                     is_training=is_training,
                     channels_last=multi_gpu.channels_last(dev)
                 )
-                dev_softmax_loss = \
-                    softmax_classification_loss(dev_logits, dev_input_y)
-                dev_loss = dev_softmax_loss + regularization_loss()
+                dev_cls_loss = tf.losses.sparse_softmax_cross_entropy(
+                    dev_input_y, dev_logits
+                )
+                dev_loss = dev_cls_loss + tf.losses.get_regularization_loss()
                 dev_y = softmax_classification_output(dev_logits)
                 dev_acc = classification_accuracy(dev_y, dev_input_y)
                 losses.append(dev_loss)

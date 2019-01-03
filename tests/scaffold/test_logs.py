@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import contextlib
 import os
+from collections import OrderedDict
 
 import numpy as np
 import tensorflow as tf
@@ -31,19 +32,27 @@ class LoggingUtilsTestCase(tf.test.TestCase):
             'Variables Summary (30,062 in total)\n'
             '-----------------------------------\n'
             'a                 (2,)            2\n'
-            'c                 (30000,)   30,000\n'
-            'nested/b          (3, 4, 5)      60'
+            'nested/b          (3, 4, 5)      60\n'
+            'c                 (30000,)   30,000'
         ))
-        self.assertEqual(summarize_variables({'a': a, 'b': b, 'c': c}), (
+        self.assertEqual(summarize_variables([a, b, c], sort_by_names=True), (
             'Variables Summary (30,062 in total)\n'
             '-----------------------------------\n'
             'a                 (2,)            2\n'
-            'b                 (3, 4, 5)      60\n'
-            'c                 (30000,)   30,000'
+            'c                 (30000,)   30,000\n'
+            'nested/b          (3, 4, 5)      60'
+        ))
+        var_dict = OrderedDict([('a', a), ('c', c), ('b', b)])
+        self.assertEqual(summarize_variables(var_dict), (
+            'Variables Summary (30,062 in total)\n'
+            '-----------------------------------\n'
+            'a                 (2,)            2\n'
+            'c                 (30000,)   30,000\n'
+            'b                 (3, 4, 5)      60'
         ))
         self.assertEqual(
-            summarize_variables({'a': a, 'b': b, 'c': c},
-                                groups=['pfx1', 'pfx2']), (
+            summarize_variables(var_dict, groups=['pfx1', 'pfx2'],
+                                sort_by_names=True), (
                 'Variables Summary (30,062 in total)\n'
                 '-----------------------------------\n'
                 'a                 (2,)            2\n'
@@ -54,7 +63,7 @@ class LoggingUtilsTestCase(tf.test.TestCase):
         self.assertEqual(
             summarize_variables(
                 {'pfx1/a': a, 'pfx1/b': b, 'pfx2/a': a, 'pfx2/b': b, 'c': c},
-                groups=['pfx1', 'pfx2']
+                groups=['pfx1', 'pfx2'], sort_by_names=True
             ),
             strip_summary("""
                 Variables Summary (30,124 in total)
@@ -77,7 +86,7 @@ class LoggingUtilsTestCase(tf.test.TestCase):
         self.assertEqual(
             summarize_variables(
                 {'pfx1/a': a, 'pfx1/b': b, 'pfx2/a': a, 'pfx2/b': b},
-                groups=['pfx1', 'pfx2']
+                groups=['pfx1', 'pfx2'], sort_by_names=True
             ),
             strip_summary("""
                 Variables Summary (124 in total)

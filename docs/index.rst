@@ -33,7 +33,7 @@ API Docs
    api/tfsnippet.distributions
    api/tfsnippet.examples
    api/tfsnippet.layers
-   api/tfsnippet.mathops
+   api/tfsnippet.nn
    api/tfsnippet.preprocessing
    api/tfsnippet.scaffold
    api/tfsnippet.stochastic

@@ -1,6 +1,5 @@
 import pytest
 
-from tfsnippet.mathops import npyops
 from tfsnippet.layers import *
 from tests.layers.flows.helper import *
 

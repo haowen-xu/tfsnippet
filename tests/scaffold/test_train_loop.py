@@ -2,6 +2,7 @@
 import os
 import re
 import time
+from collections import OrderedDict
 
 import pytest
 import numpy as np
@@ -328,7 +329,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
         # test param variables in dict
         logs = []
-        with TrainLoop({'aa': a, 'bb': b},
+        with TrainLoop(OrderedDict([('aa', a), ('bb', b)]),
                        print_func=logs.append) as loop:
             self.assertEqual(loop.param_vars, {'aa': a, 'bb': b})
             loop.print_training_summary()

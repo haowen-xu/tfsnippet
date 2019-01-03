@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.mathops import log_mean_exp, tfops
+from tfsnippet.nn import log_mean_exp
 from .utils import _require_multi_samples
 
 __all__ = ['elbo_objective', 'monte_carlo_objective']
@@ -77,6 +77,5 @@ def monte_carlo_objective(log_joint, latent_log_prob, axis=None,
                        default_name='monte_carlo_objective',
                        values=[log_joint, latent_log_prob]):
         likelihood = log_joint - latent_log_prob
-        objective = log_mean_exp(
-            tfops, likelihood, axis=axis, keepdims=keepdims)
+        objective = log_mean_exp(likelihood, axis=axis, keepdims=keepdims)
         return objective

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import functools
 import re
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from itertools import chain
 
 import numpy as np
@@ -257,15 +257,19 @@ class _VarDict(object):
 
     def __init__(self, variables):
         if isinstance(variables, list):
-            self.all = {v.name.rsplit(':', 1)[0]: v for v in variables}
+            self.all = OrderedDict([
+                (v.name.rsplit(':', 1)[0], v)
+                for v in variables
+            ])
         else:
-            self.all = dict(variables)
+            self.all = OrderedDict(variables)
 
     def select(self, predicate, strip_prefix=0):
-        return _VarDict({
-            k[strip_prefix:]: v for k, v in six.iteritems(self.all)
+        return _VarDict(OrderedDict([
+            (k[strip_prefix:], v)
+            for k, v in six.iteritems(self.all)
             if predicate(k, v)
-        })
+        ]))
 
     def empty(self):
         return not self.all
@@ -282,8 +286,11 @@ def _format_title(title, var_size, min_hr_len):
         title, ' ' * (length - len(title) - len(right)), right)
 
 
-def _format_var_table(var_dict, title=None, post_title_hr='-', min_hr_len=0):
-    names = natsorted(var_dict.all)
+def _format_var_table(var_dict, title=None, post_title_hr='-', min_hr_len=0,
+                      sort_by_names=False):
+    names = list(var_dict.all)
+    if sort_by_names:
+        names = natsorted(names)
     var_size = var_dict.total_size()
     if not names:
         return ''
@@ -318,7 +325,8 @@ def _format_var_table(var_dict, title=None, post_title_hr='-', min_hr_len=0):
 def summarize_variables(variables,
                         title='Variables Summary',
                         other_variables_title='Other Variables',
-                        groups=None):
+                        groups=None,
+                        sort_by_names=False):
     """
     Get a formatted summary about the variables.
 
@@ -329,12 +337,16 @@ def summarize_variables(variables,
         other_variables_title (str): Title of the "Other Variables".
         groups (None or list[str]): List of separated variable groups, each
             summarized in a table.  (default :obj:`None`)
+        sort_by_names (bool): Whether or not to sort the variables within
+            each group by their names? (if not :obj:`True`, will display
+            the variables according to their natural order)
 
     Returns:
         str: Formatted summary about the variables.
     """
     if not groups:
-        return _format_var_table(_VarDict(variables), title=title)
+        return _format_var_table(_VarDict(variables), title=title,
+                                 sort_by_names=sort_by_names)
     var_dict = _VarDict(variables)
     groups = [g.rstrip('/') + '/' for g in groups if g.rstrip('/')]
 
@@ -360,18 +372,21 @@ def summarize_variables(variables,
             if not g_var_dict.empty():
                 g_table = _format_var_table(g_var_dict,
                                             title=g,
-                                            min_hr_len=title_len)
+                                            min_hr_len=title_len,
+                                            sort_by_names=sort_by_names)
                 if j > 0:
                     buf.append('')
                 buf.append(g_table)
         if not matched_k:
-            return summarize_variables(var_dict.all, title=title, groups=None)
+            return summarize_variables(var_dict.all, title=title, groups=None,
+                                       sort_by_names=True)
 
         o_var_dict = var_dict.select(lambda k, v: k not in matched_k)
         if not o_var_dict.empty():
             o_table = _format_var_table(o_var_dict,
                                         title=other_variables_title,
-                                        min_hr_len=title_len)
+                                        min_hr_len=title_len,
+                                        sort_by_names=sort_by_names)
             buf.append('')
             buf.append(o_table)
 

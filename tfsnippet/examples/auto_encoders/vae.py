@@ -7,10 +7,7 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 from tfsnippet.bayes import BayesianNet
 from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.layers import dense, act_norm
 from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
-from tfsnippet.examples.nn import (l2_regularizer,
-                                   regularization_loss)
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
@@ -18,9 +15,10 @@ from tfsnippet.examples.utils import (MLConfig,
                                       global_config as config,
                                       bernoulli_as_pixel,
                                       print_with_title)
+from tfsnippet.layers import dense, act_norm, l2_regularizer
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import (global_reuse, flatten, unflatten, create_session,
+from tfsnippet.utils import (global_reuse, create_session,
                              ensure_variables_initialized)
 
 
@@ -87,12 +85,12 @@ def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
                    normalizer_fn=normalizer_fn,
                    weight_norm=True,
                    kernel_regularizer=l2_regularizer(config.l2_reg)):
-        h_z, s1, s2 = flatten(z, 2)
+        h_z = z
         h_z = dense(h_z, 500)
         h_z = dense(h_z, 500)
 
     # sample x ~ p(x|z)
-    x_logits = unflatten(dense(h_z, config.x_dim, name='x_logits'), s1, s2)
+    x_logits = dense(h_z, config.x_dim, name='x_logits')
     x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
@@ -135,7 +133,7 @@ def main(result_dir):
             is_training=True
         )
         vae_loss = tf.reduce_mean(train_chain.vi.training.sgvb())
-        loss = vae_loss + regularization_loss()
+        loss = vae_loss + tf.losses.get_regularization_loss()
 
     # derive the nll and logits output for testing
     with tf.name_scope('testing'):

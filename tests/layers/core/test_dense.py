@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from tests.layers.helper import l2_normalize
 from tfsnippet.layers import dense
 from tfsnippet.utils import int_shape
 
@@ -73,24 +74,22 @@ class DenseTestCase(tf.test.TestCase):
                 rtol=1e-5
             )
 
-            # test create variables
-            ans = np.dot(x, kernel + 1.) + bias + 2.
-            y = dense(tf.constant(x, dtype=tf.float64), 3)
+        # test create variables
+        with tf.Graph().as_default():
+            _ = dense(tf.constant(x, dtype=tf.float64), 3)
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(int_shape(kernel_var), kernel.shape)
+            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
             self.assertEqual(int_shape(bias_var), bias.shape)
-            sess.run(kernel_var.assign(kernel + 1.))
-            sess.run(bias_var.assign(bias + 2.))
-            np.testing.assert_allclose(sess.run(y), ans, rtol=1e-5)
+            self.assertTrue(bias_var.name.endswith('/bias:0'))
 
-            # test create variables, use_bias is False
-            ans = np.dot(x, kernel + 3.)
-            y = dense(tf.constant(x, dtype=tf.float64), 3, use_bias=False)
+        # test create variables, use_bias is False
+        with tf.Graph().as_default():
+            _ = dense(tf.constant(x, dtype=tf.float64), 3, use_bias=False)
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(int_shape(kernel_var), kernel.shape)
-            sess.run(kernel_var.assign(kernel + 3.))
-            np.testing.assert_allclose(sess.run(y), ans, rtol=1e-5)
+            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
 
     def test_normalization_and_activation(self):
         np.random.seed(1234)
@@ -108,42 +107,8 @@ class DenseTestCase(tf.test.TestCase):
         )
 
         with self.test_session() as sess:
-            # test activation
-            ans = activation_fn(np.dot(x, kernel) + bias)
-            self.assertEqual(ans.shape, (11, 7, 3))
-            np.testing.assert_allclose(
-                sess.run(
-                    dense(
-                        tf.constant(x, dtype=tf.float64), 3,
-                        kernel=tf.constant(kernel),
-                        bias=tf.constant(bias),
-                        activation_fn=activation_fn,
-                    )
-                ),
-                ans,
-                rtol=1e-5
-            )
-
-            # test normalizer + activation
-            ans = activation_fn(normalizer_fn(np.dot(x, kernel)))
-            self.assertEqual(ans.shape, (11, 7, 3))
-            np.testing.assert_allclose(
-                sess.run(
-                    dense(
-                        tf.constant(x, dtype=tf.float64), 3,
-                        kernel=tf.constant(kernel),
-                        bias=tf.constant(bias),
-                        activation_fn=activation_fn,
-                        normalizer_fn=normalizer_fn,
-                    )
-                ),
-                ans,
-                rtol=1e-5
-            )
-
             # test weight_norm + normalizer + activation
-            normalized_kernel = kernel / \
-                np.sqrt(np.sum(kernel ** 2, axis=(0,), keepdims=True))
+            normalized_kernel = l2_normalize(kernel, axis=0)
             ans = activation_fn(normalizer_fn(np.dot(x, normalized_kernel)))
             self.assertEqual(ans.shape, (11, 7, 3))
             np.testing.assert_allclose(
@@ -161,8 +126,9 @@ class DenseTestCase(tf.test.TestCase):
                 rtol=1e-5
             )
 
-            # test normalizer + activation, use_bias is True
-            ans = activation_fn(normalizer_fn(np.dot(x, kernel) + bias))
+            # test weight_norm + normalizer + activation, use_bias is True
+            ans = activation_fn(
+                normalizer_fn(np.dot(x, normalized_kernel) + bias))
             self.assertEqual(ans.shape, (11, 7, 3))
             np.testing.assert_allclose(
                 sess.run(
@@ -172,6 +138,7 @@ class DenseTestCase(tf.test.TestCase):
                         bias=tf.constant(bias),
                         activation_fn=activation_fn,
                         normalizer_fn=normalizer_fn,
+                        weight_norm=True,
                         use_bias=True
                     )
                 ),
