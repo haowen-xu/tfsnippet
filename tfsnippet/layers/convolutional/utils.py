@@ -1,4 +1,4 @@
-from tfsnippet.utils import (validate_int_or_int_tuple_arg, InputSpec,
+from tfsnippet.utils import (validate_int_tuple_arg, InputSpec,
                              int_shape, validate_enum_arg)
 
 __all__ = [
@@ -49,7 +49,7 @@ def validate_conv2d_size_tuple(arg_name, arg_value):
     Returns:
         (int, int): The validated two integers.
     """
-    arg_value = validate_int_or_int_tuple_arg(arg_name, arg_value)
+    arg_value = validate_int_tuple_arg(arg_name, arg_value)
     if len(arg_value) not in (1, 2) or any(a < 1 for a in arg_value):
         raise ValueError('Invalid value for argument `{}`: expected to be '
                          'one or two positive integers, but got {!r}.'.

@@ -7,14 +7,14 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_mnist
-from tfsnippet.examples.nn import resnet_block
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
-from tfsnippet.layers import dense, l2_regularizer, global_avg_pool2d
+from tfsnippet.layers import (dense, l2_regularizer, global_avg_pool2d,
+                              resnet_conv2d_block)
 from tfsnippet.nn import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -25,6 +25,7 @@ class ExpConfig(MLConfig):
     # model parameters
     x_dim = 784
     l2_reg = 0.0001
+    kernel_size = 3
 
     # training parameters
     write_summary = False
@@ -40,7 +41,8 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 def model(x, is_training, channels_last):
-    with arg_scope([resnet_block],
+    with arg_scope([resnet_conv2d_block],
+                   kernel_size=config.kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
                        tf.layers.batch_normalization,
@@ -55,11 +57,11 @@ def model(x, is_training, channels_last):
                    channels_last=channels_last):
         h_x = tf.reshape(
             x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = resnet_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = resnet_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = resnet_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = resnet_block(h_x, 64)  # output: (64, 7, 7)
+        h_x = resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
         h_x = global_avg_pool2d(
             h_x, channels_last=channels_last)  # output: (64,)
     logits = dense(h_x, 10, name='logits')

@@ -11,7 +11,7 @@ from .type_utils import is_integer
 __all__ = [
     'humanize_duration', 'camel_to_underscore', 'maybe_close',
     'iter_files', 'ETA', 'ContextStack', 'validate_enum_arg',
-    'validate_positive_int_arg', 'validate_int_or_int_tuple_arg',
+    'validate_positive_int_arg', 'validate_int_tuple_arg',
 ]
 
 
@@ -277,9 +277,9 @@ def validate_positive_int_arg(arg_name, arg_value):
                          format(arg_name, arg_value))
 
 
-def validate_int_or_int_tuple_arg(arg_name, arg_value, nullable=False):
+def validate_int_tuple_arg(arg_name, arg_value, nullable=False):
     """
-    Validate an integer or a tuple of integers.
+    Validate an integer or a tuple of integers, as a tuple of integers.
 
     Args:
         arg_name (str): Name of the argument.

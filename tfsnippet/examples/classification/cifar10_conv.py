@@ -7,14 +7,14 @@ from tensorflow.contrib.framework import arg_scope
 
 from tfsnippet.dataflow import DataFlow
 from tfsnippet.examples.datasets import load_cifar10
-from tfsnippet.examples.nn import resnet_block
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
-from tfsnippet.layers import dense, conv2d, l2_regularizer, global_avg_pool2d
+from tfsnippet.layers import (dense, conv2d, l2_regularizer, global_avg_pool2d,
+                              resnet_conv2d_block)
 from tfsnippet.nn import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
@@ -26,6 +26,7 @@ class ExpConfig(MLConfig):
     x_shape = (3, 32, 32)
     l2_reg = 0.0001
     dropout = 0.5
+    kernel_size = 3
 
     # training parameters
     write_summary = False
@@ -42,7 +43,8 @@ class ExpConfig(MLConfig):
 
 @global_reuse
 def model(x, is_training, channels_last, k=4, n=2):
-    with arg_scope([resnet_block],
+    with arg_scope([resnet_conv2d_block],
+                   kernel_size=config.kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
                        tf.layers.batch_normalization,
@@ -64,17 +66,17 @@ def model(x, is_training, channels_last, k=4, n=2):
 
         # 1st group, (16 * k, 32, 32)
         for i in range(n):
-            h_x = resnet_block(h_x, 16 * k)
+            h_x = resnet_conv2d_block(h_x, 16 * k)
 
         # 2nd group, (32 * k, 16, 16)
-        h_x = resnet_block(h_x, 32 * k, strides=2)
+        h_x = resnet_conv2d_block(h_x, 32 * k, strides=2)
         for i in range(n):
-            h_x = resnet_block(h_x, 32 * k)
+            h_x = resnet_conv2d_block(h_x, 32 * k)
 
         # 3rd group, (64 * k, 8, 8)
-        h_x = resnet_block(h_x, 64 * k, strides=2)
+        h_x = resnet_conv2d_block(h_x, 64 * k, strides=2)
         for i in range(n):
-            h_x = resnet_block(h_x, 64 * k)
+            h_x = resnet_conv2d_block(h_x, 64 * k)
 
         h_x = global_avg_pool2d(
             h_x, channels_last=channels_last)  # output: (64 * k,)

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.utils import add_name_arg_doc, validate_int_or_int_tuple_arg
+from tfsnippet.utils import add_name_arg_doc, validate_int_tuple_arg
 
 __all__ = ['log_sum_exp', 'log_mean_exp']
 
@@ -31,7 +31,7 @@ def log_sum_exp(x, axis=None, keepdims=False, name=None):
     Returns:
         tf.Tensor: The computed value.
     """
-    axis = validate_int_or_int_tuple_arg('axis', axis, nullable=True)
+    axis = validate_int_tuple_arg('axis', axis, nullable=True)
     x = tf.convert_to_tensor(x)
     with tf.name_scope(name, default_name='log_sum_exp', values=[x]):
         x_max_keepdims = tf.reduce_max(x, axis=axis, keepdims=True)
@@ -70,7 +70,7 @@ def log_mean_exp(x, axis=None, keepdims=False, name=None):
     Returns:
         tf.Tensor: The computed value.
     """
-    axis = validate_int_or_int_tuple_arg('axis', axis, nullable=True)
+    axis = validate_int_tuple_arg('axis', axis, nullable=True)
     x = tf.convert_to_tensor(x)
     with tf.name_scope(name, default_name='log_mean_exp', values=[x]):
         x = tf.convert_to_tensor(x)

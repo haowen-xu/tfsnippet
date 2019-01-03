@@ -6,7 +6,7 @@ from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              int_shape, reopen_variable_scope,
                              maybe_check_numerics, get_dimensions_size,
                              get_shape, concat_shapes, validate_enum_arg,
-                             validate_int_or_int_tuple_arg)
+                             validate_int_tuple_arg)
 from ..flows import BaseFlow
 
 
@@ -77,7 +77,7 @@ class ActNorm(BaseFlow):
         scale_type = validate_enum_arg(
             'scale_type', scale_type, ['scale', 'log_scale'])
 
-        var_shape = validate_int_or_int_tuple_arg('var_shape', var_shape)
+        var_shape = validate_int_tuple_arg('var_shape', var_shape)
         var_spec = ParamSpec(var_shape)
 
         # for each dimension in var_shape, generate its negative index
@@ -309,7 +309,7 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
         tf.Tensor: The output after the ActNorm has been applied.
     """
     # check the arguments.
-    axis = validate_int_or_int_tuple_arg('axis', axis)
+    axis = validate_int_tuple_arg('axis', axis)
     input = tf.convert_to_tensor(input)
     dtype = input.dtype.base_dtype
     shape = int_shape(input)

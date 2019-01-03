@@ -19,10 +19,10 @@ __all__ = [
 def conv2d(input,
            out_channels,
            kernel_size,
-           channels_last=True,
-           padding='same',
            strides=(1, 1),
            dilations=1,
+           padding='same',
+           channels_last=True,
            activation_fn=None,
            normalizer_fn=None,
            weight_norm=False,
@@ -45,11 +45,11 @@ def conv2d(input,
         input (Tensor): The input tensor, at least 4-d.
         out_channels (int): The channel numbers of the output.
         kernel_size (int or (int, int)): Kernel size over spatial dimensions.
-        channels_last (bool): Whether or not the channel axis is the last
-            axis in `input`? (i.e., the data format is "NHWC")
-        padding: One of {"valid", "same"}, case in-sensitive.
         strides (int or (int, int)): Strides over spatial dimensions.
         dilations (int): The dilation factor over spatial dimensions.
+        padding: One of {"valid", "same"}, case in-sensitive.
+        channels_last (bool): Whether or not the channel axis is the last
+            axis in `input`? (i.e., the data format is "NHWC")
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         weight_norm (bool or (tf.Tensor) -> tf.Tensor)):
@@ -187,10 +187,10 @@ def conv2d(input,
 def deconv2d(input,
              out_channels,
              kernel_size,
-             output_shape=None,
-             channels_last=True,
-             padding='same',
              strides=(1, 1),
+             padding='same',
+             channels_last=True,
+             output_shape=None,
              activation_fn=None,
              normalizer_fn=None,
              weight_norm=False,
@@ -213,6 +213,10 @@ def deconv2d(input,
         input (Tensor): The input tensor, at least 4-d.
         out_channels (int): The channel numbers of the deconvolution output.
         kernel_size (int or (int, int)): Kernel size over spatial dimensions.
+        strides (int or (int, int)): Strides over spatial dimensions.
+        padding: One of {"valid", "same"}, case in-sensitive.
+        channels_last (bool): Whether or not the channel axis is the last
+            axis in `input`? (i.e., the data format is "NHWC")
         output_shape: If specified, use this as the shape of the
             deconvolution output; otherwise compute the size of each dimension
             by::
@@ -221,10 +225,6 @@ def deconv2d(input,
                 if padding == 'valid':
                     output_size += max(kernel_size - strides, 0)
 
-        channels_last (bool): Whether or not the channel axis is the last
-            axis in `input`? (i.e., the data format is "NHWC")
-        padding: One of {"valid", "same"}, case in-sensitive.
-        strides (int or (int, int)): Strides over spatial dimensions.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         weight_norm (bool or (tf.Tensor) -> tf.Tensor)):

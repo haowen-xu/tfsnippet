@@ -290,10 +290,10 @@ class ArgValidationTestCase(unittest.TestCase):
         error_case(0)
         error_case(-1)
 
-    def test_validate_int_or_int_tuple_arg(self):
+    def test_validate_int_tuple_arg(self):
         # test good cases
         def good_case(value, expected):
-            self.assertEqual(validate_int_or_int_tuple_arg('arg', value),
+            self.assertEqual(validate_int_tuple_arg('arg', value),
                              expected)
 
         good_case(1, (1,))
@@ -308,7 +308,7 @@ class ArgValidationTestCase(unittest.TestCase):
             err_msg = err_msg.replace('(', '\\(')
             err_msg = err_msg.replace(')', '\\)')
             with pytest.raises(ValueError, match=err_msg):
-                _ = validate_int_or_int_tuple_arg('arg', value)
+                _ = validate_int_tuple_arg('arg', value)
 
         error_case(None)
         error_case('x')
@@ -316,7 +316,7 @@ class ArgValidationTestCase(unittest.TestCase):
 
         # test good case for nullable
         self.assertIsNone(
-            validate_int_or_int_tuple_arg('arg', None, nullable=True))
+            validate_int_tuple_arg('arg', None, nullable=True))
 
 
 if __name__ == '__main__':
