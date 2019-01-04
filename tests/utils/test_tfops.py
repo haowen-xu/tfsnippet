@@ -47,24 +47,6 @@ class TFOpsTestCase(tf.test.TestCase):
             self.assertEqual(sess.run(value, feed_dict={cond_in: True}), 1)
             self.assertEqual(sess.run(value, feed_dict={cond_in: False}), 2)
 
-    def test_control_deps(self):
-        with self.test_session() as sess:
-            # test empty control inputs
-            with control_deps([]) as b:
-                self.assertFalse(b)
-
-            # test None control inputs reduce to empty
-            with control_deps([None]) as b:
-                self.assertFalse(b)
-
-            # test run control inputs
-            w = tf.get_variable('w', shape=(), dtype=tf.float32)
-            with control_deps([tf.assign(w, 123.), None]) as b:
-                self.assertTrue(b)
-                v = tf.constant(456.)
-            self.assertEqual(sess.run(v), 456.)
-            self.assertEqual(sess.run(w), 123.)
-
     def test_get_variable_ddi(self):
         @global_reuse
         def f(initial_value, initializing=False):
@@ -78,36 +60,82 @@ class TFOpsTestCase(tf.test.TestCase):
             x = f(x_in, initializing=False)
             self.assertEqual(sess.run(x, feed_dict={x_in: 456.}), 123.)
 
+
+class AssertOpsTestCase(tf.test.TestCase):
+
     def test_assert_scalar_equal(self):
-        with self.test_session() as sess, scoped_set_assertion_enabled(True):
+        with self.test_session() as sess:
             # test static comparison
-            msg = 'Assertion failed for a == b: 1 != 2; abcdefg'
             _ = assert_scalar_equal(1, 1)
-            with pytest.raises(ValueError, match=msg):
+            with pytest.raises(AssertionError,
+                               match='Assertion failed for a == b: '
+                                     '1 != 2; abcdefg'):
                 _ = assert_scalar_equal(1, 2, message='abcdefg')
 
-            # test static comparison without message
-            msg = 'Assertion failed for a == b: 1 != 2'
-            with pytest.raises(ValueError, match=msg):
-                _ = assert_scalar_equal(1, 2)
-
             # prepare dynamic comparison
-            msg = 'abcdefg'
             x_in = tf.placeholder(dtype=tf.int32, shape=())
             assert_1 = assert_scalar_equal(1, x_in, message='abcdefg')
             assert_2 = assert_scalar_equal(x_in, 2, message='abcdefg')
 
-            with control_deps([assert_1]):
+            with tf.control_dependencies([assert_1]):
                 v1 = tf.constant(1.)
-            with control_deps([assert_2]):
+            with tf.control_dependencies([assert_2]):
                 v2 = tf.constant(2.)
 
             # test dynamic on a
             self.assertEqual(sess.run(v1, feed_dict={x_in: 1}), 1.)
-            with pytest.raises(Exception, match=msg):
+            with pytest.raises(Exception, match='abcdefg'):
                 _ = sess.run(v1, feed_dict={x_in: 2})
 
             # test dynamic on b
             self.assertEqual(sess.run(v2, feed_dict={x_in: 2}), 2.)
-            with pytest.raises(Exception, match=msg):  # dynamic on b
+            with pytest.raises(Exception, match='abcdefg'):  # dynamic on b
                 _ = sess.run(v2, feed_dict={x_in: 1})
+
+    def test_assert_rank(self):
+        with self.test_session() as sess:
+            # test static comparison
+            x = np.zeros([2, 3, 4])
+            _ = assert_rank(x, 3)
+            with pytest.raises(AssertionError,
+                               match=r'Assertion failed for rank\(x\) == ndims'
+                                     r': 3 != 2; abcdefg'):
+                _ = assert_rank(x, 2, message='abcdefg')
+
+            # prepare dynamic comparison
+            x_in = tf.placeholder(dtype=tf.int32, shape=None)
+            assert_1 = assert_rank(x_in, 3, message='abcdefg')
+            assert_2 = assert_rank(x_in, 2, message='abcdefg')
+
+            with tf.control_dependencies([assert_1]):
+                v1 = tf.constant(1.)
+            with tf.control_dependencies([assert_2]):
+                v2 = tf.constant(2.)
+
+            self.assertEqual(sess.run(v1, feed_dict={x_in: x}), 1.)
+            with pytest.raises(Exception, match='abcdefg'):
+                _ = sess.run(v2, feed_dict={x_in: x})
+
+    def test_assert_rank_at_least(self):
+        with self.test_session() as sess:
+            # test static comparison
+            x = np.zeros([2, 3, 4])
+            _ = assert_rank_at_least(x, 2)
+            with pytest.raises(AssertionError,
+                               match=r'Assertion failed for rank\(x\) >= ndims'
+                                     r': 3 < 4; abcdefg'):
+                _ = assert_rank_at_least(x, 4, message='abcdefg')
+
+            # prepare dynamic comparison
+            x_in = tf.placeholder(dtype=tf.int32, shape=None)
+            assert_1 = assert_rank_at_least(x_in, 2, message='abcdefg')
+            assert_2 = assert_rank_at_least(x_in, 4, message='abcdefg')
+
+            with tf.control_dependencies([assert_1]):
+                v1 = tf.constant(1.)
+            with tf.control_dependencies([assert_2]):
+                v2 = tf.constant(2.)
+
+            self.assertEqual(sess.run(v1, feed_dict={x_in: x}), 1.)
+            with pytest.raises(Exception, match='abcdefg'):
+                _ = sess.run(v2, feed_dict={x_in: x})

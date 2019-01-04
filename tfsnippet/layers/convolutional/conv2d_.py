@@ -347,11 +347,11 @@ def deconv2d(input,
                         )
                 else:
                     assert(is_tensor_object(given_output_shape))
-                    assert_ops = [
-                        maybe_assert(tf.assert_rank, given_output_shape, 1),
-                        assert_scalar_equal(tf.size(given_output_shape), 2)
-                    ]
-                    with control_deps(assert_ops):
+                    with assert_deps([
+                                assert_rank(given_output_shape, 1),
+                                assert_scalar_equal(
+                                    tf.size(given_output_shape), 2)
+                            ]):
                         output_shape[h_axis] = given_output_shape[0]
                         output_shape[w_axis] = given_output_shape[1]
 

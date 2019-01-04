@@ -1,14 +1,12 @@
-from contextlib import contextmanager
-
 import tensorflow as tf
 
-from .debugging import maybe_assert
 from .doc_utils import add_name_arg_doc
+from .shape_utils import int_shape
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'add_n_broadcast', 'smart_cond', 'control_deps', 'get_variable_ddi',
-    'assert_scalar_equal',
+    'add_n_broadcast', 'smart_cond', 'get_variable_ddi',
+    'assert_scalar_equal', 'assert_rank', 'assert_rank_at_least',
 ]
 
 
@@ -55,28 +53,6 @@ def smart_cond(cond, true_fn, false_fn, name=None):
             return false_fn()
 
 
-@contextmanager
-def control_deps(control_inputs):
-    """
-    A wrapper of :func:`tensorflow.control_dependencies`, where the :obj:`None`
-    in specified `control_inputs` are filtered out.
-
-    Args:
-        control_inputs (Iterable[tf.Operation or None]): The operations to
-            be executed, or :obj:`None`.
-
-    Yields:
-        bool: :obj:`True` if the `control_inputs` is not empty,
-            :obj:`False` otherwise.
-    """
-    control_inputs = [o for o in control_inputs if o is not None]
-    if control_inputs:
-        with tf.control_dependencies(control_inputs):
-            yield True
-    else:
-        yield False
-
-
 def get_variable_ddi(name,
                      initial_value,
                      shape=None,
@@ -115,6 +91,13 @@ def get_variable_ddi(name,
     return v
 
 
+def _make_assertion_error(expected, actual, message=None):
+    ret = 'Assertion failed for {}: {}'.format(expected, actual)
+    if message:
+        ret += '; {}'.format(message)
+    return AssertionError(ret)
+
+
 @add_name_arg_doc
 def assert_scalar_equal(a, b, message=None, name=None):
     """
@@ -123,20 +106,68 @@ def assert_scalar_equal(a, b, message=None, name=None):
     Args:
         a: A 0-d tensor.
         b: A 0-d tensor.
-        message: Operational message when assertion failed.
+        message: Message to display when assertion failed.
 
     Returns:
         tf.Operation or None: The TensorFlow assertion operation,
-            or None if `a` == `b` can be statically asserted.
+            or None if can be statically asserted.
     """
     if not is_tensor_object(a) and not is_tensor_object(b):
         if a != b:
-            msg = 'Assertion failed for a == b: {!r} != {!r}'.format(a, b)
-            if message:
-                msg += '; {}'.format(message)
-            raise ValueError(msg)
+            raise _make_assertion_error(
+                'a == b', '{!r} != {!r}'.format(a, b), message)
     else:
-        return maybe_assert(
-            tf.assert_equal,
-            a, b, message=message, name=name
-        )
+        return tf.assert_equal(a, b, message=message, name=name)
+
+
+@add_name_arg_doc
+def assert_rank(x, ndims, message=None, name=None):
+    """
+    Assert the rank of `x` is `ndims`.
+
+    Args:
+        x: A tensor.
+        ndims (int or tf.Tensor): An integer, or a 0-d integer tensor.
+        message: Message to display when assertion failed.
+
+    Returns:
+        tf.Operation or None: The TensorFlow assertion operation,
+            or None if can be statically asserted.
+    """
+    if not is_tensor_object(ndims) and int_shape(x) is not None:
+        ndims = int(ndims)
+        x_ndims = len(int_shape(x))
+        if x_ndims != ndims:
+            raise _make_assertion_error(
+                'rank(x) == ndims', '{!r} != {!r}'.format(x_ndims, ndims),
+                message
+            )
+    else:
+        return tf.assert_rank(x, ndims, message=message, name=name)
+
+
+@add_name_arg_doc
+def assert_rank_at_least(x, ndims, message=None, name=None):
+    """
+    Assert the rank of `x` is at least `ndims`.
+
+    Args:
+        x: A tensor.
+        ndims (int or tf.Tensor): An integer, or a 0-d integer tensor.
+        message: Message to display when assertion failed.
+
+    Returns:
+        tf.Operation or None: The TensorFlow assertion operation,
+            or None if can be statically asserted.
+    """
+    x = tf.convert_to_tensor(x)
+    if not is_tensor_object(ndims) and int_shape(x) is not None:
+        ndims = int(ndims)
+        x_ndims = len(int_shape(x))
+        if x_ndims < ndims:
+            raise _make_assertion_error(
+                'rank(x) >= ndims', '{!r} < {!r}'.format(x_ndims, ndims),
+                message
+            )
+    else:
+        return tf.assert_rank_at_least(x, ndims, message=message, name=name)

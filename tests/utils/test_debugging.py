@@ -13,25 +13,32 @@ class AssertionTestCase(tf.test.TestCase):
             self.assertFalse(is_assertion_enabled())
         self.assertTrue(is_assertion_enabled())
 
-    def test_assertion_enabled(self):
-        ph = tf.placeholder(dtype=tf.int32, shape=())
-        with scoped_set_assertion_enabled(True):
-            assert_op = maybe_assert(
-                tf.assert_equal, 1, ph, message='assertion is enabled')
-            with control_deps([assert_op]):
-                x = tf.constant(1, dtype=tf.int32)
-        with pytest.raises(Exception, match='assertion is enabled'):
-            with self.test_session() as sess:
-                _ = sess.run(x, feed_dict={ph: 2})
+    def test_assert_deps(self):
+        var = tf.get_variable('var', dtype=tf.float32, shape=(),
+                              initializer=tf.zeros_initializer())
+        op = tf.assign(var, 1.)
 
-    def test_assertion_disabled(self):
-        with scoped_set_assertion_enabled(False):
-            assert_op = maybe_assert(
-                tf.assert_equal, 1, 2, message='assertion is enabled')
-            with control_deps([assert_op]):
-                x = tf.constant(1, dtype=tf.int32)
-        with self.test_session() as sess:
-            self.assertEqual(sess.run(x), 1)
+        # test ops are empty
+        with assert_deps([None]) as asserted:
+            self.assertFalse(asserted)
+
+        # test assertion enabled, and ops are not empty
+        with self.test_session() as sess, \
+                scoped_set_assertion_enabled(True):
+            sess.run(var.initializer)
+            with assert_deps([op, None]) as asserted:
+                self.assertTrue(asserted)
+                out = tf.identity(var)
+            self.assertEqual(sess.run(out), 1.)
+
+        # test assertion disabled
+        with self.test_session() as sess, \
+                scoped_set_assertion_enabled(False):
+            sess.run(var.initializer)
+            with assert_deps([op, None]) as asserted:
+                self.assertFalse(asserted)
+                out = tf.identity(var)
+            self.assertEqual(sess.run(out), 0.)
 
 
 class CheckNumericsTestCase(tf.test.TestCase):

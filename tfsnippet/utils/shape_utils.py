@@ -2,6 +2,7 @@ import functools
 
 import tensorflow as tf
 
+from .debugging import assert_deps
 from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
@@ -10,6 +11,7 @@ __all__ = [
     'flatten', 'unflatten',
     'get_batch_size', 'get_rank', 'get_shape', 'get_dimensions_size',
     'concat_shapes',
+    'broadcast_to_shape',
 ]
 
 
@@ -264,3 +266,199 @@ def concat_shapes(shapes, name=None):
             return tf.concat(shapes, axis=0)
     else:
         return sum((tuple(s) for s in shapes), ())
+
+
+def broadcast_to_shape_sub(x, shape, cannot_broadcast_msg):
+    """
+    A sub-procedure to broadcast the shape of `x` to match `shape`.
+    If the length of `shape` is lower than the dimension of `x`, only
+    the tail of `x` will be matched.
+
+    Args:
+        x: A tensor.
+        shape (tuple[int] or tf.Tensor): Broadcast `x` to match this shape.
+        cannot_broadcast_msg (str): Error message to display when `x`
+            cannot broadcast to match `shape`.
+
+    Returns:
+        tf.Tensor: The broadcasted tensor.
+    """
+    from .tfops import smart_cond
+    x_shape = int_shape(x)
+
+    # fast routine: shape is tuple[int] and x_shape is all known,
+    # we can use reshape + tile to do the broadcast, which should be faster
+    # than using ``x * ones(shape)``.
+    if isinstance(shape, tuple) and x_shape is not None and \
+            all(s is not None for s in x_shape):
+        # reshape to have the same dimension
+        if len(x_shape) < len(shape):
+            x_shape = (1,) * (len(shape) - len(x_shape)) + x_shape
+            x = tf.reshape(x, x_shape)
+
+        # tile to have the same shape
+        tile = []
+        i = -1
+        while i > -len(shape) - 1:
+            a, b = x_shape[i], shape[i]
+            if a == 1 and b > 1:
+                tile.append(b)
+            elif a != b:
+                raise ValueError(cannot_broadcast_msg)
+            else:
+                tile.append(1)
+            i -= 1
+        tile = [1] * (len(x_shape) - len(shape)) + list(reversed(tile))
+        if any(s > 1 for s in tile):
+            x = tf.tile(x, tile)
+
+        return x
+
+    # slow routine: we may need ``x * ones(shape)`` to do the broadcast
+    assertions = []
+    post_assert_shape = False
+    static_shape = tf.TensorShape(None)
+
+    if isinstance(shape, tuple) and x_shape is not None:
+        need_multiply_ones = False
+
+        # it should always broadcast if len(x_shape) < len(shape)
+        if len(x_shape) < len(shape):
+            need_multiply_ones = True
+
+        # check the consistency of x and shape
+        static_shape_hint = []  # list to gather the static shape hint
+        axis_to_check = []  # list to gather the axis to check
+        i = -1
+        while i >= -len(shape) and i >= -len(x_shape):
+            a, b = x_shape[i], shape[i]
+            if a is None:
+                axis_to_check.append(i)
+            else:
+                if a != b:
+                    if a == 1:
+                        need_multiply_ones = True
+                    else:
+                        raise ValueError(cannot_broadcast_msg)
+            static_shape_hint.append(b)
+            i -= 1
+
+        # compose the static shape hint
+        if len(shape) < len(x_shape):
+            static_shape = x_shape[:-len(shape)]
+        elif len(shape) > len(x_shape):
+            static_shape = shape[:-len(x_shape)]
+        else:
+            static_shape = ()
+        static_shape = tf.TensorShape(
+            static_shape + tuple(reversed(static_shape_hint)))
+
+        # compose the assertion operations and the multiply flag
+        if axis_to_check:
+            need_multiply_flags = []
+            x_dynamic_shape = tf.shape(x)
+
+            for i in axis_to_check:
+                assertions.append(tf.assert_equal(
+                    tf.logical_or(
+                        tf.equal(x_dynamic_shape[i], shape[i]),
+                        tf.equal(x_dynamic_shape[i], 1),
+                    ),
+                    True,
+                    message=cannot_broadcast_msg
+                ))
+                if len(x_shape) >= len(shape):
+                    need_multiply_flags.append(
+                        tf.not_equal(x_dynamic_shape[i], shape[i]))
+
+            if not need_multiply_ones:
+                need_multiply_ones = \
+                    tf.reduce_any(tf.stack(need_multiply_flags))
+
+    else:
+        # we have no ideal about what `shape` is here, thus we need to assert
+        # the shape after ``x * ones(shape)``.
+        need_multiply_ones = True
+        post_assert_shape = True
+
+    # do broadcast if `x_shape` != `shape`
+    def multiply_branch():
+        with assert_deps(assertions):
+            ones_template = tf.ones(shape, dtype=x.dtype.base_dtype)
+        try:
+            return x * ones_template
+        except ValueError:  # pragma: no cover
+            raise ValueError(cannot_broadcast_msg)
+
+    def identity_branch():
+        with assert_deps(assertions) as asserted:
+            if asserted:
+                return tf.identity(x)
+            else:  # pragma: no cover
+                return x
+
+    t = smart_cond(need_multiply_ones, multiply_branch, identity_branch)
+    t.set_shape(static_shape)
+
+    if post_assert_shape:
+        post_assert_op = tf.assert_equal(
+            tf.reduce_all(tf.equal(tf.shape(t)[-tf.size(shape):], shape)),
+            True,
+            message=cannot_broadcast_msg
+        )
+        with assert_deps([post_assert_op]) as asserted:
+            if asserted:
+                t = tf.identity(t)
+
+    return t
+
+
+@add_name_arg_doc
+def broadcast_to_shape(x, shape, name=None):
+    """
+    Broadcast `x` to match `shape`.
+
+    Args:
+        x: A tensor.
+        shape (tuple[int] or tf.Tensor): Broadcast `x` to match this shape.
+            It must hold that ``rank(x) <= len(shape)``.
+
+    Returns:
+        tf.Tensor: The broadcasted tensor.
+    """
+    from .tfops import assert_rank
+
+    # check the parameters
+    x = tf.convert_to_tensor(x)
+    x_shape = int_shape(x)
+    ns_values = [x]
+    if is_tensor_object(shape):
+        shape = tf.convert_to_tensor(shape)
+        ns_values.append(shape)
+    else:
+        shape = tuple(int(s) for s in shape)
+
+    with tf.name_scope(name=name or 'broadcast_to_shape', values=ns_values):
+        cannot_broadcast_msg = (
+            '`x` cannot be broadcasted to match `shape`: x.shape {!r} vs '
+            'shape {!r}'.format(int_shape(x), shape)
+        )
+
+        # assert ``rank(x) <= len(shape)``
+        if isinstance(shape, tuple) and x_shape is not None:
+            if len(x_shape) > len(shape):
+                raise ValueError(cannot_broadcast_msg)
+        elif isinstance(shape, tuple):
+            with assert_deps([tf.assert_less_equal(
+                    tf.rank(x), len(shape), message=cannot_broadcast_msg)]):
+                x = tf.identity(x)
+        else:
+            with assert_deps([assert_rank(
+                    shape, 1, message=cannot_broadcast_msg)]):
+                shape = tf.identity(shape)
+            with assert_deps([tf.assert_less_equal(
+                    tf.rank(x), tf.size(shape), message=cannot_broadcast_msg)]):
+                x = tf.identity(x)
+
+        # do broadcast
+        return broadcast_to_shape_sub(x, shape, cannot_broadcast_msg)

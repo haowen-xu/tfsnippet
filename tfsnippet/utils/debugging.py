@@ -8,11 +8,11 @@ __all__ = [
     'is_assertion_enabled',
     'set_assertion_enabled',
     'scoped_set_assertion_enabled',
-    'maybe_assert',
     'should_check_numerics',
     'set_check_numerics',
     'scoped_set_check_numerics',
     'maybe_check_numerics',
+    'assert_deps',
 ]
 
 
@@ -39,9 +39,8 @@ def set_assertion_enabled(enabled):
     """
     Set whether or not to enable assertions?
 
-    If the assertions are disabled, all the assertions statements in
-    tfsnippet are disabled.  User assertions created with the helper
-    function :func:`maybe_assert` are also affected by this option.
+    If the assertions are disabled, then :func:`assert_deps` will not execute
+    any given operations.
     """
     global _enable_assertion
     _enable_assertion = bool(enabled)
@@ -50,26 +49,6 @@ def set_assertion_enabled(enabled):
 def scoped_set_assertion_enabled(enabled):
     """Set whether or not to enable assertions in a scoped context."""
     return _scoped_set(enabled, is_assertion_enabled, set_assertion_enabled)
-
-
-def maybe_assert(assert_fn, *args, **kwargs):
-    """
-    Maybe call `assert_fn` to generate an assertion operation.
-
-    The assertion will execute only if ``is_assertions_enabled() == True``.
-
-    Args:
-        assert_fn: The assertion function, e.g.,
-            :func:`tensorflow.assert_rank_at_least`.
-        *args: The arguments to be passed to `assert_fn`.
-        \\**kwargs: The named arguments to be passed to `assert_fn`.
-
-    Returns:
-        tf.Operation or None: The assertion operation if the assertion is
-            enabled, or :obj:`None` otherwise.
-    """
-    if is_assertion_enabled():
-        return assert_fn(*args, **kwargs)
 
 
 def should_check_numerics():
@@ -111,3 +90,25 @@ def maybe_check_numerics(tensor, message, name=None):
         return tf.check_numerics(tensor, message, name=name)
     else:
         return tf.identity(tensor)
+
+
+@contextmanager
+def assert_deps(assert_ops):
+    """
+    If ``is_assertion_enabled() == True``, open a context that will run
+    `assert_ops` on exit.  Otherwise do nothing.
+
+    Args:
+        assert_ops (Iterable[tf.Operation or NOne]): A list of assertion
+            operations.  :obj:`None` items will be ignored.
+
+    Yields:
+        bool: A boolean indicate whether or not the assertion operations
+            are not empty, and are executed.
+    """
+    assert_ops = [o for o in assert_ops if o is not None]
+    if assert_ops and is_assertion_enabled():
+        with tf.control_dependencies(assert_ops):
+            yield True
+    else:
+        yield False

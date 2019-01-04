@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 from tfsnippet.utils import (DocInherit, assert_scalar_equal, get_rank,
-                             control_deps, add_name_and_scope_arg_doc,
-                             get_default_scope_name, add_n_broadcast)
+                             add_name_and_scope_arg_doc, add_n_broadcast,
+                             get_default_scope_name, assert_deps)
 from ..base import BaseLayer
 
 __all__ = ['BaseFlow', 'MultiLayerFlow']
@@ -115,8 +115,8 @@ class BaseFlow(BaseLayer):
             if log_det is not None and self.value_ndims is not None:
                 log_det_assert = assert_scalar_equal(
                     get_rank(log_det) + self.value_ndims, get_rank(x))
-                with control_deps([log_det_assert]) as have_assert:
-                    if have_assert:  # pragma: no cover
+                with assert_deps([log_det_assert]) as asserted:
+                    if asserted:  # pragma: no cover
                         log_det = tf.identity(log_det)
 
             return y, log_det
@@ -168,8 +168,8 @@ class BaseFlow(BaseLayer):
             if log_det is not None and self.value_ndims is not None:
                 log_det_assert = assert_scalar_equal(
                     get_rank(log_det) + self.value_ndims, get_rank(y))
-                with control_deps([log_det_assert]) as have_assert:
-                    if have_assert:  # pragma: no cover
+                with assert_deps([log_det_assert]) as asserted:
+                    if asserted:  # pragma: no cover
                         log_det = tf.identity(log_det)
 
             return x, log_det
