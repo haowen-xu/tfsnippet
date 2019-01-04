@@ -3,7 +3,7 @@ import tensorflow as tf
 from mock import mock, Mock
 
 from tfsnippet.layers import *
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 
 
 class ResNetBlockTestCase(tf.test.TestCase):
@@ -208,7 +208,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 kernel_size=3,
                 name='conv_layer',
             )
-            self.assertEqual(int_shape(output), (17, 11, 32, 31, 7))
+            self.assertEqual(get_static_shape(output), (17, 11, 32, 31, 7))
             self.assertDictEqual(fn.call_args[1], {
                 'input': input,
                 'in_channels': 5,
@@ -239,7 +239,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 dropout_fn=dropout_fn,
                 name='conv_layer',
             )
-            self.assertEqual(int_shape(output), (17, 11, 7, 16, 16))
+            self.assertEqual(get_static_shape(output), (17, 11, 7, 16, 16))
             self.assertDictEqual(fn.call_args[1], {
                 'input': input,
                 'in_channels': 5,
@@ -272,7 +272,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 kernel_size=3,
                 name='deconv_layer',
             )
-            self.assertEqual(int_shape(output), (17, 11, 32, 31, 7))
+            self.assertEqual(get_static_shape(output), (17, 11, 32, 31, 7))
             self.assertDictEqual(fn.call_args[1], {
                 'input': input,
                 'in_channels': 5,
@@ -303,7 +303,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 dropout_fn=dropout_fn,
                 name='deconv_layer',
             )
-            self.assertEqual(int_shape(output), (17, 11, 7, 64, 62))
+            self.assertEqual(get_static_shape(output), (17, 11, 7, 64, 62))
             self.assertDictEqual(fn.call_args[1], {
                 'input': input,
                 'in_channels': 5,

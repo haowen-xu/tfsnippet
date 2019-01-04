@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from tfsnippet.utils import (DocInherit, assert_scalar_equal, get_rank,
-                             add_name_and_scope_arg_doc, add_n_broadcast,
+from tfsnippet.ops import add_n_broadcast, assert_scalar_equal
+from tfsnippet.utils import (DocInherit, get_rank, add_name_and_scope_arg_doc,
                              get_default_scope_name, assert_deps)
 from ..base import BaseLayer
 

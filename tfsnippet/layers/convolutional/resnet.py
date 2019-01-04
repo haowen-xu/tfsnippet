@@ -4,7 +4,8 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (validate_int_tuple_arg, is_integer,
-                             add_name_and_scope_arg_doc, InputSpec, int_shape)
+                             add_name_and_scope_arg_doc, InputSpec,
+                             get_static_shape)
 from .conv2d_ import conv2d, deconv2d
 
 __all__ = [
@@ -234,7 +235,7 @@ def resnet_conv2d_block(input,
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         c_axis = -3
     input = input_spec.validate(input)
-    in_channels = int_shape(input)[c_axis]
+    in_channels = get_static_shape(input)[c_axis]
 
     # check the functional arguments
     if use_bias is None:
@@ -342,7 +343,7 @@ def resnet_deconv2d_block(input,
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         c_axis = -3
     input = input_spec.validate(input)
-    in_channels = int_shape(input)[c_axis]
+    in_channels = get_static_shape(input)[c_axis]
 
     # check the functional arguments
     if use_bias is None:

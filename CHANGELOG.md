@@ -16,8 +16,9 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `Trainer` now accepts `summaries` argument on construction.
 - `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
   can be directly found under `tfsnippet.layers` namespace.
+- Some utilities in `tfsnippet.utils` have been migrated to `tfsnippet.ops`.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.
-- `tfsnippet.mathops` package has been removed.  Only some of the utilities have been migrated to `tfsnippet.nn`.
+- `tfsnippet.mathops` package has been removed.  Some of its members have been migrated to `tfsnippet.ops`.
 - `auto_reuse_variables` has been removed.

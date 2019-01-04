@@ -11,7 +11,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       config_options,
                                       print_with_title)
 from tfsnippet.layers import dense, l2_regularizer
-from tfsnippet.nn import classification_accuracy, softmax_classification_output
+from tfsnippet.ops import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, create_session

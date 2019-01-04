@@ -5,7 +5,8 @@ import pytest
 import tensorflow as tf
 import zhusuan as zs
 
-from tfsnippet.utils import ensure_variables_initialized, add_n_broadcast
+from tfsnippet.ops import add_n_broadcast
+from tfsnippet.utils import ensure_variables_initialized
 from tfsnippet.variational import *
 
 

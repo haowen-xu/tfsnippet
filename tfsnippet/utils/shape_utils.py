@@ -7,7 +7,7 @@ from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'int_shape', 'resolve_negative_axis',
+    'get_static_shape', 'resolve_negative_axis',
     'flatten', 'unflatten',
     'get_batch_size', 'get_rank', 'get_shape', 'get_dimensions_size',
     'concat_shapes',
@@ -15,16 +15,16 @@ __all__ = [
 ]
 
 
-def int_shape(tensor):
+def get_static_shape(tensor):
     """
-    Get the int shape tuple of specified `tensor`.
+    Get the the static shape of specified `tensor` as a tuple.
 
     Args:
         tensor: The tensor object.
 
     Returns:
-        tuple[int or None] or None: The int shape tuple, or :obj:`None`
-            if the tensor shape is :obj:`None`.
+        tuple[int or None] or None: The static shape tuple, or :obj:`None`
+            if the dimensions of `tensor` is not deterministic.
     """
     tensor = tf.convert_to_tensor(tensor)
     shape = tensor.get_shape()
@@ -87,7 +87,7 @@ def flatten(x, k, name=None):
     if not x.get_shape():
         raise ValueError('`x` is required to have known number of '
                          'dimensions.')
-    shape = int_shape(x)
+    shape = get_static_shape(x)
     if len(shape) < k:
         raise ValueError('`k` is {}, but `x` only has rank {}.'.
                          format(k, len(shape)))
@@ -140,7 +140,7 @@ def unflatten(x, static_front_shape, front_shape, name=None):
     if not x.get_shape():
         raise ValueError('`x` is required to have known number of '
                          'dimensions.')
-    shape = int_shape(x)
+    shape = get_static_shape(x)
     if len(shape) < 1:
         raise ValueError('`x` only has rank {}, required at least 1.'.
                          format(len(shape)))
@@ -177,7 +177,7 @@ def get_batch_size(tensor, axis=0, name=None):
     axis = int(axis)
     with tf.name_scope(name, default_name='get_batch_size', values=[tensor]):
         batch_size = None
-        shape = int_shape(tensor)
+        shape = get_static_shape(tensor)
         if shape is not None:
             batch_size = shape[axis]
         if batch_size is None:
@@ -185,6 +185,7 @@ def get_batch_size(tensor, axis=0, name=None):
     return batch_size
 
 
+@add_name_arg_doc
 def get_rank(tensor, name=None):
     """
     Get the rank of the tensor.
@@ -197,7 +198,7 @@ def get_rank(tensor, name=None):
         int or tf.Tensor: The rank.
     """
     tensor = tf.convert_to_tensor(tensor)
-    tensor_shape = int_shape(tensor)
+    tensor_shape = get_static_shape(tensor)
     if tensor_shape is not None:
         return len(tensor_shape)
     return tf.rank(tensor, name=name)
@@ -226,7 +227,7 @@ def get_dimensions_size(tensor, axis=None, name=None):
 
     with tf.name_scope(name, default_name='get_dimensions_size',
                        values=[tensor]):
-        shape = int_shape(tensor)
+        shape = get_static_shape(tensor)
 
         if shape is not None and axis is not None:
             shape = tuple(shape[a] for a in axis)
@@ -283,8 +284,8 @@ def broadcast_to_shape_sub(x, shape, cannot_broadcast_msg):
     Returns:
         tf.Tensor: The broadcasted tensor.
     """
-    from .tfops import smart_cond
-    x_shape = int_shape(x)
+    from tfsnippet.ops import smart_cond
+    x_shape = get_static_shape(x)
 
     # fast routine: shape is tuple[int] and x_shape is all known,
     # we can use reshape + tile to do the broadcast, which should be faster
@@ -426,11 +427,11 @@ def broadcast_to_shape(x, shape, name=None):
     Returns:
         tf.Tensor: The broadcasted tensor.
     """
-    from .tfops import assert_rank
+    from tfsnippet.ops import assert_rank
 
     # check the parameters
     x = tf.convert_to_tensor(x)
-    x_shape = int_shape(x)
+    x_shape = get_static_shape(x)
     ns_values = [x]
     if is_tensor_object(shape):
         shape = tf.convert_to_tensor(shape)
@@ -441,7 +442,7 @@ def broadcast_to_shape(x, shape, name=None):
     with tf.name_scope(name=name or 'broadcast_to_shape', values=ns_values):
         cannot_broadcast_msg = (
             '`x` cannot be broadcasted to match `shape`: x.shape {!r} vs '
-            'shape {!r}'.format(int_shape(x), shape)
+            'shape {!r}'.format(get_static_shape(x), shape)
         )
 
         # assert ``rank(x) <= len(shape)``

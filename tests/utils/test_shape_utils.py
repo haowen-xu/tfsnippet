@@ -9,10 +9,12 @@ from tfsnippet.utils.shape_utils import broadcast_to_shape_sub
 class IntShapeTestCase(tf.test.TestCase):
 
     def test_int_shape(self):
-        self.assertEqual(int_shape(tf.zeros([1, 2, 3])), (1, 2, 3))
-        self.assertEqual(int_shape(tf.placeholder(tf.float32, [None, 2, 3])),
-                         (None, 2, 3))
-        self.assertIsNone(int_shape(tf.placeholder(tf.float32, None)))
+        self.assertEqual(get_static_shape(tf.zeros([1, 2, 3])), (1, 2, 3))
+        self.assertEqual(
+            get_static_shape(tf.placeholder(tf.float32, [None, 2, 3])),
+            (None, 2, 3)
+        )
+        self.assertIsNone(get_static_shape(tf.placeholder(tf.float32, None)))
 
 
 class ResolveNegativeAxisTestCase(tf.test.TestCase):
@@ -46,11 +48,11 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
             else:
                 if k == 1:
                     front_shape = tuple(x.shape)
-                    static_front_shape = int_shape(t)
+                    static_front_shape = get_static_shape(t)
                     xx = x.reshape([-1])
                 else:
                     front_shape = tuple(x.shape)[: -(k-1)]
-                    static_front_shape = int_shape(t)[: -(k-1)]
+                    static_front_shape = get_static_shape(t)[: -(k - 1)]
                     xx = x.reshape([-1] + list(x.shape)[-(k-1):])
 
                 with self.test_session() as sess:
@@ -290,7 +292,7 @@ class BroadcastTestCase(tf.test.TestCase):
             else:
                 t = broadcast_to_shape_sub(x, shape, 'should never trigger')
                 if static_shape is not None:
-                    self.assertTupleEqual(int_shape(t), static_shape)
+                    self.assertTupleEqual(get_static_shape(t), static_shape)
 
                 out = sess.run(t, feed_dict=feed_dict)
                 self.assertTupleEqual(out.shape, y.shape)
@@ -391,7 +393,7 @@ class BroadcastTestCase(tf.test.TestCase):
             else:
                 t = broadcast_to_shape(x, shape)
                 if static_shape is not None:
-                    self.assertTupleEqual(int_shape(t), static_shape)
+                    self.assertTupleEqual(get_static_shape(t), static_shape)
 
                 out = sess.run(t, feed_dict=feed_dict)
                 self.assertTupleEqual(out.shape, y.shape)

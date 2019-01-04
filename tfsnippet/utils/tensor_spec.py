@@ -2,7 +2,7 @@ import six
 import tensorflow as tf
 
 from .doc_utils import DocInherit
-from .shape_utils import int_shape
+from .shape_utils import get_static_shape
 from .type_utils import is_integer
 
 __all__ = ['InputSpec', 'ParamSpec']
@@ -166,7 +166,7 @@ class _TensorSpec(object):
         if self._value_shape is None:
             return
 
-        x_shape = int_shape(x)
+        x_shape = get_static_shape(x)
 
         def raise_error():
             raise ValueError('The shape of `x` is invalid: expected {}, but '

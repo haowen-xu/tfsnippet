@@ -1,5 +1,5 @@
 from tfsnippet.utils import (validate_int_tuple_arg, InputSpec,
-                             int_shape, validate_enum_arg)
+                             get_static_shape, validate_enum_arg)
 
 __all__ = [
     'validate_conv2d_input',
@@ -31,7 +31,7 @@ def validate_conv2d_input(input, channels_last):
         channel_axis = -3
         data_format = 'NCHW'
     input = input_spec.validate(input)
-    input_shape = int_shape(input)
+    input_shape = get_static_shape(input)
     in_channels = input_shape[channel_axis]
 
     return input, in_channels, data_format

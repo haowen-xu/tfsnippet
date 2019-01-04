@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.layers import PlanarNormalizingFlow
-from tfsnippet.utils import int_shape, ensure_variables_initialized
+from tfsnippet.utils import get_static_shape, ensure_variables_initialized
 
 
 class PlanarNormalizingFlowTestCase(tf.test.TestCase):
@@ -31,10 +31,10 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
                 self.assertIn('/_{}/'.format(i), v.name)
 
             # ensure these parameters have expected shapes
-            self.assertEqual(int_shape(w), (1, n_units))
-            self.assertEqual(int_shape(u), (1, n_units))
-            self.assertEqual(int_shape(b), (1,))
-            self.assertEqual(int_shape(u_hat), (1, n_units))
+            self.assertEqual(get_static_shape(w), (1, n_units))
+            self.assertEqual(get_static_shape(u), (1, n_units))
+            self.assertEqual(get_static_shape(b), (1,))
+            self.assertEqual(get_static_shape(u_hat), (1, n_units))
 
         with self.test_session() as sess:
             ensure_variables_initialized()

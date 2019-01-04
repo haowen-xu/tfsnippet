@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 
 
 class GetDeconv2dOutputLengthTestCase(tf.test.TestCase):
@@ -21,7 +21,7 @@ class GetDeconv2dOutputLengthTestCase(tf.test.TestCase):
                 padding=padding.upper(),
                 data_format='NHWC'
             )
-            h, w = int_shape(x)[1:3]
+            h, w = get_static_shape(x)[1:3]
             self.assertEqual(input_size, h)
 
         check(input_size=7, kernel_size=1, strides=1, padding='same')

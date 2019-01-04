@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.utils import add_name_arg_doc, InputSpec, int_shape
+from tfsnippet.utils import add_name_arg_doc, InputSpec, get_static_shape
 
 __all__ = [
     'classification_accuracy',
@@ -21,7 +21,7 @@ def classification_accuracy(y_pred, y_true, name=None):
         tf.Tensor: The accuracy.
     """
     y_pred = tf.convert_to_tensor(y_pred)
-    y_true = InputSpec(shape=int_shape(y_pred)).validate(y_true)
+    y_true = InputSpec(shape=get_static_shape(y_pred)).validate(y_true)
     with tf.name_scope(name, default_name='classification_accuracy',
                        values=[y_pred, y_true]):
         return tf.reduce_mean(

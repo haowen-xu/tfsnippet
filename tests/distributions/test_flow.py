@@ -4,7 +4,7 @@ import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.distributions import Normal, Categorical, FlowDistribution
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 from tests.layers.flows.helper import QuadraticFlow
 
 
@@ -68,7 +68,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
         self.assertTrue(y.is_reparameterized)
         grad = tf.gradients(y * 1., mean)[0]
         self.assertIsNotNone(grad)
-        self.assertEqual(int_shape(y), (5, 3))
+        self.assertEqual(get_static_shape(y), (5, 3))
         self.assertIsNotNone(y._self_log_prob)
 
         x, log_det = flow.inverse_transform(y)

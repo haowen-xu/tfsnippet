@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (ParamSpec,
-                             int_shape,
+                             get_static_shape,
                              add_name_and_scope_arg_doc,
                              validate_int_tuple_arg,
                              resolve_negative_axis,
@@ -58,7 +58,7 @@ def weight_norm(kernel,
         raise ValueError('`axis` cannot be empty.')
 
     kernel = tf.convert_to_tensor(kernel)
-    kernel_shape = int_shape(kernel)
+    kernel_shape = get_static_shape(kernel)
     dtype = kernel.dtype.base_dtype
     var_spec = ParamSpec(kernel_shape, dtype=dtype)
 

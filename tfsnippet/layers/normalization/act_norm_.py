@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
-                             int_shape, reopen_variable_scope,
+                             get_static_shape, reopen_variable_scope,
                              maybe_check_numerics, get_dimensions_size,
                              get_shape, concat_shapes, validate_enum_arg,
                              validate_int_tuple_arg)
@@ -152,7 +152,7 @@ class ActNorm(BaseFlow):
 
     def _check_shape(self, x):
         x = self._input_spec.validate(x)
-        shape = int_shape(x)
+        shape = get_static_shape(x)
         reduce_axis = self._reduce_axis
         if len(shape) > len(self.var_shape):
             front_axis = tuple(
@@ -312,7 +312,7 @@ def act_norm(input, axis=-1, value_ndims=1, **kwargs):
     axis = validate_int_tuple_arg('axis', axis)
     input = tf.convert_to_tensor(input)
     dtype = input.dtype.base_dtype
-    shape = int_shape(input)
+    shape = get_static_shape(input)
     if shape is None:
         raise TypeError('The ndims of `input` must be known.')
     if len(shape) <= value_ndims:
