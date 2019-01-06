@@ -441,8 +441,8 @@ def broadcast_to_shape(x, shape, name=None):
 
     with tf.name_scope(name=name or 'broadcast_to_shape', values=ns_values):
         cannot_broadcast_msg = (
-            '`x` cannot be broadcasted to match `shape`: x.shape {!r} vs '
-            'shape {!r}'.format(get_static_shape(x), shape)
+            '`x` cannot be broadcasted to match `shape`: x {!r} vs shape {!r}'.
+            format(x, shape)
         )
 
         # assert ``rank(x) <= len(shape)``

@@ -7,27 +7,32 @@ from tests.layers.flows.helper import *
 class FlowTestCase(tf.test.TestCase):
 
     def test_with_quadratic_flow(self):
-        flow = QuadraticFlow(2., 5., dtype=tf.float64)
-
-        # test properties
-        self.assertEqual(flow.dtype, tf.float64)
+        # test transform
+        flow = QuadraticFlow(2., 5.)
         self.assertTrue(flow.explicitly_invertible)
 
-        # test transform
         test_x = np.arange(12, dtype=np.float32) + 1.
         test_y, test_log_det = quadratic_transform(npyops, test_x, 2., 5.)
+
+        self.assertFalse(flow._has_built)
         y, log_det_y = flow.transform(tf.constant(test_x))
-        self.assertEqual(y.dtype, tf.float64)
+        self.assertTrue(flow._has_built)
 
         with self.test_session() as sess:
             np.testing.assert_allclose(sess.run(y), test_y)
             np.testing.assert_allclose(sess.run(log_det_y), test_log_det)
             invertible_flow_standard_check(self, flow, sess, test_x)
 
-    def test_error(self):
-        with pytest.raises(TypeError, match='Expected a float dtype'):
-            _ = BaseFlow(dtype=tf.int64)
+        # test apply
+        flow = QuadraticFlow(2., 5.)
+        self.assertFalse(flow._has_built)
+        y = flow.apply(tf.constant(test_x))
+        self.assertTrue(flow._has_built)
 
+        with self.test_session() as sess:
+            np.testing.assert_allclose(sess.run(y), test_y)
+
+    def test_error(self):
         class _Flow(BaseFlow):
             @property
             def explicitly_invertible(self):
@@ -36,7 +41,8 @@ class FlowTestCase(tf.test.TestCase):
                            match='The flow is not explicitly invertible'):
             _ = _Flow().inverse_transform(tf.constant(0.))
 
-        flow = QuadraticFlow(2., 5., dtype=tf.float64)
+        # specify neither `compute_y` nor `compute_log_det` would cause error
+        flow = QuadraticFlow(2., 5.)
         with pytest.raises(
                 RuntimeError, match='At least one of `compute_y` and '
                                     '`compute_log_det` should be True'):
@@ -48,6 +54,59 @@ class FlowTestCase(tf.test.TestCase):
             _ = flow.inverse_transform(
                 tf.constant(0.), compute_x=False, compute_log_det=False)
 
+        # test `inverse_transform` should only be called after built
+        flow = QuadraticFlow(2., 5.)
+        self.assertFalse(flow._has_built)
+        with pytest.raises(
+                RuntimeError, match='`inverse_transform` cannot be called '
+                                    'before the flow has been built'):
+            _ = flow.inverse_transform(tf.constant(0.))
+
+    def test_shape_assertion(self):
+        class _Flow(BaseFlow):
+            @property
+            def explicitly_invertible(self):
+                return True
+
+            def _build(self, input=None):
+                pass
+
+            def _transform(self, x, compute_y, compute_log_det):
+                return x, x + 1.
+
+            def _inverse_transform(self, y, compute_x, compute_log_det):
+                return y, y - 1.
+
+        with self.test_session() as sess:
+            flow = _Flow(value_ndims=1)
+
+            # shape assertions in transform
+            with pytest.raises(Exception,
+                               match='The shape of `log_det` does not match '
+                                     'the shape of `input`'):
+                sess.run(flow.transform(tf.zeros([3, 4])))
+            with pytest.raises(Exception,
+                               match='`x.ndims` must be known and >= '
+                                     '`value_ndims`'):
+                sess.run(flow.transform(tf.constant(0.)))
+
+            # shape assertions in inverse_transform
+            with pytest.raises(Exception,
+                               match='The shape of `log_det` does not match '
+                                     'the shape of `input`'):
+                sess.run(flow.inverse_transform(tf.zeros([3, 4])))
+            with pytest.raises(Exception,
+                               match='`y.ndims` must be known and >= '
+                                     '`value_ndims`'):
+                sess.run(flow.inverse_transform(tf.constant(0.)))
+
+            # shape assertions in build
+            flow = _Flow(value_ndims=1)
+            with pytest.raises(Exception,
+                               match='`input.ndims` must be known and >= '
+                                     '`value_ndims`'):
+                sess.run(flow.build(tf.constant(0.)))
+
 
 class MultiLayerQuadraticFlow(MultiLayerFlow):
 
@@ -57,8 +116,11 @@ class MultiLayerQuadraticFlow(MultiLayerFlow):
 
         with tf.variable_scope(None, default_name='MultiLayerQuadraticFlow'):
             for layer_id in range(self.n_layers):
-                self._flows.append(QuadraticFlow(
-                    layer_id + 1, layer_id * 2 + 1, dtype=tf.float32))
+                self._flows.append(
+                    QuadraticFlow(layer_id + 1, layer_id * 2 + 1))
+
+    def _build(self, input=None):
+        pass
 
     @property
     def explicitly_invertible(self):
@@ -81,7 +143,6 @@ class MultiLayerFlowTestCase(tf.test.TestCase):
 
         # test properties
         self.assertEqual(flow.n_layers, n_layers)
-        self.assertEqual(flow.dtype, tf.float32)
         self.assertTrue(flow.explicitly_invertible)
 
         # test get parameters

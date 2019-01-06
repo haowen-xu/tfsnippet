@@ -59,7 +59,7 @@ class FlowDistribution(Distribution):
 
     @property
     def dtype(self):
-        return self._flow.dtype
+        return self._distribution.dtype
 
     @property
     def is_continuous(self):

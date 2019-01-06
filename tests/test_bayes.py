@@ -89,7 +89,7 @@ class BayesianNetTestCase(tf.test.TestCase):
 
     def test_add_with_flow(self):
         normal = Normal(mean=tf.constant([0., 1., 2.]), std=1.)
-        flow = QuadraticFlow(2., 5., dtype=tf.float32)
+        flow = QuadraticFlow(2., 5.)
 
         # test add with sample
         net = BayesianNet()

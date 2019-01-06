@@ -15,7 +15,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
 - `Trainer` now accepts `summaries` argument on construction.
 - `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
-  can be directly found under `tfsnippet.layers` namespace.
+  can be directly found under `tfsnippet.layers` namespace.  The interface of flows has been re-designed.
 - Some utilities in `tfsnippet.utils` have been migrated to `tfsnippet.ops`.
 
 ### Removed

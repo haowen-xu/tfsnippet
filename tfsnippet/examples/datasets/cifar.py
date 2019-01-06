@@ -62,17 +62,17 @@ def _validate_x_shape(x_shape, channels_last):
     return x_shape
 
 
-def load_cifar10(channels_last=False, x_shape=None, x_dtype=np.float32,
+def load_cifar10(channels_last=True, x_shape=None, x_dtype=np.float32,
                  y_dtype=np.int32, normalize_x=False):
     """
     Load the CIFAR-10 dataset as NumPy arrays.
 
     Args:
         channels_last (bool): Whether or not to place the channels axis
-            at the last?  Default :obj:`False`.
+            at the last?
         x_shape: Reshape each digit into this shape.  Default to
-            ``(32, 32, 3)`` if `channels_last`, otherwise default to
-            ``(3, 32, 32)``.
+            ``(32, 32, 3)`` if `channels_last` is :obj:`True`, otherwise
+            default to ``(3, 32, 32)``.
         x_dtype: Cast each digit into this data type.  Default `np.float32`.
         y_dtype: Cast each label into this data type.  Default `np.int32`.
         normalize_x (bool): Whether or not to normalize x into ``[0, 1]``,
@@ -115,7 +115,7 @@ def load_cifar10(channels_last=False, x_shape=None, x_dtype=np.float32,
     return (train_x, train_y), (test_x, test_y)
 
 
-def load_cifar100(label_mode='fine', channels_last=False, x_shape=None,
+def load_cifar100(label_mode='fine', channels_last=True, x_shape=None,
                   x_dtype=np.float32, y_dtype=np.int32, normalize_x=False):
     """
     Load the CIFAR-100 dataset as NumPy arrays.
@@ -125,8 +125,8 @@ def load_cifar100(label_mode='fine', channels_last=False, x_shape=None,
         channels_last (bool): Whether or not to place the channels axis
             at the last?  Default :obj:`False`.
         x_shape: Reshape each digit into this shape.  Default to
-            ``(32, 32, 3)`` if `channels_last`, otherwise default to
-            ``(3, 32, 32)``.
+            ``(32, 32, 3)`` if `channels_last` is :obj:`True`, otherwise
+            default to ``(3, 32, 32)``.
         x_dtype: Cast each digit into this data type.  Default `np.float32`.
         y_dtype: Cast each label into this data type.  Default `np.int32`.
         normalize_x (bool): Whether or not to normalize x into ``[0, 1]``,

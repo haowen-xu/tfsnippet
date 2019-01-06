@@ -4,7 +4,8 @@ import tensorflow as tf
 
 from tfsnippet.layers import SequentialFlow, BaseFlow
 from tests.layers.flows.test_base import MultiLayerQuadraticFlow
-from tests.layers.flows.helper import QuadraticFlow, invertible_flow_standard_check
+from tests.layers.flows.helper import (QuadraticFlow,
+                                       invertible_flow_standard_check)
 
 
 class SequentialFlowTestCase(tf.test.TestCase):
@@ -33,11 +34,10 @@ class SequentialFlowTestCase(tf.test.TestCase):
         n_layers = 3
         flow1 = MultiLayerQuadraticFlow(n_layers)
         flow2 = SequentialFlow([
-            QuadraticFlow(i + 1., i * 2. + 1., dtype=tf.float32)
+            QuadraticFlow(i + 1., i * 2. + 1.)
             for i in range(n_layers)
         ])
         self.assertTrue(flow2.explicitly_invertible)
-        self.assertEqual(flow2.dtype, tf.float32)
         self.assertEqual(len(flow2.flows), n_layers)
         for i in range(n_layers):
             self.assertEqual(flow2.flows[i].a, i + 1.)
@@ -64,8 +64,7 @@ class SequentialFlowTestCase(tf.test.TestCase):
                 return False
 
         flow = SequentialFlow([
-            QuadraticFlow(2., 3., dtype=tf.float32),
-            _Flow(dtype=tf.float64),
+            QuadraticFlow(2., 3.),
+            _Flow(),
         ])
         self.assertFalse(flow.explicitly_invertible)
-        self.assertEqual(flow.dtype, tf.float64)

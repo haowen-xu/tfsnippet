@@ -26,7 +26,7 @@ class _TensorSpec(object):
         Construct a new :class:`TensorSpec`.
 
         Args:
-            shape (tuple[int or str or None]): A tuple to describe the shape
+            shape (Iterable[int or str or None]): A tuple to describe the shape
                 of the tensor.  Each item can be one of the following values:
 
                 *  A positive integer: indicates a dimension with known size.

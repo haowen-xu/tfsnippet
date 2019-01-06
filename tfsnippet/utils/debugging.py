@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 
 import tensorflow as tf
@@ -16,8 +17,14 @@ __all__ = [
 ]
 
 
-_enable_assertion = True
-_check_numerics = False
+_enable_assertion = (
+    os.environ.get('TFSNIPPET_DISABLE_ASSERTION', '').lower()
+    not in ('1', 'yes', 'on', 'true')
+)
+_check_numerics = (
+    os.environ.get('TFSNIPPET_CHECK_NUMERICS', '').lower()
+    in ('1', 'yes', 'on', 'true')
+)
 
 
 @contextmanager

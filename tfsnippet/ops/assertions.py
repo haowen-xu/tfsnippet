@@ -9,11 +9,15 @@ __all__ = [
 ]
 
 
-def _make_assertion_error(expected, actual, message=None):
+def _assertion_error_message(expected, actual, message=None):
     ret = 'Assertion failed for {}: {}'.format(expected, actual)
     if message:
         ret += '; {}'.format(message)
-    return AssertionError(ret)
+    return ret
+
+
+def _make_assertion_error(expected, actual, message=None):
+    return AssertionError(_assertion_error_message(expected, actual, message))
 
 
 @add_name_arg_doc

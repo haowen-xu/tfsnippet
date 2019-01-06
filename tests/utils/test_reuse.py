@@ -165,7 +165,6 @@ class InstanceReuseTestCase(tf.test.TestCase):
             self.assertEqual(o.vs.name, 'o/foo')
             self.assertEqual(o.var.name, 'o/foo/var:0')
             self.assertEqual(o.op.name, 'o/foo/op:0')
-            print(123)
 
             # call it for the second time within the object's variable scope
             # and the object's original name scope (this actually will not
