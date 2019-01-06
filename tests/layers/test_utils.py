@@ -8,6 +8,9 @@ from tfsnippet.layers.utils import validate_weight_norm_arg
 class ValidateWeightNormArgTestCase(tf.test.TestCase):
 
     def test_validate_weight_norm_arg(self):
+        # noinspection PyUnresolvedReferences
+        import tfsnippet.layers.utils
+        
         # test callable
         f = lambda t: t
         self.assertIs(validate_weight_norm_arg(f, -1, True), f)

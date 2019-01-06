@@ -2,6 +2,7 @@ import six
 import numpy as np
 import tensorflow as tf
 
+from .debugging import assert_deps
 from .tensor_wrapper import TensorWrapper
 
 try:
@@ -90,7 +91,7 @@ class TensorArgValidator(object):
     def _value_test(self, value, tf_assertion, value_test, err_msg):
         if is_tensor_object(value):
             assert_op = tf_assertion(value, err_msg.format(self.name))
-            with tf.control_dependencies([assert_op]):
+            with assert_deps([assert_op]):
                 return tf.identity(value)
         else:
             if not value_test(value):

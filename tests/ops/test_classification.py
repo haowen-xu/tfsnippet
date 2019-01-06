@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.nn import *
+from tfsnippet.ops import *
 
 
 class ClassificationAccuracyTestCase(tf.test.TestCase):

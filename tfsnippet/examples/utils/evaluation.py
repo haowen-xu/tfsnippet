@@ -50,7 +50,7 @@ def collect_outputs(outputs, inputs, data_flow, feed_dict=None, session=None):
 
 
 def save_images_collection(images, filename, grid_size, border_size=0,
-                           channels_last=False, results=None):
+                           channels_last=True, results=None):
     """
     Save a collection of images as a large image, arranged in grid.
 
@@ -63,7 +63,6 @@ def save_images_collection(images, filename, grid_size, border_size=0,
         border_size (int): Size of the border, for separating images.
             (default 0, no border)
         channels_last (bool): Whether or not the channel dimension is at last?
-            (default :obj:`False`)
         results (MLResults): If specified, will save the image via this
             :class:`Results` instance.  If not specified, will save the image
             to `filename` on local file system.

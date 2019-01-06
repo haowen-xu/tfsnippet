@@ -3,15 +3,18 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.utils import *
+from tfsnippet.utils.shape_utils import broadcast_to_shape_sub
 
 
 class IntShapeTestCase(tf.test.TestCase):
 
     def test_int_shape(self):
-        self.assertEqual(int_shape(tf.zeros([1, 2, 3])), (1, 2, 3))
-        self.assertEqual(int_shape(tf.placeholder(tf.float32, [None, 2, 3])),
-                         (None, 2, 3))
-        self.assertIsNone(int_shape(tf.placeholder(tf.float32, None)))
+        self.assertEqual(get_static_shape(tf.zeros([1, 2, 3])), (1, 2, 3))
+        self.assertEqual(
+            get_static_shape(tf.placeholder(tf.float32, [None, 2, 3])),
+            (None, 2, 3)
+        )
+        self.assertIsNone(get_static_shape(tf.placeholder(tf.float32, None)))
 
 
 class ResolveNegativeAxisTestCase(tf.test.TestCase):
@@ -45,11 +48,11 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
             else:
                 if k == 1:
                     front_shape = tuple(x.shape)
-                    static_front_shape = int_shape(t)
+                    static_front_shape = get_static_shape(t)
                     xx = x.reshape([-1])
                 else:
                     front_shape = tuple(x.shape)[: -(k-1)]
-                    static_front_shape = int_shape(t)[: -(k-1)]
+                    static_front_shape = get_static_shape(t)[: -(k - 1)]
                     xx = x.reshape([-1] + list(x.shape)[-(k-1):])
 
                 with self.test_session() as sess:
@@ -259,3 +262,194 @@ class ConcatShapesTestCase(tf.test.TestCase):
             ])
             self.assertIsInstance(shape, tf.Tensor)
             np.testing.assert_equal(sess.run(shape), (1, 2, 3, 4, 5))
+
+
+class BroadcastTestCase(tf.test.TestCase):
+
+    def test_broadcast_to_shape_sub(self):
+        def check(x, shape, x_ph=None, shape_ph=None, static_shape=None):
+            # compute the expected answer
+            try:
+                y = x * np.ones(tuple(shape), dtype=x.dtype)
+                if len(shape) and y.shape[-len(shape):] != shape:
+                    raise ValueError()
+            except ValueError:
+                y = None
+
+            # call the function and get output
+            feed_dict = {}
+            if x_ph is not None:
+                feed_dict[x_ph] = x
+                x = x_ph
+            if shape_ph is not None:
+                feed_dict[shape_ph] = np.asarray(shape)
+                shape = shape_ph
+
+            if y is None:
+                with pytest.raises(Exception, match='abcdefg'):
+                    t = broadcast_to_shape_sub(x, shape, 'abcdefg')
+                    _ = sess.run(t, feed_dict=feed_dict)
+            else:
+                t = broadcast_to_shape_sub(x, shape, 'should never trigger')
+                if static_shape is not None:
+                    self.assertTupleEqual(get_static_shape(t), static_shape)
+
+                out = sess.run(t, feed_dict=feed_dict)
+                self.assertTupleEqual(out.shape, y.shape)
+                np.testing.assert_equal(out, y)
+
+        with self.test_session() as sess:
+            np.random.seed(1234)
+            x = np.random.random([2, 1, 3]).astype(np.float32)
+
+            # -- fully static shapes --
+            # good cases
+            check(x, (3, 2, 5, 3), static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), static_shape=(2, 5, 3))
+            check(x, (5, 3), static_shape=(2, 5, 3))
+
+            # error cases
+            check(x, (1, 1, 1, 1))
+            check(x, (1, 1, 1))
+            check(x, (1, 1))
+
+            # -- partially dynamic shapes on broadcast axis --
+            x_ph = tf.placeholder(shape=(2, None, 3), dtype=tf.float32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), x_ph=x_ph, static_shape=(2, 5, 3))
+            check(x, (5, 3), x_ph=x_ph, static_shape=(2, 5, 3))
+
+            # error cases
+            check(x, (1, 1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1), x_ph=x_ph)
+
+            # -- partially dynamic shapes on non-broadcast axis --
+            x_ph = tf.placeholder(shape=(None, 1, 3), dtype=tf.float32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), x_ph=x_ph, static_shape=(2, 5, 3))
+            check(x, (5, 3), x_ph=x_ph, static_shape=(None, 5, 3))
+
+            # error cases
+            check(x, (1, 1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1), x_ph=x_ph)
+
+            # -- partially dynamic shapes on all axis --
+            x_ph = tf.placeholder(shape=(None, None, None), dtype=tf.float32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), x_ph=x_ph, static_shape=(2, 5, 3))
+            check(x, (5, 3), x_ph=x_ph, static_shape=(None, 5, 3))
+
+            # error cases
+            check(x, (1, 1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1), x_ph=x_ph)
+
+            # -- fully dynamic shapes --
+            x_ph = tf.placeholder(shape=None, dtype=tf.float32)
+            shape_ph = tf.placeholder(shape=None, dtype=tf.int32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (2, 5, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (5, 3), x_ph=x_ph, shape_ph=shape_ph)
+
+            # error cases
+            check(x, (1, 1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (1, 1), x_ph=x_ph, shape_ph=shape_ph)
+
+    def test_broadcast_to_shape(self):
+        def check(x, shape, x_ph=None, shape_ph=None, static_shape=None):
+            # compute the expected answer
+            try:
+                y = x * np.ones(tuple(shape), dtype=x.dtype)
+                if y.shape != shape:
+                    raise ValueError()
+            except ValueError:
+                y = None
+
+            # call the function and get output
+            feed_dict = {}
+            if x_ph is not None:
+                feed_dict[x_ph] = x
+                x = x_ph
+            if shape_ph is not None:
+                feed_dict[shape_ph] = np.asarray(shape)
+                shape = shape_ph
+
+            if y is None:
+                with pytest.raises(Exception, match='`x` cannot be broadcasted '
+                                                    'to match `shape`'):
+                    t = broadcast_to_shape(x, shape)
+                    _ = sess.run(t, feed_dict=feed_dict)
+            else:
+                t = broadcast_to_shape(x, shape)
+                if static_shape is not None:
+                    self.assertTupleEqual(get_static_shape(t), static_shape)
+
+                out = sess.run(t, feed_dict=feed_dict)
+                self.assertTupleEqual(out.shape, y.shape)
+                np.testing.assert_equal(out, y)
+
+        with self.test_session() as sess:
+            np.random.seed(1234)
+            x = np.random.random([2, 1, 3]).astype(np.float32)
+
+            # -- fully static shapes --
+            # good cases
+            check(x, (3, 2, 5, 3), static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), static_shape=(2, 5, 3))
+
+            # bad cases
+            check(x, (5, 3))
+            check(x, (1, 1, 1, 1))
+            check(x, (1, 1, 1))
+            check(x, (1, 1))
+
+            # -- partially dynamic shapes on all axis --
+            x_ph = tf.placeholder(shape=(None, None, None), dtype=tf.float32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, static_shape=(3, 2, 5, 3))
+            check(x, (2, 5, 3), x_ph=x_ph, static_shape=(2, 5, 3))
+
+            # error cases
+            check(x, (5, 3), x_ph=x_ph)
+            check(x, (1, 1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1), x_ph=x_ph)
+
+            # -- fully dynamic shapes on x --
+            x_ph = tf.placeholder(shape=None, dtype=tf.float32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph)
+            check(x, (2, 5, 3), x_ph=x_ph)
+
+            # error cases
+            check(x, (5, 3), x_ph=x_ph)
+            check(x, (1, 1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1, 1), x_ph=x_ph)
+            check(x, (1, 1), x_ph=x_ph)
+
+            # -- fully dynamic shapes on both x and shape --
+            x_ph = tf.placeholder(shape=None, dtype=tf.float32)
+            shape_ph = tf.placeholder(shape=None, dtype=tf.int32)
+
+            # good cases
+            check(x, (3, 2, 5, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (2, 5, 3), x_ph=x_ph, shape_ph=shape_ph)
+
+            # error cases
+            check(x, (5, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (1, 1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, (1, 1), x_ph=x_ph, shape_ph=shape_ph)

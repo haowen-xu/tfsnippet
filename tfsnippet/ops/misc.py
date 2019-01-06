@@ -2,7 +2,28 @@ import tensorflow as tf
 
 from tfsnippet.utils import add_name_arg_doc, validate_int_tuple_arg
 
-__all__ = ['log_sum_exp', 'log_mean_exp']
+__all__ = ['add_n_broadcast', 'log_mean_exp', 'log_sum_exp']
+
+
+@add_name_arg_doc
+def add_n_broadcast(tensors, name=None):
+    """
+    Add zero or many tensors with broadcasting.
+
+    Args:
+        tensors (Iterable[Tensor]): A list of tensors to be summed.
+
+    Returns:
+        tf.Tensor: The summed tensor.
+    """
+    tensors = [tf.convert_to_tensor(t) for t in tensors]
+    if not tensors:
+        raise ValueError('`tensors` must not be empty.')
+    with tf.name_scope(name, default_name='add_n_broadcast', values=tensors):
+        ret = tensors[0]
+        for t in tensors[1:]:
+            ret += t
+        return ret
 
 
 @add_name_arg_doc

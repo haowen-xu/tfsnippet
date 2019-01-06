@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfsnippet.bayes import BayesianNet
-from tfsnippet.utils import add_n_broadcast
+from tfsnippet.ops import add_n_broadcast
 from .inference import VariationalInference
 
 __all__ = ['VariationalChain']

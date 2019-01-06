@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import dense
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 
 
 class DenseTestCase(tf.test.TestCase):
@@ -79,16 +79,16 @@ class DenseTestCase(tf.test.TestCase):
             _ = dense(tf.constant(x, dtype=tf.float64), 3)
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
-            self.assertEqual(int_shape(kernel_var), kernel.shape)
+            self.assertEqual(get_static_shape(kernel_var), kernel.shape)
             self.assertTrue(kernel_var.name.endswith('/kernel:0'))
-            self.assertEqual(int_shape(bias_var), bias.shape)
+            self.assertEqual(get_static_shape(bias_var), bias.shape)
             self.assertTrue(bias_var.name.endswith('/bias:0'))
 
         # test create variables, use_bias is False
         with tf.Graph().as_default():
             _ = dense(tf.constant(x, dtype=tf.float64), 3, use_bias=False)
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
-            self.assertEqual(int_shape(kernel_var), kernel.shape)
+            self.assertEqual(get_static_shape(kernel_var), kernel.shape)
             self.assertTrue(kernel_var.name.endswith('/kernel:0'))
 
     def test_normalization_and_activation(self):

@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.layers import *
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 
 
 class WeightNormTestCase(tf.test.TestCase):
@@ -63,7 +63,7 @@ class WeightNormTestCase(tf.test.TestCase):
             # test one dimension, with generated scale
             weight = weight_norm(tf.constant(kernel), axis=-1)
             scale_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[0]
-            self.assertEqual(int_shape(scale_var), kernel.shape)
+            self.assertEqual(get_static_shape(scale_var), kernel.shape)
             sess.run(scale_var.assign(scale + 1.))
 
             np.testing.assert_allclose(
@@ -76,7 +76,7 @@ class WeightNormTestCase(tf.test.TestCase):
             # test two dimensions, with generated scale
             weight = weight_norm(tf.constant(kernel), axis=(0, -1))
             scale_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[1]
-            self.assertEqual(int_shape(scale_var), kernel.shape)
+            self.assertEqual(get_static_shape(scale_var), kernel.shape)
             sess.run(scale_var.assign(scale + 2.))
 
             np.testing.assert_allclose(

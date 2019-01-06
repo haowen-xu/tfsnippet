@@ -71,7 +71,7 @@ def dense(input, units,
     input_spec = InputSpec(shape=('...', '?', '*'))
     input = input_spec.validate(input)
     dtype = input.dtype.base_dtype
-    input_shape = int_shape(input)
+    input_shape = get_static_shape(input)
     in_units = input_shape[-1]
 
     # check functional arguments

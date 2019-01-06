@@ -15,7 +15,7 @@ from tfsnippet.examples.utils import (MLConfig,
                                       print_with_title)
 from tfsnippet.layers import (dense, conv2d, l2_regularizer, global_avg_pool2d,
                               resnet_conv2d_block)
-from tfsnippet.nn import classification_accuracy, softmax_classification_output
+from tfsnippet.ops import classification_accuracy, softmax_classification_output
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
 from tfsnippet.utils import global_reuse, get_batch_size, create_session

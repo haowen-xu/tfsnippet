@@ -2,7 +2,11 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.utils import *
+from tfsnippet.ops import assert_rank, assert_scalar_equal
+from tfsnippet.utils import (validate_positive_int_arg, validate_enum_arg,
+                             ParamSpec, unflatten, flatten, is_tensor_object,
+                             get_static_shape, assert_deps, add_name_arg_doc,
+                             get_shape, InputSpec, add_name_and_scope_arg_doc)
 from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
@@ -295,7 +299,7 @@ def deconv2d(input,
     with tf.variable_scope(scope, default_name=name or 'deconv2d'):
         with tf.name_scope('output_shape'):
             # detect the input shape and axis arrangements
-            input_shape = int_shape(input)
+            input_shape = get_static_shape(input)
             if channels_last:
                 c_axis, h_axis, w_axis = -1, -3, -2
             else:
@@ -347,11 +351,11 @@ def deconv2d(input,
                         )
                 else:
                     assert(is_tensor_object(given_output_shape))
-                    assert_ops = [
-                        maybe_assert(tf.assert_rank, given_output_shape, 1),
-                        assert_scalar_equal(tf.size(given_output_shape), 2)
-                    ]
-                    with control_deps(assert_ops):
+                    with assert_deps([
+                                assert_rank(given_output_shape, 1),
+                                assert_scalar_equal(
+                                    tf.size(given_output_shape), 2)
+                            ]):
                         output_shape[h_axis] = given_output_shape[0]
                         output_shape[w_axis] = given_output_shape[1]
 
@@ -440,7 +444,7 @@ def conv2d_maybe_transpose_axis(input, from_channels_last, to_channels_last,
     else:
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
     input = input_spec.validate(input)
-    input_shape = int_shape(input)
+    input_shape = get_static_shape(input)
     sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
 
     # check whether or not axis should be transpose
@@ -514,7 +518,7 @@ def conv2d_flatten_spatial_channel(input, name=None):
     input = input_spec.validate(input)
 
     with tf.name_scope(name, default_name='conv2d_flatten', values=[input]):
-        input_shape = int_shape(input)
+        input_shape = get_static_shape(input)
 
         # inspect the static shape
         left_shape = input_shape[:-3]

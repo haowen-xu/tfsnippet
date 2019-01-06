@@ -34,17 +34,19 @@ def quadratic_inverse_transform(ops, y, a, b):
 
 class QuadraticFlow(BaseFlow):
 
-    def __init__(self, a, b, dtype):
-        super(QuadraticFlow, self).__init__(dtype=dtype)
+    def __init__(self, a, b):
+        super(QuadraticFlow, self).__init__()
         self.a = a
         self.b = b
+
+    def _build(self, input=None):
+        pass
 
     @property
     def explicitly_invertible(self):
         return True
 
     def _transform(self, x, compute_y, compute_log_det):
-        assert(x.dtype == self.dtype)
         y, log_det = quadratic_transform(tfops, x, self.a, self.b)
         if not compute_y:
             y = None
@@ -53,7 +55,6 @@ class QuadraticFlow(BaseFlow):
         return y, log_det
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
-        assert(y.dtype == self.dtype)
         x, log_det = quadratic_inverse_transform(tfops, y, self.a, self.b)
         if not compute_x:
             x = None

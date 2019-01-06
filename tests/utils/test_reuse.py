@@ -165,7 +165,6 @@ class InstanceReuseTestCase(tf.test.TestCase):
             self.assertEqual(o.vs.name, 'o/foo')
             self.assertEqual(o.var.name, 'o/foo/var:0')
             self.assertEqual(o.op.name, 'o/foo/op:0')
-            print(123)
 
             # call it for the second time within the object's variable scope
             # and the object's original name scope (this actually will not
@@ -517,7 +516,8 @@ class ReuseCompatibilityTestCase(tf.test.TestCase):
             # because we are not sure whether or not the naming convention
             # of tf.layers will change in the future.
             _ = foo()
-            shape_names = {int_shape(v): v.name for v in tf.global_variables()}
+            shape_names = {get_static_shape(v): v.name
+                           for v in tf.global_variables()}
             self.assertEqual(len(shape_names), 4)
             self.assertStartsWith(shape_names[(4, 5)], 'foo/dense/')
             self.assertStartsWith(shape_names[(5,)], 'foo/dense/')
@@ -528,7 +528,7 @@ class ReuseCompatibilityTestCase(tf.test.TestCase):
             # even it is called within another variable scope.
             with tf.variable_scope('another'):
                 _ = foo()
-                shape_names = {int_shape(v): v.name
+                shape_names = {get_static_shape(v): v.name
                                for v in tf.global_variables()}
                 self.assertEqual(len(shape_names), 4)
                 self.assertStartsWith(shape_names[(4, 5)], 'foo/dense/')
@@ -552,7 +552,8 @@ class ReuseCompatibilityTestCase(tf.test.TestCase):
             # because we are not sure whether or not the naming convention
             # of tf.layers will change in the future.
             _ = o.foo()
-            shape_names = {int_shape(v): v.name for v in tf.global_variables()}
+            shape_names = {get_static_shape(v): v.name
+                           for v in tf.global_variables()}
             self.assertEqual(len(shape_names), 4)
             self.assertStartsWith(shape_names[(4, 5)], 'o/foo/dense/')
             self.assertStartsWith(shape_names[(5,)], 'o/foo/dense/')
@@ -563,7 +564,7 @@ class ReuseCompatibilityTestCase(tf.test.TestCase):
             # even it is called within another variable scope.
             with tf.variable_scope('another'):
                 _ = o.foo()
-                shape_names = {int_shape(v): v.name
+                shape_names = {get_static_shape(v): v.name
                                for v in tf.global_variables()}
                 self.assertEqual(len(shape_names), 4)
                 self.assertStartsWith(shape_names[(4, 5)], 'o/foo/dense/')

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import zhusuan as zs
 
-from tfsnippet.utils import add_n_broadcast
+from tfsnippet.ops import add_n_broadcast
 from .estimators import *
 from .evaluation import *
 from .objectives import *

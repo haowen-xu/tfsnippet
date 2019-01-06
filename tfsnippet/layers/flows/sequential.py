@@ -21,7 +21,6 @@ class SequentialFlow(MultiLayerFlow):
         if not flows:
             raise TypeError('`flows` must not be empty.')
 
-        print(flows)
         for i, flow in enumerate(flows):
             if not isinstance(flow, BaseFlow):
                 raise TypeError('The {}-th flow in `flows` is not an instance '
@@ -35,11 +34,16 @@ class SequentialFlow(MultiLayerFlow):
 
         super(SequentialFlow, self).__init__(
             n_layers=len(flows), value_ndims=value_ndims,
-            dtype=flows[-1].dtype, name=name, scope=scope
+            name=name, scope=scope
         )
         self._flows = flows
         self._explicitly_invertible = all(
             flow.explicitly_invertible for flow in self._flows)
+
+    def _build(self, input=None):
+        # do nothing, the building procedure of every flows are automatically
+        # called within their `apply` methods.
+        pass
 
     @property
     def flows(self):

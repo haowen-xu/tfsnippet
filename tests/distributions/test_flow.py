@@ -4,7 +4,7 @@ import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.distributions import Normal, Categorical, FlowDistribution
-from tfsnippet.utils import int_shape
+from tfsnippet.utils import get_static_shape
 from tests.layers.flows.helper import QuadraticFlow
 
 
@@ -16,7 +16,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
                            match='`flow` is not an instance of `Flow`: 123'):
             _ = FlowDistribution(normal, 123)
 
-        flow = QuadraticFlow(2., 5., dtype=tf.float32)
+        flow = QuadraticFlow(2., 5.)
         with pytest.raises(ValueError,
                            match='cannot be transformed by a flow, because '
                                  'it is not continuous'):
@@ -33,8 +33,9 @@ class FlowDistributionTestCase(tf.test.TestCase):
             _ = distrib.sample(compute_density=False)
 
     def test_property(self):
-        normal = Normal(mean=[0., 1., 2.], std=1.)
-        flow = QuadraticFlow(2., 5., dtype=tf.float64)
+        normal = Normal(mean=tf.constant([0., 1., 2.], dtype=tf.float64),
+                        std=tf.constant(1., dtype=tf.float64))
+        flow = QuadraticFlow(2., 5.)
         distrib = FlowDistribution(normal, flow)
 
         self.assertIs(distrib.flow, flow)
@@ -60,7 +61,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
 
         mean = tf.constant([0., 1., 2.], dtype=tf.float64)
         normal = Normal(mean=mean, std=tf.constant(1., dtype=tf.float64))
-        flow = QuadraticFlow(2., 5., dtype=tf.float64)
+        flow = QuadraticFlow(2., 5.)
         distrib = FlowDistribution(normal, flow)
 
         # test ordinary sample, is_reparameterized = None
@@ -68,7 +69,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
         self.assertTrue(y.is_reparameterized)
         grad = tf.gradients(y * 1., mean)[0]
         self.assertIsNotNone(grad)
-        self.assertEqual(int_shape(y), (5, 3))
+        self.assertEqual(get_static_shape(y), (5, 3))
         self.assertIsNotNone(y._self_log_prob)
 
         x, log_det = flow.inverse_transform(y)
@@ -87,10 +88,11 @@ class FlowDistributionTestCase(tf.test.TestCase):
     def test_log_prob(self):
         mean = tf.constant([0., 1., 2.], dtype=tf.float64)
         normal = Normal(mean=mean, std=tf.constant(1., dtype=tf.float64))
-        flow = QuadraticFlow(2., 5., dtype=tf.float64)
+        flow = QuadraticFlow(2., 5.)
+        flow.build()
         distrib = FlowDistribution(normal, flow)
 
-        y = tf.constant([1., -1., 2.])
+        y = tf.constant([1., -1., 2.], dtype=tf.float64)
         x, log_det = flow.inverse_transform(y)
         log_py = normal.log_prob(x) + log_det
 
