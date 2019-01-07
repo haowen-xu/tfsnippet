@@ -5,8 +5,6 @@ from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              assert_deps, broadcast_to_shape)
 
 __all__ = [
-    'is_log_det_shape_matches_input',
-    'assert_log_det_shape_matches_input',
     'broadcast_log_det_against_input',
 ]
 

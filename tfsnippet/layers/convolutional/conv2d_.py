@@ -3,18 +3,15 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.ops import assert_rank, assert_scalar_equal
-from tfsnippet.utils import (validate_positive_int_arg, validate_enum_arg,
-                             ParamSpec, unflatten, flatten, is_tensor_object,
-                             get_static_shape, assert_deps, add_name_arg_doc,
-                             get_shape, InputSpec, add_name_and_scope_arg_doc)
+from tfsnippet.utils import (validate_positive_int_arg, ParamSpec, unflatten,
+                             flatten, is_tensor_object, assert_deps, get_shape,
+                             add_name_and_scope_arg_doc)
 from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
 __all__ = [
-    'conv2d', 'deconv2d', 'conv2d_maybe_transpose_axis',
-    'conv2d_channels_last_to_x', 'conv2d_channels_x_to_last',
-    'conv2d_flatten_spatial_channel',
+    'conv2d', 'deconv2d',
 ]
 
 
@@ -421,125 +418,3 @@ def deconv2d(input,
         output = unflatten(output, s1, s2)
 
     return output
-
-
-@add_name_arg_doc
-def conv2d_maybe_transpose_axis(input, from_channels_last, to_channels_last,
-                                name=None):
-    """
-    Ensure the channels axis of `input` tensor to be placed at the desired axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        from_channels_last (bool): Whether or not the channels axis
-            is the last axis in `input`? (i.e., the data format is "NHWC")
-        to_channels_last (bool): Whether or not the channels axis
-            should be the last axis in the output tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    if from_channels_last:
-        input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
-    else:
-        input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
-    input = input_spec.validate(input)
-    input_shape = get_static_shape(input)
-    sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
-
-    # check whether or not axis should be transpose
-    if from_channels_last and not to_channels_last:
-        transpose_axis = [-1, -3, -2]
-    elif not from_channels_last and to_channels_last:
-        transpose_axis = [-2, -1, -3]
-    else:
-        transpose_axis = None
-
-    # transpose the axis
-    if transpose_axis is not None:
-        transpose_axis = [i + len(input_shape) for i in transpose_axis]
-        input = tf.transpose(input, sample_and_batch_axis + transpose_axis,
-                             name=name or 'conv2d_maybe_transpose_axis')
-
-    return input
-
-
-@add_name_arg_doc
-def conv2d_channels_last_to_x(input, channels_last, name=None):
-    """
-    Ensure the channels axis (known to be the last axis) of `input` tensor
-    to be placed at the desired axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        channels_last (bool): Whether or not the channels axis
-            should be the last axis in the output tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    return conv2d_maybe_transpose_axis(
-        input, from_channels_last=True, to_channels_last=channels_last,
-        name=name
-    )
-
-
-@add_name_arg_doc
-def conv2d_channels_x_to_last(input, channels_last, name=None):
-    """
-    Ensure the channels axis of `input` tensor to be placed at the last axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        channels_last (bool): Whether or not the channels axis
-            is the last axis in the `input` tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    return conv2d_maybe_transpose_axis(
-        input, from_channels_last=channels_last, to_channels_last=True,
-        name=name
-    )
-
-
-@add_name_arg_doc
-def conv2d_flatten_spatial_channel(input, name=None):
-    """
-    Flatten the last three axis of `input` into one dimension.
-
-    Args:
-        input: The input tensor.
-
-    Returns:
-        tf.Tensor: The output tensor.
-    """
-    input_spec = InputSpec(shape=('...', '?', '?', '?', '?'))
-    input = input_spec.validate(input)
-
-    with tf.name_scope(name, default_name='conv2d_flatten', values=[input]):
-        input_shape = get_static_shape(input)
-
-        # inspect the static shape
-        left_shape = input_shape[:-3]
-        right_shape = input_shape[-3:]
-
-        if any(i is None for i in right_shape):
-            static_shape = left_shape + (None,)
-        else:
-            static_shape = left_shape + (int(np.prod(right_shape)),)
-        static_shape = tf.TensorShape(static_shape)
-
-        # inspect the dynamic shape
-        if any(i is None for i in left_shape):
-            left_shape = get_shape(input)[:-3]
-            shape = tf.concat([left_shape, [-1]], axis=0)
-        else:
-            shape = left_shape + (-1,)
-
-        # now reshape the tensor
-        output = tf.reshape(input, shape)
-        output.set_shape(static_shape)
-
-    return output
-

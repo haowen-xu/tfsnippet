@@ -453,3 +453,68 @@ class BroadcastTestCase(tf.test.TestCase):
             check(x, (1, 1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
             check(x, (1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
             check(x, (1, 1), x_ph=x_ph, shape_ph=shape_ph)
+
+
+class TransposeConv2dAxisTestCase(tf.test.TestCase):
+
+    def test_transpose_conv2d_axis(self):
+        np.random.seed(1234)
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        x_ph = tf.placeholder(tf.float32, [None, None, None, None, 5])
+        y = np.transpose(x, [0, 1, 4, 2, 3])
+        self.assertEqual(y.shape, (17, 11, 5, 32, 31))
+        y_ph = tf.placeholder(tf.float32, [None, None, 5, None, None])
+
+        g = lambda x, f, t, ph=None: sess.run(
+            transpose_conv2d_axis(tf.constant(x), f, t),
+            feed_dict=({ph: x} if ph is not None else None)
+        )
+
+        with self.test_session() as sess:
+            # test static shape
+            np.testing.assert_allclose(g(x, True, True), x)
+            np.testing.assert_allclose(g(x, True, False), y)
+            np.testing.assert_allclose(g(y, False, True), x)
+            np.testing.assert_allclose(g(y, False, False), y)
+
+            # test dynamic shape
+            np.testing.assert_allclose(g(x, True, True, x_ph), x)
+            np.testing.assert_allclose(g(x, True, False, x_ph), y)
+            np.testing.assert_allclose(g(y, False, True, y_ph), x)
+            np.testing.assert_allclose(g(y, False, False, y_ph), y)
+
+    def test_transpose_conv2d_channels_x_to_x(self):
+        np.random.seed(1234)
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        y = np.transpose(x, [0, 1, 4, 2, 3])
+        self.assertEqual(y.shape, (17, 11, 5, 32, 31))
+
+        with self.test_session() as sess:
+            # test conv2d_channels_last_to_x
+            g = lambda t, c: sess.run(
+                transpose_conv2d_channels_last_to_x(tf.constant(t), c))
+            np.testing.assert_allclose(g(x, True), x)
+            np.testing.assert_allclose(g(x, False), y)
+
+            # test conv2d_channels_x_to_last
+            g = lambda t, c: sess.run(
+                transpose_conv2d_channels_x_to_last(tf.constant(t), c))
+            np.testing.assert_allclose(g(x, True), x)
+            np.testing.assert_allclose(g(y, False), x)
+
+
+class ReshapeConv2dToDenseTestCase(tf.test.TestCase):
+
+    def test_reshape_conv2d_to_dense(self):
+        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+        y = np.reshape(x, [17, 11, -1])
+
+        with self.test_session() as sess:
+            # test static
+            np.testing.assert_equal(
+                sess.run(reshape_conv2d_to_dense(tf.constant(x))), y)
+
+            # test dynamic
+            ph = tf.placeholder(dtype=tf.float32, shape=[None] * 5)
+            np.testing.assert_equal(
+                sess.run(reshape_conv2d_to_dense(ph), feed_dict={ph: x}), y)
