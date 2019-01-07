@@ -1,0 +1,10 @@
+*.rst
+
+!index.rst
+
+!tfsnippet.rst
+!tfsnippet.datasets.rst
+!tfsnippet.layers.rst
+!tfsnippet.ops.rst
+!tfsnippet.preprocessing.rst
+!tfsnippet.utils.rst
