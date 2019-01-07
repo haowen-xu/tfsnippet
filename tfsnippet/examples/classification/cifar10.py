@@ -3,18 +3,12 @@ import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
-from tfsnippet.dataflow import DataFlow
-from tfsnippet.examples.datasets import load_cifar10
+import tfsnippet as ts
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       global_config as config,
                                       config_options,
                                       print_with_title)
-from tfsnippet.layers import dense, l2_regularizer
-from tfsnippet.ops import classification_accuracy, softmax_classification_output
-from tfsnippet.scaffold import TrainLoop
-from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import global_reuse, create_session
 
 
 class ExpConfig(MLConfig):
@@ -35,16 +29,16 @@ class ExpConfig(MLConfig):
     lr_anneal_step_freq = None
 
 
-@global_reuse
+@ts.global_reuse
 def model(x, is_training):
-    with arg_scope([dense],
+    with arg_scope([ts.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg)):
+                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg)):
         h_x = x
-        h_x = dense(h_x, 1000)
-        h_x = dense(h_x, 1000)
-        h_x = dense(h_x, 1000)
-    logits = dense(h_x, 10, name='logits')
+        h_x = ts.layers.dense(h_x, 1000)
+        h_x = ts.layers.dense(h_x, 1000)
+        h_x = ts.layers.dense(h_x, 1000)
+    logits = ts.layers.dense(h_x, 10, name='logits')
     return logits
 
 
@@ -68,15 +62,15 @@ def main(result_dir):
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = AnnealingDynamicValue(config.initial_lr,
-                                              config.lr_anneal_factor)
+    learning_rate_var = ts.AnnealingDynamicValue(config.initial_lr,
+                                                 config.lr_anneal_factor)
 
     # derive the loss, output and accuracy
     logits = model(input_x, is_training=is_training)
     cls_loss = tf.losses.sparse_softmax_cross_entropy(input_y, logits)
     loss = cls_loss + tf.losses.get_regularization_loss()
-    y = softmax_classification_output(logits)
-    acc = classification_accuracy(y, input_y)
+    y = ts.ops.softmax_classification_output(logits)
+    acc = ts.ops.classification_accuracy(y, input_y)
 
     # derive the optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -88,21 +82,21 @@ def main(result_dir):
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = \
-        load_cifar10(x_shape=(config.x_dim,), normalize_x=True)
-    train_flow = DataFlow.arrays([x_train, y_train], config.batch_size,
-                                 shuffle=True, skip_incomplete=True)
-    test_flow = DataFlow.arrays([x_test, y_test], config.test_batch_size)
+        ts.datasets.load_cifar10(x_shape=(config.x_dim,), normalize_x=True)
+    train_flow = ts.DataFlow.arrays([x_train, y_train], config.batch_size,
+                                    shuffle=True, skip_incomplete=True)
+    test_flow = ts.DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
-    with create_session().as_default():
+    with ts.utils.create_session().as_default():
         # train the network
-        with TrainLoop(params,
-                       max_epoch=config.max_epoch,
-                       max_step=config.max_step,
-                       summary_dir=(results.system_path('train_summary')
-                                    if config.write_summary else None),
-                       summary_graph=tf.get_default_graph(),
-                       early_stopping=False) as loop:
-            trainer = Trainer(
+        with ts.TrainLoop(params,
+                          max_epoch=config.max_epoch,
+                          max_step=config.max_step,
+                          summary_dir=(results.system_path('train_summary')
+                                       if config.write_summary else None),
+                          summary_graph=tf.get_default_graph(),
+                          early_stopping=False) as loop:
+            trainer = ts.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss, 'acc': acc}
@@ -112,7 +106,7 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = Evaluator(
+            evaluator = ts.Evaluator(
                 loop,
                 metrics={'test_acc': acc},
                 inputs=[input_x, input_y],

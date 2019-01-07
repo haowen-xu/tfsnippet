@@ -1,6 +1,6 @@
 import numpy as np
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.preprocessing import BernoulliSampler, UniformNoiseSampler
 
 __all__ = ['bernoulli_flow', 'quantized_flow']

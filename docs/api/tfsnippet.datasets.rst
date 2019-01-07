@@ -1,7 +1,7 @@
-tfsnippet\.examples
+tfsnippet\.datasets
 ===================
 
-.. automodule:: tfsnippet.examples
+.. automodule:: tfsnippet.datasets
     :members:
     :undoc-members:
     :show-inheritance:

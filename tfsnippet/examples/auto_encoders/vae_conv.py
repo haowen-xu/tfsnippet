@@ -4,10 +4,8 @@ import functools
 import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
-from tfsnippet.bayes import BayesianNet
 
-from tfsnippet.distributions import Normal, Bernoulli
-from tfsnippet.examples.datasets import load_mnist, bernoulli_flow
+import tfsnippet as ts
 from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
                                       MLResults,
@@ -15,14 +13,8 @@ from tfsnippet.examples.utils import (MLConfig,
                                       global_config as config,
                                       config_options,
                                       bernoulli_as_pixel,
+                                      bernoulli_flow,
                                       print_with_title)
-from tfsnippet.layers import (dense, conv2d, l2_regularizer,
-                              conv2d_flatten_spatial_channel,
-                              resnet_conv2d_block, resnet_deconv2d_block)
-from tfsnippet.scaffold import TrainLoop
-from tfsnippet.trainer import AnnealingDynamicValue, Trainer, Evaluator
-from tfsnippet.utils import (global_reuse, get_batch_size, flatten, unflatten,
-                             create_session)
 
 
 class ExpConfig(MLConfig):
@@ -50,11 +42,11 @@ class ExpConfig(MLConfig):
     test_batch_size = 64
 
 
-@global_reuse
+@ts.global_reuse
 @add_arg_scope
 def q_net(x, observed=None, n_z=None, is_training=True,
           channels_last=False):
-    net = BayesianNet(observed=observed)
+    net = ts.BayesianNet(observed=observed)
 
     # compute the hidden features
     normalizer_fn = None if not config.batch_norm else functools.partial(
@@ -67,66 +59,66 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         training=is_training
     )
 
-    with arg_scope([resnet_conv2d_block],
+    with arg_scope([ts.layers.resnet_conv2d_block],
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
                    dropout_fn=dropout_fn,
-                   kernel_regularizer=l2_regularizer(config.l2_reg),
+                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
         h_x = tf.to_float(x)
         h_x = tf.reshape(
             h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
-    h_x = conv2d_flatten_spatial_channel(h_x)
+        h_x = ts.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = ts.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = ts.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = ts.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = ts.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
+    h_x = ts.layers.conv2d_flatten_spatial_channel(h_x)
 
     # sample z ~ q(z|x)
-    z_mean = dense(h_x, config.z_dim, name='z_mean')
-    z_logstd = dense(h_x, config.z_dim, name='z_logstd')
-    z = net.add('z', Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
+    z_mean = ts.layers.dense(h_x, config.z_dim, name='z_mean')
+    z_logstd = ts.layers.dense(h_x, config.z_dim, name='z_logstd')
+    z = net.add('z', ts.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
                 group_ndims=1)
 
     return net
 
 
-@global_reuse
+@ts.global_reuse
 @add_arg_scope
 def p_net(observed=None, n_z=None, is_training=True,
           channels_last=False):
-    net = BayesianNet(observed=observed)
+    net = ts.BayesianNet(observed=observed)
 
     # sample z ~ p(z)
-    z = net.add('z', Normal(mean=tf.zeros([1, config.z_dim]),
-                            logstd=tf.zeros([1, config.z_dim])),
+    z = net.add('z', ts.Normal(mean=tf.zeros([1, config.z_dim]),
+                               logstd=tf.zeros([1, config.z_dim])),
                 group_ndims=1, n_samples=n_z)
 
     # compute the hidden features
-    with arg_scope([resnet_deconv2d_block],
+    with arg_scope([ts.layers.resnet_deconv2d_block],
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=l2_regularizer(config.l2_reg),
+                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        h_z, s1, s2 = flatten(z, 2)
-        h_z = tf.reshape(dense(h_z, 64 * 7 * 7),
+        h_z, s1, s2 = ts.utils.flatten(z, 2)
+        h_z = tf.reshape(ts.layers.dense(h_z, 64 * 7 * 7),
                          [-1, 7, 7, 64] if channels_last else [-1, 64, 7, 7])
-        h_z = resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
-        h_z = resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
-        h_z = resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
-        h_z = resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
-    h_z = conv2d(
+        h_z = ts.layers.resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
+        h_z = ts.layers.resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
+        h_z = ts.layers.resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
+        h_z = ts.layers.resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
+    h_z = ts.layers.conv2d(
         h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
         channels_last=channels_last)  # output: (1, 28, 28)
     h_z = tf.reshape(h_z, [-1, config.x_dim])
 
     # sample x ~ p(x|z)
-    x_logits = unflatten(h_z, s1, s2)
-    x = net.add('x', Bernoulli(logits=x_logits), group_ndims=1)
+    x_logits = ts.utils.unflatten(h_z, s1, s2)
+    x = net.add('x', ts.Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
 
@@ -150,8 +142,8 @@ def main(result_dir):
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = AnnealingDynamicValue(config.initial_lr,
-                                              config.lr_anneal_factor)
+    learning_rate_var = ts.AnnealingDynamicValue(config.initial_lr,
+                                                 config.lr_anneal_factor)
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
@@ -159,7 +151,7 @@ def main(result_dir):
     losses = []
     test_nlls = []
     test_lbs = []
-    batch_size = get_batch_size(input_x)
+    batch_size = ts.utils.get_batch_size(input_x)
     params = None
     optimizer = tf.train.AdamOptimizer(learning_rate)
 
@@ -170,10 +162,7 @@ def main(result_dir):
                 with arg_scope([p_net, q_net], is_training=is_training,
                                channels_last=True):
                     _ = q_net(dev_input_x).chain(
-                        p_net,
-                        latent_names=['z'],
-                        observed={'x': dev_input_x}
-                    )
+                        p_net, observed={'x': dev_input_x})
 
             else:
                 with arg_scope([p_net, q_net], is_training=is_training,
@@ -182,9 +171,7 @@ def main(result_dir):
                     with tf.name_scope('training'):
                         train_q_net = q_net(dev_input_x)
                         train_chain = train_q_net.chain(
-                            p_net, latent_names=['z'], latent_axis=0,
-                            observed={'x': dev_input_x}
-                        )
+                            p_net, latent_axis=0, observed={'x': dev_input_x})
 
                         dev_vae_loss = tf.reduce_mean(
                             train_chain.vi.training.sgvb())
@@ -196,9 +183,7 @@ def main(result_dir):
                     with tf.name_scope('testing'):
                         test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
                         test_chain = test_q_net.chain(
-                            p_net, latent_names=['z'], latent_axis=0,
-                            observed={'x': dev_input_x}
-                        )
+                            p_net, latent_axis=0, observed={'x': dev_input_x})
                         dev_test_nll = -tf.reduce_mean(
                             test_chain.vi.evaluation.is_loglikelihood())
                         dev_test_lb = tf.reduce_mean(
@@ -241,24 +226,24 @@ def main(result_dir):
             )
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = load_mnist()
+    (x_train, y_train), (x_test, y_test) = ts.datasets.load_mnist()
     train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
     test_flow = bernoulli_flow(
         x_test, config.test_batch_size, sample_now=True)
 
-    with create_session().as_default() as session, \
+    with ts.utils.create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
         # train the network
-        with TrainLoop(params,
-                       var_groups=['q_net', 'p_net'],
-                       max_epoch=config.max_epoch,
-                       max_step=config.max_step,
-                       summary_dir=(results.system_path('train_summary')
-                                    if config.write_summary else None),
-                       summary_graph=tf.get_default_graph(),
-                       early_stopping=False) as loop:
-            trainer = Trainer(
+        with ts.TrainLoop(params,
+                          var_groups=['q_net', 'p_net'],
+                          max_epoch=config.max_epoch,
+                          max_step=config.max_step,
+                          summary_dir=(results.system_path('train_summary')
+                                       if config.write_summary else None),
+                          summary_graph=tf.get_default_graph(),
+                          early_stopping=False) as loop:
+            trainer = ts.Trainer(
                 loop, train_op, [input_x], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss}
@@ -268,7 +253,7 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = Evaluator(
+            evaluator = ts.Evaluator(
                 loop,
                 metrics={'test_nll': test_nll, 'test_lb': test_lb},
                 inputs=[input_x],

@@ -1,7 +1,5 @@
 from .base import DataFlow
 
-__all__ = ['MapperFlow']
-
 
 class MapperFlow(DataFlow):
     """

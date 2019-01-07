@@ -7,6 +7,7 @@ pip install .
 pip install -r requirements-dev.txt
 mkdir -p /root/.config/matplotlib
 echo 'backend : Agg' > /root/.config/matplotlib/matplotlibrc
+export PYTHONPATH="$(pwd):${PYTHONPATH}"
 
 if [ "${TENSORFLOW_VERSION}" = "*" ]; then
   python -m pytest \

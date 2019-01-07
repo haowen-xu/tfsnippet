@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pytest
 
-from tfsnippet.dataflow import ArrayFlow, DataFlow
+from tfsnippet.dataflows import DataFlow
+from tfsnippet.dataflows.array_flow import ArrayFlow
 
 
 class ArrayFlowTestCase(unittest.TestCase):
@@ -83,7 +84,3 @@ class ArrayFlowTestCase(unittest.TestCase):
         b = [a[0] for a in ArrayFlow([np.arange(12)], 5, shuffle=True)]
         self.assertEqual(3, len(b))
         np.testing.assert_array_equal(np.arange(12), sorted(np.concatenate(b)))
-
-
-if __name__ == '__main__':
-    unittest.main()

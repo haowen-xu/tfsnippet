@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pytest
 
-from tfsnippet.dataflow import SeqFlow, DataFlow
+from tfsnippet.dataflows import DataFlow
+from tfsnippet.dataflows.seq_flow import SeqFlow
 
 
 class SeqFlowTestCase(unittest.TestCase):
@@ -67,7 +68,3 @@ class SeqFlowTestCase(unittest.TestCase):
         self.assertEqual(2, len(b))
         np.testing.assert_array_equal(
             np.arange(1, 9, 2), sorted(np.concatenate(b)))
-
-
-if __name__ == '__main__':
-    unittest.main()

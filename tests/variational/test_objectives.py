@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -76,7 +74,3 @@ class MonteCarloObjectiveTestCase(tf.test.TestCase):
                 obj_k,
                 log_mean_exp(log_p - log_q, axis=0, keepdims=True)
             ]))
-
-
-if __name__ == '__main__':
-    unittest.TestCase()

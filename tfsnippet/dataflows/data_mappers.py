@@ -15,7 +15,7 @@ class DataMapper(object):
 
     A :class:`DataMapper` is a callable object, which maps input arrays
     into outputs arrays.  Instances of :class:`DataMapper` are usually
-    used as the ``mapper`` of a :class:`tfsnippet.dataflow.MapperFlow`.
+    used as the ``mapper`` of a :class:`tfsnippet.dataflows.MapperFlow`.
     """
 
     def _transform(self, *args):

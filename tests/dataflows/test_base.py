@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 from mock import MagicMock
 
-from tfsnippet.dataflow import DataFlow, ArrayFlow
+from tfsnippet.dataflows import DataFlow
+from tfsnippet.dataflows.array_flow import ArrayFlow
 
 
 class _DataFlow(DataFlow):
@@ -68,7 +69,3 @@ class DataFlowTestCase(unittest.TestCase):
 
         np.testing.assert_equal([[0, 1]], df.next_batch())
         np.testing.assert_equal([[0, 1]], df.current_batch)
-
-
-if __name__ == '__main__':
-    unittest.main()

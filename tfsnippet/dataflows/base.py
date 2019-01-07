@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['DataFlow', 'ExtraInfoDataFlow']
+__all__ = ['DataFlow']
 
 
 class DataFlow(object):
@@ -13,7 +13,7 @@ class DataFlow(object):
     like :class:`MapperFlow`, produce mini-batches by transforming arrays
     from the source.
 
-    All :class:`DataFlow` subclasses shipped by :mod:`tfsnippet.dataflow`
+    All :class:`DataFlow` subclasses shipped by :mod:`tfsnippet.dataflows`
     can be constructed by factory methods of this base class.  For example::
 
         # :class:`ArrayFlow` from arrays
@@ -95,7 +95,7 @@ class DataFlow(object):
     def to_arrays_flow(self, batch_size, shuffle=False,
                        skip_incomplete=False, random_state=None):
         """
-        Convert this data-flow to a :class:`~tfsnippet.dataflow.ArrayFlow`.
+        Convert this data-flow to a :class:`~tfsnippet.dataflows.ArrayFlow`.
 
         This method will iterate through the data-flow, collecting mini-batches
         into arrays, and then construct an ArrayFlow.
@@ -156,7 +156,7 @@ class DataFlow(object):
     # -------- here starts the transforming methods --------
     def map(self, mapper, array_indices=None):
         """
-        Construct a :class:`~tfsnippet.dataflow.MapperFlow`.
+        Construct a :class:`~tfsnippet.dataflows.MapperFlow`.
 
         Args:
             mapper ((\*np.ndarray) -> tuple[np.ndarray])): The mapper
@@ -180,7 +180,7 @@ class DataFlow(object):
 
     def threaded(self, prefetch):
         """
-        Construct a :class:`~tfsnippet.dataflow.ThreadingFlow` from this flow.
+        Construct a :class:`~tfsnippet.dataflows.ThreadingFlow` from this flow.
 
         Args:
             prefetch (int): Number of mini-batches to prefetch ahead.
@@ -235,7 +235,7 @@ class DataFlow(object):
     def seq(start, stop, step=1, batch_size=None, shuffle=False,
             skip_incomplete=False, dtype=np.int32, random_state=None):
         """
-        Construct a :class:`~tfsnippet.dataflow.SeqFlow`.
+        Construct a :class:`~tfsnippet.dataflows.SeqFlow`.
 
         Args:
             start: The starting number of the sequence.
@@ -265,7 +265,7 @@ class DataFlow(object):
     def arrays(arrays, batch_size, shuffle=False, skip_incomplete=False,
                random_state=None):
         """
-        Construct an :class:`~tfsnippet.dataflow.ArrayFlow`.
+        Construct an :class:`~tfsnippet.dataflows.ArrayFlow`.
 
         Args:
             arrays: List of numpy-like arrays, to be iterated through
@@ -292,7 +292,7 @@ class DataFlow(object):
     @staticmethod
     def iterator_factory(factory):
         """
-        Construct a :class:`~tfsnippet.dataflow.IteratorFactoryFlow`.
+        Construct a :class:`~tfsnippet.dataflows.IteratorFactoryFlow`.
 
         Args:
             factory (() -> Iterator or Iterable): A factory method for

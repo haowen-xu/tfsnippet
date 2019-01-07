@@ -5,7 +5,7 @@ import numpy as np
 import six
 import tensorflow as tf
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.utils import get_default_session_or_error
 from tfsnippet.scaffold import TrainLoop
 

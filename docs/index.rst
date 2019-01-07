@@ -21,25 +21,13 @@ Installation
     pip install git+https://github.com/haowen-xu/tfsnippet.git
 
 
-API Docs
---------
+Documentation
+-------------
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   api/tfsnippet.applications
-   api/tfsnippet.bayes
-   api/tfsnippet.dataflow
-   api/tfsnippet.distributions
-   api/tfsnippet.examples
-   api/tfsnippet.layers
-   api/tfsnippet.nn
-   api/tfsnippet.preprocessing
-   api/tfsnippet.scaffold
-   api/tfsnippet.stochastic
-   api/tfsnippet.trainer
-   api/tfsnippet.utils
-   api/tfsnippet.variational
+   api/index
 
 Indices and tables
 ------------------

@@ -1,9 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.utils import (DocInherit, VarScopeObject,
-                             add_name_and_scope_arg_doc, get_default_scope_name,
-                             is_tensor_object, reopen_variable_scope)
+from tfsnippet.reuse import VarScopeObject
+from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
+                             get_default_scope_name, is_tensor_object,
+                             reopen_variable_scope)
 
 __all__ = ['BaseLayer']
 

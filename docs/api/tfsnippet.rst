@@ -1,7 +1,7 @@
-tfsnippet\.nn
-=============
+tfsnippet
+=========
 
-.. automodule:: tfsnippet.nn
+.. automodule:: tfsnippet
     :members:
     :undoc-members:
     :show-inheritance:

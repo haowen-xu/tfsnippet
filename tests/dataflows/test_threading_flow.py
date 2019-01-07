@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 import time
 
-from tfsnippet.dataflow import DataFlow, ThreadingFlow
+from tfsnippet.dataflows import DataFlow
+from tfsnippet.dataflows .threading_flow import ThreadingFlow
 
 
 class _MyError(Exception):
@@ -119,7 +120,3 @@ class ThreadingFlowTestCase(unittest.TestCase):
             [[40, 41], [42, 43], [44, 45], [46, 47], [48, 49]], batches)
 
         flow.close()
-
-
-if __name__ == '__main__':
-    unittest.main()

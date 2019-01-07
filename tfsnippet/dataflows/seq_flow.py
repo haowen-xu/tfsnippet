@@ -2,8 +2,6 @@ import numpy as np
 
 from .array_flow import ArrayFlow
 
-__all__ = ['SeqFlow']
-
 
 class SeqFlow(ArrayFlow):
     """

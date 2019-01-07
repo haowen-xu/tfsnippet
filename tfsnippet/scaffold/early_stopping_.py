@@ -7,7 +7,8 @@ from logging import getLogger
 import tensorflow as tf
 
 from tfsnippet.utils import (DisposableContext, TemporaryDirectory, makedirs,
-                             VariableSaver, deprecated)
+                             deprecated)
+from .variable_saver import VariableSaver
 
 __all__ = ['EarlyStopping', 'EarlyStoppingContext', 'early_stopping']
 

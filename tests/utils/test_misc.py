@@ -3,10 +3,17 @@ import unittest
 from threading import Thread
 
 import pytest
-from mock import Mock
+import six
 import numpy as np
+import tensorflow as tf
+from mock import Mock
 
 from tfsnippet.utils import *
+
+if six.PY2:
+    LONG_MAX = long(1) << 63 - long(1)
+else:
+    LONG_MAX = 1 << 63 - 1
 
 
 class HumanizeDurationTestCase(unittest.TestCase):
@@ -243,6 +250,88 @@ class ContextStackTestCase(unittest.TestCase):
         self.assertIsNone(stack.top())
 
 
+class ValidateNSamplesArgTestCase(tf.test.TestCase):
+
+    def test_static_values(self):
+        # type checks
+        for o in [object(), 1.2, LONG_MAX]:
+            with pytest.raises(
+                    TypeError, match='xyz cannot be converted to int32'):
+                _ = validate_n_samples_arg(o, 'xyz')
+
+        # value checks
+        self.assertIsNone(validate_n_samples_arg(None, 'xyz'))
+        self.assertEqual(validate_n_samples_arg(1, 'xyz'), 1)
+        with pytest.raises(ValueError, match='xyz must be positive'):
+            _ = validate_n_samples_arg(0, 'xyz')
+        with pytest.raises(ValueError, match='xyz must be positive'):
+            _ = validate_n_samples_arg(-1, 'xyz')
+
+    def test_dynamic_values(self):
+        # type checks
+        for o in [tf.constant(1.2, dtype=tf.float32),
+                  tf.constant(LONG_MAX, dtype=tf.int64)]:
+            with pytest.raises(
+                    TypeError, match='xyz cannot be converted to int32'):
+                _ = validate_n_samples_arg(o, 'xyz')
+
+        # value checks
+        with self.test_session():
+            self.assertEqual(
+                validate_n_samples_arg(
+                    tf.constant(1, dtype=tf.int32), 'xyz').eval(), 1)
+            with pytest.raises(Exception, match='xyz must be positive'):
+                _ = validate_n_samples_arg(
+                    tf.constant(0, dtype=tf.int32), 'xyz').eval()
+            with pytest.raises(Exception, match='xyz must be positive'):
+                _ = validate_n_samples_arg(
+                    tf.constant(-1, dtype=tf.int32), 'xyz').eval()
+
+
+class ValidateGroupNdimsTestCase(tf.test.TestCase):
+
+    def test_static_values(self):
+        # type checks
+        for o in [object(), None, 1.2, LONG_MAX]:
+            with pytest.raises(
+                    TypeError,
+                    match='group_ndims cannot be converted to int32'):
+                _ = validate_group_ndims_arg(o)
+
+        # value checks
+        self.assertEqual(validate_group_ndims_arg(0), 0)
+        self.assertEqual(validate_group_ndims_arg(1), 1)
+        with pytest.raises(
+                ValueError, match='group_ndims must be non-negative'):
+            _ = validate_group_ndims_arg(-1)
+
+    def test_dynamic_values(self):
+        # type checks
+        for o in [tf.constant(1.2, dtype=tf.float32),
+                  tf.constant(LONG_MAX, dtype=tf.int64)]:
+            with pytest.raises(
+                    TypeError,
+                    match='group_ndims cannot be converted to int32'):
+                _ = validate_group_ndims_arg(o)
+
+        # value checks
+        with self.test_session():
+            self.assertEqual(
+                validate_group_ndims_arg(
+                    tf.constant(0, dtype=tf.int32)).eval(),
+                0
+            )
+            self.assertEqual(
+                validate_group_ndims_arg(
+                    tf.constant(1, dtype=tf.int32)).eval(),
+                1
+            )
+            with pytest.raises(
+                    Exception, match='group_ndims must be non-negative'):
+                _ = validate_group_ndims_arg(
+                    tf.constant(-1, dtype=tf.int32)).eval()
+
+
 class ArgValidationTestCase(unittest.TestCase):
 
     def test_validate_enum_arg(self):
@@ -317,7 +406,3 @@ class ArgValidationTestCase(unittest.TestCase):
         # test good case for nullable
         self.assertIsNone(
             validate_int_tuple_arg('arg', None, nullable=True))
-
-
-if __name__ == '__main__':
-    unittest.main()

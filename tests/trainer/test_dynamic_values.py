@@ -46,7 +46,3 @@ class DynamicValuesTestCase(unittest.TestCase):
         self.assertEqual(.5, v.get())
         v.anneal()
         self.assertEqual(.5, v.get())
-
-
-if __name__ == '__main__':
-    unittest.main()

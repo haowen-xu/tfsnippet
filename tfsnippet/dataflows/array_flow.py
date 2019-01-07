@@ -4,8 +4,6 @@ from numpy.random import RandomState
 from tfsnippet.utils import minibatch_slices_iterator
 from .base import ExtraInfoDataFlow
 
-__all__ = ['ArrayFlow']
-
 
 def _make_readonly(arr):
     arr = np.asarray(arr)

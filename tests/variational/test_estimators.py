@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -82,7 +80,3 @@ class IWAEEstimatorTestCase(tf.test.TestCase):
                 tf.gradients([cost], [y])[0],
                 tf.reduce_sum(wk_hat * (2 * x * y), axis=0)
             ]))
-
-
-if __name__ == '__main__':
-    unittest.TestCase()

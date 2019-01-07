@@ -1,5 +1,3 @@
-import unittest
-
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -47,7 +45,3 @@ class ImportanceSamplingLogLikelihoodTestCase(tf.test.TestCase):
                 ll_k,
                 log_mean_exp(log_p - log_q, axis=0, keepdims=True)
             ]))
-
-
-if __name__ == '__main__':
-    unittest.TestCase()

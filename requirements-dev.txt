@@ -9,6 +9,7 @@ pytest >= 3.0
 PyYAML >= 3.13
 rarfile >= 3.0
 sphinx >= 1.6.3
+sphinx_rtd_theme
 
 # dependencies required only for running the examples
 scikit-learn >= 0.20

@@ -44,7 +44,3 @@ class MergeFeedDictTestCase(unittest.TestCase):
                 six.iteritems({'b': 200, 'c': 300})
             )
         )
-
-
-if __name__ == '__main__':
-    unittest.main()

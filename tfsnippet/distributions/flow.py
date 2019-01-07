@@ -2,8 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.layers import BaseFlow
+from tfsnippet.utils import validate_group_ndims_arg
 from .base import Distribution
-from .utils import validate_group_ndims
 from .wrapper import as_distribution
 
 __all__ = ['FlowDistribution']
@@ -85,7 +85,7 @@ class FlowDistribution(Distribution):
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
-        group_ndims = validate_group_ndims(group_ndims)
+        group_ndims = validate_group_ndims_arg(group_ndims)
         if not compute_density and compute_density is not None:
             raise RuntimeError('`FlowDistribution` requires `compute_prob` '
                                'not to be False.')

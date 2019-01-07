@@ -128,7 +128,3 @@ class SplitNumpyArraysTestCase(unittest.TestCase):
             np.arange(10), portion=0.1, shuffle=False)
         np.testing.assert_equal(left, np.arange(9))
         np.testing.assert_equal(right, [9])
-
-
-if __name__ == '__main__':
-    unittest.main()

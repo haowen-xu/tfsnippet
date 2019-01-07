@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.utils import (StatisticsCollector, DisposableContext,
                              humanize_duration, ETA, deprecated)
 from .early_stopping_ import EarlyStopping
@@ -34,7 +34,7 @@ class TrainLoop(DisposableContext):
 
     .. code-block:: python
 
-        from tfsnippet.dataflow import DataFlow
+        from tfsnippet.dataflows import DataFlow
         from tfsnippet.scaffold import TrainLoop
 
         with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:

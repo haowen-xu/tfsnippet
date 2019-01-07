@@ -3,7 +3,7 @@ import os
 import six
 import numpy as np
 
-from tfsnippet.utils import CacheDir
+from tfsnippet.utils import CacheDir, validate_enum_arg
 
 if six.PY2:
     import cPickle as pickle
@@ -137,8 +137,7 @@ def load_cifar100(label_mode='fine', channels_last=True, x_shape=None,
             (train_x, train_y), (test_x, test_y)
     """
     # check the arguments
-    if label_mode not in ('fine', 'coarse'):
-        raise ValueError('`label_mode` must be one of {"fine", "coarse"}.')
+    label_mode = validate_enum_arg('label_mode', label_mode, ('fine', 'coarse'))
     x_shape = _validate_x_shape(x_shape, channels_last)
 
     # fetch data

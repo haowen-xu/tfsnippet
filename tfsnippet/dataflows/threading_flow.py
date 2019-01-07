@@ -11,8 +11,6 @@ if six.PY2:
 else:
     from queue import Queue
 
-__all__ = ['ThreadingFlow']
-
 
 class ThreadingFlow(DataFlow, AutoInitAndCloseable):
     """
