@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from examples.utils import MLResults
+from tfsnippet.examples.utils import MLResults
 from tfsnippet.utils import TemporaryDirectory
 
 

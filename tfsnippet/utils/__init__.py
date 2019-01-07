@@ -29,7 +29,7 @@ __all__ = [
     'ensure_variables_initialized', 'flatten', 'get_batch_size',
     'get_cache_root', 'get_default_scope_name', 'get_default_session_or_error',
     'get_dimensions_size', 'get_rank', 'get_shape', 'get_static_shape',
-    'get_uninitialized_variables', 'get_variables_as_dict',
+    'get_uninitialized_variables', 'get_variable_ddi', 'get_variables_as_dict',
     'humanize_duration', 'is_assertion_enabled', 'is_float', 'is_integer',
     'is_tensor_object', 'is_tensorflow_version_higher_or_equal', 'iter_files',
     'makedirs', 'maybe_check_numerics', 'maybe_close',

@@ -7,6 +7,7 @@ __all__ = [
     'get_variables_as_dict',
     'get_uninitialized_variables',
     'ensure_variables_initialized',
+    'get_variable_ddi',
 ]
 
 
@@ -147,3 +148,41 @@ def ensure_variables_initialized(variables=None, name=None):
         if uninitialized:
             sess = get_default_session_or_error()
             sess.run(tf.variables_initializer(uninitialized))
+
+
+def get_variable_ddi(name,
+                     initial_value,
+                     shape=None,
+                     dtype=tf.float32,
+                     initializing=False,
+                     regularizer=None,
+                     constraint=None,
+                     trainable=True,
+                     **kwargs):
+    """
+    Wraps :func:`tf.get_variable` to support data-dependent initialization.
+
+    Args:
+        name: Name of the variable.
+        initial_value: The data-dependent initial value of the variable.
+        shape: Shape of the variable.
+        dtype: Data type of the variable.
+        initializing (bool): Whether or not it is building the graph for
+            data-dependent initialization? Ignored if `initial_value` is absent.
+        regularizer: Regularizer of the variable.
+        constraint: Constraint of the variable.
+        trainable (bool): Whether or not to the variable is trainable?
+        \\**kwargs: Other named parameters passed to :func:`tf.get_variable`.
+
+    Returns:
+        tf.Variable or tf.Tensor: The variable or the tensor.
+    """
+    # TODO: detect shape from `initial_value` if not specified
+    v = tf.get_variable(
+        name, shape=shape, dtype=dtype, regularizer=regularizer,
+        constraint=constraint, trainable=trainable,
+        **kwargs
+    )
+    if initializing:
+        v = v.assign(initial_value)
+    return v
