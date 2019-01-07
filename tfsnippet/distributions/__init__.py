@@ -8,5 +8,5 @@ from .wrapper import *
 __all__ = [
     'Bernoulli', 'Categorical', 'Concrete', 'Discrete', 'Distribution',
     'ExpConcrete', 'FlowDistribution', 'Normal', 'OnehotCategorical',
-    'Uniform', 'as_distribution', 'reduce_group_ndims', 'validate_group_ndims',
+    'Uniform', 'as_distribution', 'reduce_group_ndims',
 ]

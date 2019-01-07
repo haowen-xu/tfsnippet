@@ -2,7 +2,7 @@ import unittest
 
 import pytest
 
-from tfsnippet.examples.utils import MLConfig
+from examples.utils import MLConfig
 
 
 class MLConfigTestCase(unittest.TestCase):

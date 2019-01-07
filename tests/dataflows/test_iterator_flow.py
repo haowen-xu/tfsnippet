@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 
 
 class IteratorFactoryFlowTestCase(unittest.TestCase):
@@ -21,7 +21,3 @@ class IteratorFactoryFlowTestCase(unittest.TestCase):
         np.testing.assert_array_equal([5, 6, 7], b[0][1])
         np.testing.assert_array_equal([3, 4], b[1][0])
         np.testing.assert_array_equal([8, 9], b[1][1])
-
-
-if __name__ == '__main__':
-    unittest.main()

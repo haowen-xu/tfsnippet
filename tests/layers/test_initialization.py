@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfsnippet.layers import *
-from tfsnippet.utils import *
+from tfsnippet.reuse import global_reuse
 
 
 class DefaultKernelInitializerTestCase(tf.test.TestCase):

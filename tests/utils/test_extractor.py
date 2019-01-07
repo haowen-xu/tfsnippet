@@ -72,7 +72,3 @@ class ExtractorTestCase(unittest.TestCase):
                     IOError, match='File is not a supported archive file'):
                 with Extractor.open(archive_file):
                     pass
-
-
-if __name__ == '__main__':
-    unittest.main()

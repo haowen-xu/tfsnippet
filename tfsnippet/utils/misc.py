@@ -1,3 +1,4 @@
+import contextlib
 import os
 import re
 import threading
@@ -5,12 +6,14 @@ import time
 from contextlib import contextmanager
 
 import numpy as np
+import tensorflow as tf
 
-from .type_utils import is_integer
+from .type_utils import is_integer, TensorArgValidator, is_tensor_object
 
 __all__ = [
     'humanize_duration', 'camel_to_underscore', 'maybe_close',
-    'iter_files', 'ETA', 'ContextStack', 'validate_enum_arg',
+    'iter_files', 'ETA', 'ContextStack', 'validate_n_samples_arg',
+    'validate_group_ndims_arg', 'validate_enum_arg',
     'validate_positive_int_arg', 'validate_int_tuple_arg',
 ]
 
@@ -227,6 +230,70 @@ class ContextStack(object):
         items = self.items
         if items:
             return items[-1]
+
+
+def validate_n_samples_arg(value, name):
+    """
+    Validate the `n_samples` argument.
+
+    Args:
+        value: An int32 value, a int32 :class:`tf.Tensor`, or :obj:`None`.
+        name (str): Name of the argument (in error message).
+
+    Returns:
+        int or tf.Tensor: The validated `n_samples` argument value.
+
+    Raises:
+        TypeError or ValueError or None: If the value cannot be validated.
+    """
+    if is_tensor_object(value):
+        @contextlib.contextmanager
+        def mkcontext():
+            with tf.name_scope('validate_n_samples'):
+                yield
+    else:
+        @contextlib.contextmanager
+        def mkcontext():
+            yield
+
+    if value is not None:
+        with mkcontext():
+            validator = TensorArgValidator(name=name)
+            value = validator.require_positive(validator.require_int32(value))
+    return value
+
+
+def validate_group_ndims_arg(group_ndims, name=None):
+    """
+    Validate the specified value for `group_ndims` argument.
+
+    If the specified `group_ndims` is a dynamic :class:`~tf.Tensor`,
+    additional assertion will be added to the graph node of `group_ndims`.
+
+    Args:
+        group_ndims: Object to be validated.
+        name: TensorFlow name scope of the graph nodes. (default
+            "validate_group_ndims")
+
+    Returns:
+        tf.Tensor or int: The validated `group_ndims`.
+
+    Raises:
+        ValueError: If the specified `group_ndims` cannot pass validation.
+    """
+    @contextlib.contextmanager
+    def gen_name_scope():
+        if is_tensor_object(group_ndims):
+            with tf.name_scope(name, default_name='validate_group_ndims'):
+                yield
+        else:
+            yield
+    with gen_name_scope():
+        validator = TensorArgValidator('group_ndims')
+        group_ndims = validator.require_non_negative(
+            validator.require_int32(group_ndims)
+        )
+    return group_ndims
 
 
 def validate_enum_arg(arg_name, arg_value, choices, nullable=False):

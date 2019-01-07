@@ -336,3 +336,57 @@ Args:
             append_arg_to_doc(old_doc, self.arg_doc),
             new_doc,
         )
+
+
+class AddArgDocDecoratorsTestCase(unittest.TestCase):
+
+    maxDiff = None
+
+    def test_add_name_arg_doc(self):
+        @add_name_arg_doc
+        def f(first_arg):
+            """
+            Header line.
+
+            Args:
+                first_arg: this is the first arg
+
+                    First arg has a blank line.
+            """
+
+        expected_doc = """
+            Header line.
+
+            Args:
+                first_arg: this is the first arg
+
+                    First arg has a blank line.
+                name (str): Default name of the name scope.
+                    If not specified, generate one according to the method name.
+            \n"""
+        self.assertEqual(f.__doc__, expected_doc)
+
+    def test_add_name_and_scope_arg_doc(self):
+        @add_name_and_scope_arg_doc
+        def f(first_arg):
+            """
+            Header line.
+
+            Args:
+                first_arg: this is the first arg
+
+                    First arg has a blank line.
+            """
+
+        expected_doc = """
+            Header line.
+
+            Args:
+                first_arg: this is the first arg
+
+                    First arg has a blank line.
+                name (str): Default name of the variable scope.  Will be uniquified.
+                    If not specified, generate one according to the class name.
+                scope (str): The name of the variable scope.
+            \n"""
+        self.assertEqual(f.__doc__, expected_doc)

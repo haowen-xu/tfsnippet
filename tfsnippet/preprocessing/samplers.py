@@ -1,6 +1,6 @@
 import numpy as np
 
-from tfsnippet.dataflow import DataMapper
+from tfsnippet.dataflows import DataMapper
 
 __all__ = ['BaseSampler', 'BernoulliSampler', 'UniformNoiseSampler']
 

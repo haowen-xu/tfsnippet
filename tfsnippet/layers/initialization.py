@@ -8,7 +8,7 @@ __all__ = [
 
 def default_kernel_initializer(weight_norm=False):
     """
-    Get the default initializer for layer kernels (i.e., `W`s).
+    Get the default initializer for layer kernels (i.e., `W` of layers).
 
     Args:
         weight_norm: Whether or not to apply weight normalization

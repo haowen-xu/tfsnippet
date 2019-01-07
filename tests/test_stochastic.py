@@ -1,54 +1,10 @@
 import pytest
-import six
 import numpy as np
 import tensorflow as tf
 from mock import Mock
 
-from tfsnippet.stochastic import StochasticTensor, validate_n_samples
+from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.utils import TensorWrapper, register_tensor_wrapper_class
-
-if six.PY2:
-    LONG_MAX = long(1) << 63 - long(1)
-else:
-    LONG_MAX = 1 << 63 - 1
-
-
-class ValidateNSamplesTestCase(tf.test.TestCase):
-
-    def test_static_values(self):
-        # type checks
-        for o in [object(), 1.2, LONG_MAX]:
-            with pytest.raises(
-                    TypeError, match='xyz cannot be converted to int32'):
-                _ = validate_n_samples(o, 'xyz')
-
-        # value checks
-        self.assertIsNone(validate_n_samples(None, 'xyz'))
-        self.assertEqual(validate_n_samples(1, 'xyz'), 1)
-        with pytest.raises(ValueError, match='xyz must be positive'):
-            _ = validate_n_samples(0, 'xyz')
-        with pytest.raises(ValueError, match='xyz must be positive'):
-            _ = validate_n_samples(-1, 'xyz')
-
-    def test_dynamic_values(self):
-        # type checks
-        for o in [tf.constant(1.2, dtype=tf.float32),
-                  tf.constant(LONG_MAX, dtype=tf.int64)]:
-            with pytest.raises(
-                    TypeError, match='xyz cannot be converted to int32'):
-                _ = validate_n_samples(o, 'xyz')
-
-        # value checks
-        with self.test_session():
-            self.assertEqual(
-                validate_n_samples(
-                    tf.constant(1, dtype=tf.int32), 'xyz').eval(), 1)
-            with pytest.raises(Exception, match='xyz must be positive'):
-                _ = validate_n_samples(
-                    tf.constant(0, dtype=tf.int32), 'xyz').eval()
-            with pytest.raises(Exception, match='xyz must be positive'):
-                _ = validate_n_samples(
-                    tf.constant(-1, dtype=tf.int32), 'xyz').eval()
 
 
 class _MyTensorWrapper(TensorWrapper):

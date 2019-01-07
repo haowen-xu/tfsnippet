@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from mock import Mock
 
-from tfsnippet.dataflow import DataMapper, SlidingWindow
+from tfsnippet.dataflows import DataMapper, SlidingWindow
 
 
 class DataMapperTestCase(unittest.TestCase):
@@ -50,7 +50,3 @@ class SlidingWindowTestCase(unittest.TestCase):
             [[8, 9, 10], [9, 10, 11], [10, 11, 12]],
             batches[2][0]
         )
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -5,7 +5,7 @@ import pytest
 import tensorflow as tf
 from mock import Mock
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import *
 
@@ -103,7 +103,3 @@ class EvaluatorTestCase(tf.test.TestCase):
                     call_session, call_feed_dict = call_args[0]
                     self.assertEqual(56, call_feed_dict[ph2])
                     self.assertNotIn(ph3, call_feed_dict)
-
-
-if __name__ == '__main__':
-    unittest.main()

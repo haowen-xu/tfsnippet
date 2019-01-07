@@ -297,7 +297,3 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertTrue(os.path.isdir(cache_dir.path))
                 cache_dir.purge_all()
                 self.assertFalse(os.path.isdir(cache_dir.path))
-
-
-if __name__ == '__main__':
-    unittest.main()

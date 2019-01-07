@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import pytest
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 
 
 class MapperFlowTestCase(unittest.TestCase):
@@ -99,7 +99,3 @@ class MapperFlowTestCase(unittest.TestCase):
         self.assertEqual(1, len(list(flow)))
         for b in flow:
             np.testing.assert_equal([x, z, x], b)
-
-
-if __name__ == '__main__':
-    unittest.main()

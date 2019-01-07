@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.utils import (TemporaryDirectory,
                              ensure_variables_initialized,

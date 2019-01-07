@@ -3,49 +3,12 @@ import six
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.distributions import validate_group_ndims, reduce_group_ndims
+from tfsnippet.distributions import reduce_group_ndims
 
 if six.PY2:
     LONG_MAX = long(1) << 63 - long(1)
 else:
     LONG_MAX = 1 << 63 - 1
-
-
-class ValidateGroupNdimsTestCase(tf.test.TestCase):
-
-    def test_static_values(self):
-        # type checks
-        for o in [object(), None, 1.2, LONG_MAX]:
-            with pytest.raises(
-                    TypeError,
-                    match='group_ndims cannot be converted to int32'):
-                _ = validate_group_ndims(o)
-
-        # value checks
-        self.assertEqual(validate_group_ndims(0), 0)
-        self.assertEqual(validate_group_ndims(1), 1)
-        with pytest.raises(
-                ValueError, match='group_ndims must be non-negative'):
-            _ = validate_group_ndims(-1)
-
-    def test_dynamic_values(self):
-        # type checks
-        for o in [tf.constant(1.2, dtype=tf.float32),
-                  tf.constant(LONG_MAX, dtype=tf.int64)]:
-            with pytest.raises(
-                    TypeError,
-                    match='group_ndims cannot be converted to int32'):
-                _ = validate_group_ndims(o)
-
-        # value checks
-        with self.test_session():
-            self.assertEqual(
-                validate_group_ndims(tf.constant(0, dtype=tf.int32)).eval(), 0)
-            self.assertEqual(
-                validate_group_ndims(tf.constant(1, dtype=tf.int32)).eval(), 1)
-            with pytest.raises(
-                    Exception, match='group_ndims must be non-negative'):
-                _ = validate_group_ndims(tf.constant(-1, dtype=tf.int32)).eval()
 
 
 class ReduceGroupNdimsTestCase(tf.test.TestCase):

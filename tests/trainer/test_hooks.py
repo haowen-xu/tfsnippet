@@ -170,7 +170,3 @@ class HookListTestCase(unittest.TestCase):
     def test_error_add(self):
         with pytest.raises(ValueError, match='`freq` must be at least 1'):
             HookList().add_hook(lambda: None, freq=0)
-
-
-if __name__ == '__main__':
-    unittest.main()

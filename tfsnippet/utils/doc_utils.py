@@ -168,10 +168,11 @@ def append_arg_to_doc(doc, arg_doc):
     arg_len = 0
     for m in re.finditer(r'^.*?$', doc[arg_start_pos + 1:], re.M):
         line = m.group(0)
-        if not line.strip() or not line.startswith(arg_indent) or \
-                re.match(r'^\s*\\?\*', line):
+        if line.rstrip('\r\n') and (not line.startswith(arg_indent) or
+                                    re.match(r'^\s*\\?\*', line)):
             break
-        arg_len = m.end(0) + 1
+        if line.strip():
+            arg_len = m.end(0) + 1
     arg_end_pos = arg_start_pos + arg_len
 
     new_doc = '\n'.join((arg_indent + l) if l.strip() else ''
@@ -188,8 +189,8 @@ def add_name_arg_doc(method):
     Add `name` argument to the doc of `method`.
     """
     arg_doc = '''
-    name (str): Default name of the name scope.
-        If not specified, generate one according to the method name.'''
+name (str): Default name of the name scope.
+    If not specified, generate one according to the method name.'''
     method.__doc__ = append_arg_to_doc(method.__doc__, arg_doc)
     return method
 
@@ -199,8 +200,8 @@ def add_name_and_scope_arg_doc(method):
     Add `name` and `scope` argument to the doc of `method`.
     """
     arg_doc = '''
-    name (str): Default name of the variable scope.  Will be uniquified.
-        If not specified, generate one according to the class name.
-    scope (str): The name of the variable scope.'''
+name (str): Default name of the variable scope.  Will be uniquified.
+    If not specified, generate one according to the class name.
+scope (str): The name of the variable scope.'''
     method.__doc__ = append_arg_to_doc(method.__doc__, arg_doc)
     return method

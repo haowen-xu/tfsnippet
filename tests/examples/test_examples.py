@@ -41,7 +41,7 @@ class ExamplesTestCase(unittest.TestCase):
 
         examples_dir = os.path.join(
             os.path.split(os.path.abspath(__file__))[0],
-            '../../tfsnippet/examples'
+            '../../examples'
         )
         examples_scripts = walk(examples_dir, [])
 

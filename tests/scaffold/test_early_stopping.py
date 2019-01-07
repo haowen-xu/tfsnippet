@@ -1,5 +1,4 @@
 import os
-import unittest
 
 import pytest
 import numpy as np
@@ -167,7 +166,3 @@ class EarlyStoppingTestCase(tf.test.TestCase):
                         os.path.exists(os.path.join(checkpoint_dir, 'latest')))
                 self.assertTrue(
                     os.path.exists(os.path.join(checkpoint_dir, 'latest')))
-
-
-if __name__ == '__main__':
-    unittest.main()

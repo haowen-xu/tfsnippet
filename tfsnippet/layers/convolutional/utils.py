@@ -70,7 +70,7 @@ def validate_conv2d_strides_tuple(arg_name, arg_value, channels_last):
         channels_last: Whether or not the last axis is the channel dimension?
 
     Returns:
-        (int, int, int, int): The validated two integers, plus two `1`s as
+        (int, int, int, int): The validated two integers, plus two `1` as
             the strides for batch and channels dimensions.
     """
     value = validate_conv2d_size_tuple(arg_name, arg_value)

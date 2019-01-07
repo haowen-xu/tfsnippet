@@ -1,12 +1,11 @@
 import functools
-import unittest
 
 import numpy as np
 import pytest
 import tensorflow as tf
 from mock import Mock
 
-from tfsnippet.dataflow import DataFlow
+from tfsnippet.dataflows import DataFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import *
 
@@ -177,7 +176,3 @@ class BaseTrainerTestCase(tf.test.TestCase):
                 t.after_steps.add_hook(reentrant_error)
                 t.run()
                 self.assertTrue(reentrant_error.called)
-
-
-if __name__ == '__main__':
-    unittest.main()

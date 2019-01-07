@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pytest
 
-from tfsnippet.dataflow import *
+from tfsnippet.dataflows import DataFlow
+from tfsnippet.dataflows.gather_flow import GatherFlow
 
 
 class GatherFlowTestCase(unittest.TestCase):
@@ -27,7 +28,3 @@ class GatherFlowTestCase(unittest.TestCase):
             _ = DataFlow.gather([])
         with pytest.raises(TypeError, match='Not a DataFlow'):
             _ = DataFlow.gather([1])
-
-
-if __name__ == '__main__':
-    unittest.main()
