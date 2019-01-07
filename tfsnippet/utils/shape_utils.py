@@ -1,5 +1,6 @@
 import functools
 
+import numpy as np
 import tensorflow as tf
 
 from .debugging import assert_deps
