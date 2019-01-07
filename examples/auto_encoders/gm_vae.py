@@ -218,9 +218,7 @@ def main(result_dir):
                 input_x, n_samples=config.train_n_samples
             )
             train_chain = train_q_net.chain(
-                p_net, latent_names=['y', 'z'], latent_axis=0,
-                observed={'x': input_x}
-            )
+                p_net, latent_axis=0, observed={'x': input_x})
 
             if config.train_n_samples is None:
                 baseline = reinforce_baseline_net(input_x)
@@ -236,9 +234,7 @@ def main(result_dir):
                 input_x, n_samples=config.test_n_samples
             )
             test_chain = test_q_net.chain(
-                p_net, latent_names=['y', 'z'], latent_axis=0,
-                observed={'x': input_x}
-            )
+                p_net, latent_axis=0, observed={'x': input_x})
             test_nll = -tf.reduce_mean(
                 test_chain.vi.evaluation.is_loglikelihood())
 

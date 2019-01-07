@@ -122,9 +122,7 @@ def main(result_dir):
         with tf.name_scope('training'):
             train_q_net = q_net(input_x)
             train_chain = train_q_net.chain(
-                p_net, latent_names=['z'], latent_axis=0,
-                observed={'x': input_x}
-            )
+                p_net, latent_axis=0, observed={'x': input_x})
 
             baseline = baseline_net(input_x)
             cost, baseline_cost = \
@@ -136,9 +134,7 @@ def main(result_dir):
         with tf.name_scope('testing'):
             test_q_net = q_net(input_x, n_z=config.test_n_z)
             test_chain = test_q_net.chain(
-                p_net, latent_names=['z'], latent_axis=0,
-                observed={'x': input_x}
-            )
+                p_net, latent_axis=0, observed={'x': input_x})
             test_nll = -tf.reduce_mean(
                 test_chain.vi.evaluation.is_loglikelihood())
             test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())

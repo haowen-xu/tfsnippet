@@ -162,10 +162,7 @@ def main(result_dir):
                 with arg_scope([p_net, q_net], is_training=is_training,
                                channels_last=True):
                     _ = q_net(dev_input_x).chain(
-                        p_net,
-                        latent_names=['z'],
-                        observed={'x': dev_input_x}
-                    )
+                        p_net, observed={'x': dev_input_x})
 
             else:
                 with arg_scope([p_net, q_net], is_training=is_training,
@@ -174,9 +171,7 @@ def main(result_dir):
                     with tf.name_scope('training'):
                         train_q_net = q_net(dev_input_x)
                         train_chain = train_q_net.chain(
-                            p_net, latent_names=['z'], latent_axis=0,
-                            observed={'x': dev_input_x}
-                        )
+                            p_net, latent_axis=0, observed={'x': dev_input_x})
 
                         dev_vae_loss = tf.reduce_mean(
                             train_chain.vi.training.sgvb())
@@ -188,9 +183,7 @@ def main(result_dir):
                     with tf.name_scope('testing'):
                         test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
                         test_chain = test_q_net.chain(
-                            p_net, latent_names=['z'], latent_axis=0,
-                            observed={'x': dev_input_x}
-                        )
+                            p_net, latent_axis=0, observed={'x': dev_input_x})
                         dev_test_nll = -tf.reduce_mean(
                             test_chain.vi.evaluation.is_loglikelihood())
                         dev_test_lb = tf.reduce_mean(
