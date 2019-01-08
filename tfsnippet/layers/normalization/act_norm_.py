@@ -159,7 +159,7 @@ class ActNorm(BaseFlow):
     def explicitly_invertible(self):
         return True
 
-    def _transform(self, x, compute_y, compute_log_det):
+    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
         # check the argument
         x = self._input_spec.validate(x)
         dtype = x.dtype.base_dtype
@@ -253,9 +253,14 @@ class ActNorm(BaseFlow):
                     log_det = tf.reduce_sum(
                         log_det, axis=list(range(-reduce_ndims2, 0)))
 
+                # merge with previous log det if specified
+                if previous_log_det is not None:
+                    log_det = previous_log_det + log_det
+
         return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det,
+                           previous_log_det):
         # `BaseFlow` ensures `build` is called before `inverse_transform`.
         # In `ActNorm`, `build` can only be called by `apply` or `transform`.
         # Thus it should always have been initialized.
@@ -319,6 +324,10 @@ class ActNorm(BaseFlow):
                 if reduce_ndims2 > 0:
                     log_det = tf.reduce_sum(
                         log_det, axis=list(range(-reduce_ndims2, 0)))
+
+                # merge with previous log det if specified
+                if previous_log_det is not None:
+                    log_det = previous_log_det + log_det
 
         return x, log_det
 

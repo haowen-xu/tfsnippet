@@ -503,18 +503,112 @@ class TransposeConv2dAxisTestCase(tf.test.TestCase):
             np.testing.assert_allclose(g(y, False), x)
 
 
-class ReshapeConv2dToDenseTestCase(tf.test.TestCase):
+class ReshapeTailTestCase(tf.test.TestCase):
 
-    def test_reshape_conv2d_to_dense(self):
-        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
-        y = np.reshape(x, [17, 11, -1])
+    def test_reshape_tail(self):
+        def check(x, ndims, shape, expected_shape, static_shape=None,
+                  x_ph=None, shape_ph=None):
+            # compute the answer
+            assert(len(x.shape) >= ndims)
+            if ndims > 0:
+                y = np.reshape(x, x.shape[:-ndims] + tuple(shape))
+            else:
+                y = np.reshape(x, x.shape + tuple(shape))
+            self.assertEqual(y.shape, expected_shape)
+
+            # validate the output
+            feed_dict = {}
+            if x_ph is not None:
+                feed_dict[x_ph] = x
+                x = x_ph
+            if shape_ph is not None:
+                feed_dict[shape_ph] = shape
+                shape = shape_ph
+
+            y_tensor = reshape_tail(x, ndims, shape)
+            if static_shape is not None:
+                self.assertTupleEqual(get_static_shape(y_tensor), static_shape)
+            y_out = sess.run(y_tensor, feed_dict=feed_dict)
+
+            self.assertTupleEqual(y_out.shape, y.shape)
+            np.testing.assert_equal(y_out, y)
+
+        x = np.random.normal(size=[4, 5, 6]).astype(np.float32)
 
         with self.test_session() as sess:
-            # test static
-            np.testing.assert_equal(
-                sess.run(reshape_conv2d_to_dense(tf.constant(x))), y)
+            # check static shape
+            check(x, 0, [], (4, 5, 6), (4, 5, 6))
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (4, 5, 6, 1, 1))
+            check(x, 1, [-1], (4, 5, 6), (4, 5, 6))
+            check(x, 1, [2, 3], (4, 5, 2, 3), (4, 5, 2, 3))
+            check(x, 2, [-1], (4, 30), (4, 30))
+            check(x, 2, [6, 5], (4, 6, 5), (4, 6, 5))
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), (4, 3, 2, 5))
+            check(x, 3, [-1], (120,), (120,))
+            check(x, 3, [3, -1], (3, 40), (3, 40))
 
-            # test dynamic
-            ph = tf.placeholder(dtype=tf.float32, shape=[None] * 5)
-            np.testing.assert_equal(
-                sess.run(reshape_conv2d_to_dense(ph), feed_dict={ph: x}), y)
+            # check dynamic shape #1
+            x_ph = tf.placeholder(dtype=tf.float32, shape=[None, 5, 6])
+
+            check(x, 0, [], (4, 5, 6), (None, 5, 6), x_ph=x_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (None, 5, 6, 1, 1),
+                  x_ph=x_ph)
+            check(x, 1, [-1], (4, 5, 6), (None, 5, 6), x_ph=x_ph)
+            check(x, 1, [2, -1], (4, 5, 2, 3), (None, 5, 2, 3), x_ph=x_ph)
+            check(x, 2, [-1], (4, 30), (None, 30), x_ph=x_ph)
+            check(x, 2, [-1, 5], (4, 6, 5), (None, 6, 5), x_ph=x_ph)
+            check(x, 2, [3, -1, 5], (4, 3, 2, 5), (None, 3, 2, 5), x_ph=x_ph)
+            check(x, 3, [-1], (120,), (None,), x_ph=x_ph)
+            check(x, 3, [3, -1], (3, 40), (3, None), x_ph=x_ph)
+
+            # check dynamic shape #2
+            x_ph = tf.placeholder(dtype=tf.float32, shape=[None, 5, None])
+
+            check(x, 0, [], (4, 5, 6), (None, 5, None), x_ph=x_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (None, 5, None, 1, 1),
+                  x_ph=x_ph)
+            check(x, 1, [-1], (4, 5, 6), (None, 5, None), x_ph=x_ph)
+            check(x, 1, [2, 3], (4, 5, 2, 3), (None, 5, 2, 3), x_ph=x_ph)
+            check(x, 2, [-1], (4, 30), (None, None), x_ph=x_ph)
+            check(x, 2, [6, 5], (4, 6, 5), (None, 6, 5), x_ph=x_ph)
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), (None, 3, 2, 5), x_ph=x_ph)
+            check(x, 3, [-1], (120,), (None,), x_ph=x_ph)
+            check(x, 3, [3, -1], (3, 40), (3, None), x_ph=x_ph)
+
+            # check fully dynamic shape
+            x_ph = tf.placeholder(dtype=tf.float32, shape=None)
+            shape_ph = tf.placeholder(dtype=tf.int32, shape=None)
+
+            check(x, 0, [], (4, 5, 6), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 1, [-1], (4, 5, 6), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 1, [2, 3], (4, 5, 2, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [-1], (4, 30), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [6, 5], (4, 6, 5), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 3, [-1], (120,), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 3, [3, -1], (3, 40), x_ph=x_ph, shape_ph=shape_ph)
+
+            # check errors
+            with pytest.raises(ValueError,
+                               match='`shape` is not a valid shape: at most '
+                                     'one `-1` can be specified'):
+                _ = reshape_tail(x, 1, [-1, -1])
+
+            with pytest.raises(ValueError,
+                               match='`shape` is not a valid shape: 0 is not '
+                                     'allowed'):
+                _ = reshape_tail(x, 1, [0])
+
+            with pytest.raises(Exception,
+                               match=r'rank\(input\) must be at least ndims'):
+                _ = sess.run(reshape_tail(x, 5, [-1]))
+
+            with pytest.raises(Exception,
+                               match=r'rank\(input\) must be at least ndims'):
+                _ = sess.run(reshape_tail(x_ph, 5, [-1]), feed_dict={x_ph: x})
+
+            with pytest.raises(Exception,
+                               match=r'Cannot reshape the tail dimensions of '
+                                     r'`input` into `shape`'):
+                _ = sess.run(reshape_tail(x, 2, [7, -1]))

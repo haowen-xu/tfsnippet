@@ -2,7 +2,7 @@ import functools
 
 from .normalization import weight_norm as weight_norm_fn
 
-__all__ = ['validate_weight_norm_arg']
+__all__ = []
 
 
 def validate_weight_norm_arg(weight_norm, axis, use_scale):

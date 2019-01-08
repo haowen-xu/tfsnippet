@@ -14,5 +14,5 @@ __all__ = [
     'default_kernel_initializer', 'dense', 'global_avg_pool2d',
     'l2_regularizer', 'max_pool2d', 'planar_normalizing_flows',
     'resnet_conv2d_block', 'resnet_deconv2d_block', 'resnet_general_block',
-    'validate_weight_norm_arg', 'weight_norm',
+    'weight_norm',
 ]

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This version introduces breaking changes. Existing code might better stick to [v0.1.2](https://github.com/haowen-xu/tfsnippet/tree/v0.1.2)
 
 ### Added
-- Utilities have been exported to the root package, and now it's recommended to use TFSnippet by ``import tfsnippet as ts``.
+- Utilities have been exported to the root package, and now it's recommended to use TFSnippet by ``import tfsnippet as sn``.
 - `tfsnippet.layers` package, including layers (`dense`), normalizers (`act_norm`, `weight_norm`), convolutional layers (`conv2d`, `deconv2d`, `avg_pool2d`, `max_pool2d`, `global_avg_pool2d`, `resnet_general_block`, `resnet_conv2d_block`, `reset_deconv2d_block`) and flows.
 - `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
 

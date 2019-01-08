@@ -14,7 +14,8 @@ __all__ = [
     'concat_shapes',
     'broadcast_to_shape',
     'transpose_conv2d_axis', 'transpose_conv2d_channels_last_to_x',
-    'transpose_conv2d_channels_x_to_last', 'reshape_conv2d_to_dense',
+    'transpose_conv2d_channels_x_to_last',
+    'reshape_tail',
 ]
 
 
@@ -550,46 +551,95 @@ def transpose_conv2d_channels_x_to_last(input, channels_last, name=None):
 
 
 @add_name_arg_doc
-def reshape_conv2d_to_dense(input, name=None):
+def reshape_tail(input, ndims, shape, name=None):
     """
-    Flatten the last three axis of `input` into one dimension.
+    Reshape the tail (last) `ndims` into specified `shape`.
 
-    This operation is generally used to reshape 2-d convolution outputs
-    to dense layer inputs, which is the origin of the method name.
+    Usage::
+
+        x = tf.zeros([2, 3, 4, 5, 6])
+        reshape_tail(x, 3, [-1])  # output: zeros([2, 3, 120])
+        reshape_tail(x, 1, [3, 2])  # output: zeros([2, 3, 4, 5, 3, 2])
 
     Args:
-        input: The input tensor.
+        input (Tensor): The input tensor, at least `ndims` dimensions.
+        ndims (int): To reshape this number of dimensions at tail.
+        shape (Iterable[int] or tf.Tensor): The shape of the new tail.
 
     Returns:
-        tf.Tensor: The output tensor.
+        tf.Tensor: The reshaped tensor.
     """
-    from .tensor_spec import InputSpec
+    from tfsnippet.ops import assert_rank_at_least
 
-    input_spec = InputSpec(shape=('...', '?', '?', '?', '?'))
-    input = input_spec.validate(input)
+    input = tf.convert_to_tensor(input)
+    if not is_tensor_object(shape):
+        shape = list(int(s) for s in shape)
+        neg_one_count = 0
+        for s in shape:
+            if s <= 0:
+                if s == -1:
+                    if neg_one_count > 0:
+                        raise ValueError('`shape` is not a valid shape: at '
+                                         'most one `-1` can be specified.')
+                    else:
+                        neg_one_count += 1
+                else:
+                    raise ValueError('`shape` is not a valid shape: {} is '
+                                     'not allowed.'.format(s))
 
-    with tf.name_scope(name or 'reshape_conv2d_to_dense', values=[input]):
-        input_shape = get_static_shape(input)
+    with tf.name_scope(name or 'reshape_tail', values=[input]):
+        # assert the dimension
+        with assert_deps([
+                    assert_rank_at_least(
+                        input, ndims,
+                        message='rank(input) must be at least ndims')
+                ]) as asserted:
+            if asserted:
+                input = tf.identity(input)
 
-        # inspect the static shape
-        left_shape = input_shape[:-3]
-        right_shape = input_shape[-3:]
+        # compute the static shape
+        static_input_shape = get_static_shape(input)
+        static_output_shape = None
 
-        if any(i is None for i in right_shape):
-            static_shape = left_shape + (None,)
+        if static_input_shape is not None:
+            if ndims > 0:
+                left_shape = static_input_shape[:-ndims]
+                right_shape = static_input_shape[-ndims:]
+            else:
+                left_shape = static_input_shape
+                right_shape = ()
+
+            # attempt to resolve "-1" in `shape`
+            if isinstance(shape, list):
+                if None not in right_shape:
+                    shape_size = int(np.prod([s for s in shape if s != -1]))
+                    right_shape_size = int(np.prod(right_shape))
+
+                    if (-1 not in shape and shape_size != right_shape_size) or \
+                            (-1 in shape and right_shape_size % shape_size != 0):
+                        raise ValueError(
+                            'Cannot reshape the tail dimensions of '
+                            '`input` into `shape`: input {!r}, ndims '
+                            '{}, shape {}.'.format(input, ndims, shape)
+                        )
+
+                    if -1 in shape:
+                        pos = shape.index(-1)
+                        shape[pos] = right_shape_size // shape_size
+
+                static_output_shape = left_shape + \
+                    tuple(s if s != -1 else None for s in shape)
+
+        static_output_shape = tf.TensorShape(static_output_shape)
+
+        # compute the dynamic shape
+        input_shape = get_shape(input)
+        if ndims > 0:
+            output_shape = concat_shapes([input_shape[:-ndims], shape])
         else:
-            static_shape = left_shape + (int(np.prod(right_shape)),)
-        static_shape = tf.TensorShape(static_shape)
+            output_shape = concat_shapes([input_shape, shape])
 
-        # inspect the dynamic shape
-        if any(i is None for i in left_shape):
-            left_shape = get_shape(input)[:-3]
-            shape = tf.concat([left_shape, [-1]], axis=0)
-        else:
-            shape = left_shape + (-1,)
-
-        # now reshape the tensor
-        output = tf.reshape(input, shape)
-        output.set_shape(static_shape)
-
-    return output
+        # do reshape
+        output = tf.reshape(input, output_shape)
+        output.set_shape(static_output_shape)
+        return output

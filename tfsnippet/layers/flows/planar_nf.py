@@ -1,10 +1,11 @@
 import tensorflow as tf
 
 from tfsnippet.utils import (flatten, unflatten, add_name_and_scope_arg_doc,
-                             reopen_variable_scope, InputSpec, get_static_shape,
+                             InputSpec, get_static_shape, assert_deps,
                              validate_positive_int_arg)
 from .base import BaseFlow
 from .sequential import SequentialFlow
+from .utils import assert_log_det_shape_matches_input
 
 __all__ = [
     'PlanarNormalizingFlow', 'planar_normalizing_flows',
@@ -105,19 +106,19 @@ class PlanarNormalizingFlow(BaseFlow):
     def explicitly_invertible(self):
         return False
 
-    def _transform(self, x, compute_y, compute_log_det):
+    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
         x = self._input_spec.validate(x)
         w, b, u, u_hat = self._w, self._b, self._u, self._u_hat
 
         # flatten x for better performance
-        x, s1, s2 = flatten(x, 2)  # x.shape == [?, n_units]
-        wxb = tf.matmul(x, w, transpose_b=True) + b  # shape == [?, 1]
+        x_flatten, s1, s2 = flatten(x, 2)  # x.shape == [?, n_units]
+        wxb = tf.matmul(x_flatten, w, transpose_b=True) + b  # shape == [?, 1]
         tanh_wxb = tf.tanh(wxb)  # shape == [?, 1]
 
         # compute y = f(x)
         y = None
         if compute_y:
-            y = x + u_hat * tanh_wxb  # shape == [?, n_units]
+            y = x_flatten + u_hat * tanh_wxb  # shape == [?, n_units]
             y = unflatten(y, s1, s2)
 
         # compute log(det|df/dz|)
@@ -130,11 +131,25 @@ class PlanarNormalizingFlow(BaseFlow):
             log_det = tf.log(tf.abs(det_jac))  # shape == [?, 1]
             log_det = unflatten(tf.squeeze(log_det, -1), s1, s2)
 
+            with assert_deps([
+                        assert_log_det_shape_matches_input(
+                            log_det=log_det,
+                            input=x,
+                            value_ndims=self.value_ndims
+                        )
+                    ]) as asserted:
+                if asserted:  # pragma: no cover
+                    log_det = tf.identity(log_det)
+
+            if previous_log_det is not None:
+                log_det = previous_log_det + log_det
+
         # now returns the transformed sample and log-determinant
         return y, log_det
 
     # provide this method to avoid abstract class warning
-    def _inverse_transform(self, y, compute_x, compute_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det,
+                           previous_log_det):
         raise RuntimeError('Should never be called.')  # pragma: no cover
 
 

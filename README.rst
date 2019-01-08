@@ -65,7 +65,7 @@ From the very beginning, you might import the TFSnippet as:
 
 .. code-block:: python
 
-    import tfsnippet as ts
+    import tfsnippet as sn
 
 Distributions
 ~~~~~~~~~~~~~
@@ -76,7 +76,7 @@ log-likelihood by simply calling ``log_prob()``.
 
 .. code-block:: python
 
-    normal = ts.Normal(0., 1.)
+    normal = sn.Normal(0., 1.)
     # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
     samples = normal.sample(n_samples=100)
     # You may obtain the log-likelhood of `samples` under `normal` by:
@@ -93,7 +93,7 @@ haven't provided a wrapper for a certain ZhuSuan distribution:
 
     import zhusuan as zs
 
-    uniform = ts.as_distribution(zs.distributions.Uniform())
+    uniform = sn.as_distribution(zs.distributions.Uniform())
     # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
     samples = uniform.sample(n_samples=100)
 
@@ -108,7 +108,7 @@ the mini-batch iterators.
 
     # Obtain a shuffled, two-array data flow, with batch-size 64.
     # Any batch with samples fewer than 64 would be discarded.
-    flow = ts.DataFlow.arrays(
+    flow = sn.DataFlow.arrays(
         [x, y], batch_size=64, shuffle=True, skip_incomplete=True)
     for batch_x, batch_y in flow:
         ...  # Do something with batch_x and batch_y
@@ -150,26 +150,26 @@ quickly run a training-loop by using utilities from TFSnippet:
     # We shall adopt learning-rate annealing, the initial learning rate is
     # 0.001, and we would anneal it by a factor of 0.99995 after every step.
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = ts.AnnealingDynamicValue(0.001, 0.99995)
+    learning_rate_var = sn.AnnealingDynamicValue(0.001, 0.99995)
 
     # Build the training operation by AdamOptimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_op = optimizer.minimize(loss, var_list=params)
 
     # Build the training data-flow
-    train_flow = ts.DataFlow.arrays(
+    train_flow = sn.DataFlow.arrays(
         [train_x, train_y], batch_size=64, shuffle=True, skip_incomplete=True)
     # Build the validation data-flow
-    valid_flow = ts.DataFlow.arrays([valid_x, valid_y], batch_size=256)
+    valid_flow = sn.DataFlow.arrays([valid_x, valid_y], batch_size=256)
 
-    with ts.TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
-        trainer = ts.Trainer(loop, train_op, [input_x, input_y], train_flow,
+    with sn.TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
+        trainer = sn.Trainer(loop, train_op, [input_x, input_y], train_flow,
                              metrics={'loss': loss})
         # Anneal the learning-rate after every step by 0.99995.
         trainer.anneal_after_steps(learning_rate_var, freq=1)
         # Do validation and apply early-stopping after every epoch.
         trainer.evaluate_after_epochs(
-            ts.Evaluator(loop, loss, [input_x, input_y], valid_flow),
+            sn.Evaluator(loop, loss, [input_x, input_y], valid_flow),
             freq=1
         )
         # You may log the learning-rate after every epoch by adding a callback

@@ -57,11 +57,10 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
             ensure_variables_initialized()
 
             # compute the ground-truth y and log_det
-            y, log_det = x, 0
+            y = x
             w, b, u_hat = flow._w, flow._b, flow._u_hat
             u_hat, w, b = sess.run([u_hat, w, b])
-            y, tmp = transform(y, u_hat, w, b)
-            log_det += tmp
+            y, log_det = transform(y, u_hat, w, b)
 
             # check the flow-derived y and log_det
             y2, log_det2 = sess.run(
@@ -69,6 +68,14 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
 
             np.testing.assert_allclose(y2, y, rtol=1e-5)
             np.testing.assert_allclose(log_det2, log_det, rtol=1e-5)
+
+            # check `previous_log_det` is not None
+            previous_log_det = 10. * np.random.normal(size=log_det.shape)
+            _, log_det3 = sess.run(
+                flow.transform(tf.constant(x, dtype=tf.float64),
+                               previous_log_det=previous_log_det))
+            np.testing.assert_allclose(
+                log_det3, log_det + previous_log_det, rtol=1e-5)
 
     def test_planar_normalizing_flows(self):
         # test single-layer flow
