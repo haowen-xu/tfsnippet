@@ -10,7 +10,7 @@ from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
 from ..flows import BaseFlow
 
 
-__all__ = ['ActNorm', 'act_norm', 'act_norm_conv2d']
+__all__ = ['ActNorm', 'act_norm']
 
 
 class ActNorm(BaseFlow):
@@ -31,7 +31,7 @@ class ActNorm(BaseFlow):
                  axis=-1,
                  value_ndims=1,
                  initializing=False,
-                 scale_type='log_scale',
+                 scale_type='exp',
                  bias_regularizer=None,
                  bias_constraint=None,
                  log_scale_regularizer=None,
@@ -55,10 +55,10 @@ class ActNorm(BaseFlow):
             initializing (bool): Whether or not to use the first input `x`
                 in the forward pass to initialize the layer parameters?
                 (default :obj:`True`)
-            scale_type: One of {"log_scale", "scale"}.
-                If "log_scale", ``y = (x + bias) * tf.exp(log_scale)``.
-                If "scale", ``y = (x + bias) * scale``.
-                Default is "log_scale".
+            scale_type: One of {"exp", "linear"}.
+                If "exp", ``y = (x + bias) * tf.exp(log_scale)``.
+                If "linear", ``y = (x + bias) * scale``.
+                Default is "exp".
             bias_regularizer: The regularizer for `bias`.
             bias_constraint: The constraint for `bias`.
             log_scale_regularizer: The regularizer for `log_scale`.
@@ -74,7 +74,7 @@ class ActNorm(BaseFlow):
                              format(self._axis))
         self._value_ndims = int(value_ndims)
         self._scale_type = validate_enum_arg(
-            'scale_type', scale_type, ['scale', 'log_scale'])
+            'scale_type', scale_type, ['exp', 'linear'])
         self._initialized = not bool(initializing)
         self._bias_regularizer = bias_regularizer
         self._bias_constraint = bias_constraint
@@ -134,7 +134,7 @@ class ActNorm(BaseFlow):
             constraint=self._bias_constraint,
             trainable=self._trainable
         )
-        if self._scale_type == 'log_scale':
+        if self._scale_type == 'exp':
             self._log_scale = tf.get_variable(
                 'log_scale',
                 dtype=dtype,
@@ -184,7 +184,7 @@ class ActNorm(BaseFlow):
                 x_var = tf.reshape(x_var, self._var_shape)
 
                 bias = self._bias.assign(-x_mean)
-                if self._scale_type == 'log_scale':
+                if self._scale_type == 'exp':
                     scale = None
                     log_scale = self._log_scale.assign(
                         -tf.constant(.5, dtype=dtype) *
@@ -272,7 +272,7 @@ class ActNorm(BaseFlow):
         # compute x
         x = None
         if compute_x:
-            if self._scale_type == 'log_scale':
+            if self._scale_type == 'exp':
                 x = y * tf.exp(-self._log_scale) - self._bias
             else:
                 x = y / self._scale - self._bias
@@ -281,7 +281,7 @@ class ActNorm(BaseFlow):
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                if self._scale_type == 'log_scale':
+                if self._scale_type == 'exp':
                     log_scale = self._log_scale
                 else:
                     log_scale = tf.log(tf.abs(self._scale), name='log_scale')
@@ -336,22 +336,3 @@ def act_norm(input, **kwargs):
         tf.Tensor: The output after the ActNorm has been applied.
     """
     return ActNorm(**kwargs).apply(input)
-
-
-@add_arg_scope
-def act_norm_conv2d(input, channels_last=True, **kwargs):
-    """
-    ActNorm proposed by (Kingma & Dhariwal, 2018), specialized for 2d
-    convolutional layers.  See :func:`act_norm` for more details.
-
-    Args:
-        input (tf.Tensor): The input tensor.  Must be at least 4-d tensor,
-            where the last 3 dimensions are the image pixels.
-        channels_last (bool): Whether or not the last dimension is the channel?
-        \\**kwargs: Other arguments passed to :class:`ActNorm`.
-
-    Returns:
-        tf.Tensor: The output after the ActNorm has been applied.
-    """
-    axis = -1 if bool(channels_last) else -3
-    return ActNorm(axis=axis, value_ndims=3, **kwargs).apply(input)

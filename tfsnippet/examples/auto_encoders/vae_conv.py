@@ -75,7 +75,7 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         h_x = ts.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
         h_x = ts.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
         h_x = ts.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
-    h_x = ts.layers.conv2d_flatten_spatial_channel(h_x)
+    h_x = ts.utils.reshape_conv2d_to_dense(h_x)
 
     # sample z ~ q(z|x)
     z_mean = ts.layers.dense(h_x, config.z_dim, name='z_mean')

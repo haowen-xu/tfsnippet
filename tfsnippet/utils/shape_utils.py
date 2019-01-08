@@ -1,5 +1,6 @@
 import functools
 
+import numpy as np
 import tensorflow as tf
 
 from .debugging import assert_deps
@@ -12,6 +13,8 @@ __all__ = [
     'get_batch_size', 'get_rank', 'get_shape', 'get_dimensions_size',
     'concat_shapes',
     'broadcast_to_shape',
+    'transpose_conv2d_axis', 'transpose_conv2d_channels_last_to_x',
+    'transpose_conv2d_channels_x_to_last', 'reshape_conv2d_to_dense',
 ]
 
 
@@ -463,3 +466,130 @@ def broadcast_to_shape(x, shape, name=None):
 
         # do broadcast
         return broadcast_to_shape_sub(x, shape, cannot_broadcast_msg)
+
+
+@add_name_arg_doc
+def transpose_conv2d_axis(input, from_channels_last, to_channels_last,
+                          name=None):
+    """
+    Ensure the channels axis of `input` tensor to be placed at the desired axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        from_channels_last (bool): Whether or not the channels axis
+            is the last axis in `input`? (i.e., the data format is "NHWC")
+        to_channels_last (bool): Whether or not the channels axis
+            should be the last axis in the output tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    from .tensor_spec import InputSpec
+    if from_channels_last:
+        input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
+    else:
+        input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
+    input = input_spec.validate(input)
+    input_shape = get_static_shape(input)
+    sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
+
+    # check whether or not axis should be transpose
+    if from_channels_last and not to_channels_last:
+        transpose_axis = [-1, -3, -2]
+    elif not from_channels_last and to_channels_last:
+        transpose_axis = [-2, -1, -3]
+    else:
+        transpose_axis = None
+
+    # transpose the axis
+    if transpose_axis is not None:
+        transpose_axis = [i + len(input_shape) for i in transpose_axis]
+        input = tf.transpose(input, sample_and_batch_axis + transpose_axis,
+                             name=name or 'transpose_conv2d_axis')
+
+    return input
+
+
+@add_name_arg_doc
+def transpose_conv2d_channels_last_to_x(input, channels_last, name=None):
+    """
+    Ensure the channels axis (known to be the last axis) of `input` tensor
+    to be placed at the desired axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        channels_last (bool): Whether or not the channels axis
+            should be the last axis in the output tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    return transpose_conv2d_axis(
+        input, from_channels_last=True, to_channels_last=channels_last,
+        name=name
+    )
+
+
+@add_name_arg_doc
+def transpose_conv2d_channels_x_to_last(input, channels_last, name=None):
+    """
+    Ensure the channels axis of `input` tensor to be placed at the last axis.
+
+    Args:
+        input (tf.Tensor): The input tensor, at least 4-d.
+        channels_last (bool): Whether or not the channels axis
+            is the last axis in the `input` tensor?
+
+    Returns:
+        tf.Tensor: The (maybe) transposed output tensor.
+    """
+    return transpose_conv2d_axis(
+        input, from_channels_last=channels_last, to_channels_last=True,
+        name=name
+    )
+
+
+@add_name_arg_doc
+def reshape_conv2d_to_dense(input, name=None):
+    """
+    Flatten the last three axis of `input` into one dimension.
+
+    This operation is generally used to reshape 2-d convolution outputs
+    to dense layer inputs, which is the origin of the method name.
+
+    Args:
+        input: The input tensor.
+
+    Returns:
+        tf.Tensor: The output tensor.
+    """
+    from .tensor_spec import InputSpec
+
+    input_spec = InputSpec(shape=('...', '?', '?', '?', '?'))
+    input = input_spec.validate(input)
+
+    with tf.name_scope(name or 'reshape_conv2d_to_dense', values=[input]):
+        input_shape = get_static_shape(input)
+
+        # inspect the static shape
+        left_shape = input_shape[:-3]
+        right_shape = input_shape[-3:]
+
+        if any(i is None for i in right_shape):
+            static_shape = left_shape + (None,)
+        else:
+            static_shape = left_shape + (int(np.prod(right_shape)),)
+        static_shape = tf.TensorShape(static_shape)
+
+        # inspect the dynamic shape
+        if any(i is None for i in left_shape):
+            left_shape = get_shape(input)[:-3]
+            shape = tf.concat([left_shape, [-1]], axis=0)
+        else:
+            shape = left_shape + (-1,)
+
+        # now reshape the tensor
+        output = tf.reshape(input, shape)
+        output.set_shape(static_shape)
+
+    return output

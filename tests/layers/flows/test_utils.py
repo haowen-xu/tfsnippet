@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.layers import *
+from tfsnippet.layers.flows.utils import (is_log_det_shape_matches_input,
+                                          assert_log_det_shape_matches_input,
+                                          broadcast_log_det_against_input)
 
 
 class IsLogDetShapeMatchesInputTestCase(tf.test.TestCase):
