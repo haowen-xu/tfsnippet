@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.utils import (flatten, unflatten, add_name_and_scope_arg_doc,
+from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims, add_name_and_scope_arg_doc,
                              InputSpec, get_static_shape, assert_deps,
                              validate_positive_int_arg)
 from .base import BaseFlow
@@ -111,7 +111,7 @@ class PlanarNormalizingFlow(BaseFlow):
         w, b, u, u_hat = self._w, self._b, self._u, self._u_hat
 
         # flatten x for better performance
-        x_flatten, s1, s2 = flatten(x, 2)  # x.shape == [?, n_units]
+        x_flatten, s1, s2 = flatten_to_ndims(x, 2)  # x.shape == [?, n_units]
         wxb = tf.matmul(x_flatten, w, transpose_b=True) + b  # shape == [?, 1]
         tanh_wxb = tf.tanh(wxb)  # shape == [?, 1]
 
@@ -119,7 +119,7 @@ class PlanarNormalizingFlow(BaseFlow):
         y = None
         if compute_y:
             y = x_flatten + u_hat * tanh_wxb  # shape == [?, n_units]
-            y = unflatten(y, s1, s2)
+            y = unflatten_from_ndims(y, s1, s2)
 
         # compute log(det|df/dz|)
         log_det = None
@@ -129,7 +129,7 @@ class PlanarNormalizingFlow(BaseFlow):
             u_phi = tf.matmul(phi, u_hat, transpose_b=True)  # shape == [?, 1]
             det_jac = 1. + u_phi  # shape == [?, 1]
             log_det = tf.log(tf.abs(det_jac))  # shape == [?, 1]
-            log_det = unflatten(tf.squeeze(log_det, -1), s1, s2)
+            log_det = unflatten_from_ndims(tf.squeeze(log_det, -1), s1, s2)
 
             with assert_deps([
                         assert_log_det_shape_matches_input(

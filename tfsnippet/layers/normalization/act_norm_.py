@@ -26,6 +26,8 @@ class ActNorm(BaseFlow):
     parameters via the opposite direction.
     """
 
+    _build_require_input = True
+
     @add_name_and_scope_arg_doc
     def __init__(self,
                  axis=-1,
@@ -72,7 +74,6 @@ class ActNorm(BaseFlow):
         if not self._axis:
             raise ValueError('`axis` must not be empty: got {!r}'.
                              format(self._axis))
-        self._value_ndims = int(value_ndims)
         self._scale_type = validate_enum_arg(
             'scale_type', scale_type, ['exp', 'linear'])
         self._initialized = not bool(initializing)
@@ -85,12 +86,11 @@ class ActNorm(BaseFlow):
         self._trainable = bool(trainable)
         self._epsilon = epsilon
 
-        BaseFlow.__init__(self, value_ndims=value_ndims, name=name, scope=scope)
+        super(ActNorm, self).__init__(
+            value_ndims=value_ndims, name=name, scope=scope)
 
     def _build(self, input=None):
         # check the input.
-        if input is None:
-            raise ValueError('`ActNorm` requires `input` to build.')
         input = tf.convert_to_tensor(input)
         dtype = input.dtype.base_dtype
         shape = get_static_shape(input)
@@ -99,7 +99,8 @@ class ActNorm(BaseFlow):
         assert(shape is not None)
         assert(len(shape) >= self.value_ndims)
 
-        # compute the negative indices of `axis`, and store it in `self._axis`
+        # compute the negative indices of `axis`, and store it in `self._axis`.
+        # this allows new inputs to have more dimensions than this `input`.
         axis = resolve_negative_axis(len(shape), self._axis)
         axis = tuple(sorted(set(axis)))
         min_axis = axis[0]
@@ -113,13 +114,21 @@ class ActNorm(BaseFlow):
         shape_spec = shape_spec[min_axis:]
         assert(not not shape_spec)
 
-        self._var_shape = tuple(s or 1 for s in shape_spec)
         self._input_spec = InputSpec(
             shape=(('...',) +
                    ('?',) * max(0, self._value_ndims - len(shape_spec)) +
                    tuple(shape_spec)),
             dtype=dtype
         )
+        # the shape of variables must only have necessary dimensions,
+        # such that we can switch freely between `channels_last = True`
+        # (in which case `input.shape = (..., *,)`, and `channels_last = False`
+        # (in which case `input.shape = (..., *, 1, 1)`.
+        self._var_shape = tuple(s for s in shape_spec if s is not None)
+        # and we still need to compute the aligned variable shape, such that
+        # we can immediately reshape the variables into this aligned shape,
+        # then compute `scale * input + bias`.
+        self._var_shape_aligned = tuple(s or 1 for s in shape_spec)
         self._var_spec = ParamSpec(self._var_shape)
 
         # validate the input
@@ -171,15 +180,15 @@ class ActNorm(BaseFlow):
 
         # prepare for the parameters
         if not self._initialized:
-            if len(shape) == len(self._var_shape):
+            if len(shape) == len(self._var_shape_aligned):
                 raise ValueError('Initializing ActNorm requires multiple '
                                  '`x` samples, thus `x` must have at least '
-                                 'one more dimension than `var_shape`: '
-                                 'x {} vs var_shape {}.'.
-                                format(x, self._var_shape))
+                                 'one more dimension than the variable shape: '
+                                 'x {} vs variable shape {}.'.
+                                 format(x, self._var_shape_aligned))
 
             with tf.name_scope('initialization'):
-                x_mean, x_var = tf.nn.moments(x, reduce_axis, keep_dims=True)
+                x_mean, x_var = tf.nn.moments(x, reduce_axis)
                 x_mean = tf.reshape(x_mean, self._var_shape)
                 x_var = tf.reshape(x_var, self._var_shape)
 
@@ -204,6 +213,13 @@ class ActNorm(BaseFlow):
             scale = self._scale
             log_scale = self._log_scale
 
+        # align the shape of variables
+        bias = tf.reshape(bias, self._var_shape_aligned)
+        if log_scale is not None:
+            log_scale = tf.reshape(log_scale, self._var_shape_aligned)
+        else:
+            scale = tf.reshape(scale, self._var_shape_aligned)
+
         # compute y
         y = None
         if compute_y:
@@ -219,7 +235,8 @@ class ActNorm(BaseFlow):
                 if log_scale is None:
                     log_scale = tf.log(tf.abs(scale), name='log_scale')
                 log_det = log_scale
-                reduce_ndims1 = min(self.value_ndims, len(self._var_shape))
+                reduce_ndims1 = min(
+                    self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
 
                 # reduce the last `min(value_ndims, len(var_shape))` dimensions
@@ -274,24 +291,31 @@ class ActNorm(BaseFlow):
         reduce_axis = tuple(sorted(
             set(range(-len(shape), 0)).difference(self._axis)))
 
+        # align the shape of variables
+        bias = tf.reshape(self._bias, self._var_shape_aligned)
+        scale = log_scale = None
+        if self._scale_type == 'exp':
+            log_scale = tf.reshape(self._log_scale, self._var_shape_aligned)
+        else:
+            scale = tf.reshape(self._scale, self._var_shape_aligned)
+
         # compute x
         x = None
         if compute_x:
-            if self._scale_type == 'exp':
-                x = y * tf.exp(-self._log_scale) - self._bias
+            if log_scale is not None:
+                x = y * tf.exp(-log_scale) - bias
             else:
-                x = y / self._scale - self._bias
+                x = y / scale - bias
 
         # compute log_det
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                if self._scale_type == 'exp':
-                    log_scale = self._log_scale
-                else:
-                    log_scale = tf.log(tf.abs(self._scale), name='log_scale')
+                if log_scale is None:
+                    log_scale = tf.log(tf.abs(scale), name='log_scale')
                 log_det = -log_scale
-                reduce_ndims1 = min(self.value_ndims, len(self._var_shape))
+                reduce_ndims1 = min(
+                    self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
 
                 # reduce the last `min(value_ndims, len(var_shape))` dimensions
@@ -333,9 +357,29 @@ class ActNorm(BaseFlow):
 
 
 @add_arg_scope
-def act_norm(input, **kwargs):
+def act_norm(input, **kwargs):  # pragma: no cover
     """
     ActNorm proposed by (Kingma & Dhariwal, 2018).
+
+    Examples::
+
+        import tfsnippet as sn
+
+        # apply act_norm on a dense layer
+        x = sn.layers.dense(x, units, activation_fn=tf.nn.relu,
+                            normalizer_fn=functools.partial(
+                                act_norm, initializing=initializing))
+
+        # apply act_norm on a conv2d layer
+        x = sn.layers.conv2d(x, out_channels, (3, 3),
+                            channels_last=channels_last,
+                            activation_fn=tf.nn.relu,
+                            normalizer_fn=functools.partial(
+                                act_norm,
+                                axis=-1 if channels_last else -3,
+                                value_ndims=3,
+                                initializing=initializing,
+                            ))
 
     Args:
         input (tf.Tensor): The input tensor.

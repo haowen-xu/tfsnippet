@@ -7,7 +7,7 @@ from tfsnippet.utils import *
 
 def _make_var_and_op():
     vs = tf.get_variable_scope()
-    assert(vs.name == reuse_stack_top().name)
+    assert(vs.name == get_reuse_stack_top().name)
     var = tf.get_variable('var', shape=(), dtype=tf.float32)
     op = tf.add(1, 2, name='op')
     return vs, var, op
@@ -15,14 +15,14 @@ def _make_var_and_op():
 
 def _make_variable_scope():
     vs = tf.get_variable_scope()
-    assert(vs.name == reuse_stack_top().name)
+    assert(vs.name == get_reuse_stack_top().name)
     var = tf.get_variable('var', shape=(), dtype=tf.float32)
     return vs, var
 
 
 def _make_variable_scopes():
     vs = tf.get_variable_scope()
-    assert(vs.name == reuse_stack_top().name)
+    assert(vs.name == get_reuse_stack_top().name)
     with tf.variable_scope(None, default_name='vs') as vs1:
         var1 = tf.get_variable('var', shape=(), dtype=tf.float32)
     with tf.variable_scope(None, default_name='vs') as vs2:

@@ -5,7 +5,7 @@ import tensorflow as tf
 from mock import mock
 
 from tfsnippet.layers import *
-from tfsnippet.utils import is_integer, flatten, unflatten
+from tfsnippet.utils import is_integer, flatten_to_ndims, unflatten_from_ndims
 
 
 def patched_pool(pool_fn, value, ksize, strides, padding, data_format):
@@ -40,7 +40,7 @@ class Pooling2DTestCase(tf.test.TestCase):
         ksize = (1,) + ksize + (1,)
 
         session = tf.get_default_session()
-        input, s1, s2 = flatten(input, 4)
+        input, s1, s2 = flatten_to_ndims(input, 4)
         padding = padding.upper()
 
         output = pool_fn(
@@ -51,7 +51,7 @@ class Pooling2DTestCase(tf.test.TestCase):
             data_format='NHWC',
         )
 
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
         output = session.run(output)
         return output
 

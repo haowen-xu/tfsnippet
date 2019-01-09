@@ -122,7 +122,7 @@ def dense(input, units,
             )
 
         # flatten to 2d
-        output, s1, s2 = flatten(input, 2)
+        output, s1, s2 = flatten_to_ndims(input, 2)
 
         # do kernel * input + bias
         output = tf.matmul(output, kernel)
@@ -138,6 +138,6 @@ def dense(input, units,
             output = activation_fn(output)
 
         # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
 
     return output

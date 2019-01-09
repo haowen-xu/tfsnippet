@@ -7,7 +7,7 @@ from tests.layers.convolutional.helper import *
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import *
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
-from tfsnippet.utils import flatten, unflatten, is_integer
+from tfsnippet.utils import flatten_to_ndims, unflatten_from_ndims, is_integer
 
 tf_conv2d = tf.nn.conv2d
 tf_atrous_conv2d = tf.nn.atrous_conv2d
@@ -39,7 +39,7 @@ class Conv2dTestCase(tf.test.TestCase):
         strides = (1,) + strides + (1,)
 
         session = tf.get_default_session()
-        input, s1, s2 = flatten(input, 4)
+        input, s1, s2 = flatten_to_ndims(input, 4)
         padding = padding.upper()
 
         if dilations > 1:
@@ -66,7 +66,7 @@ class Conv2dTestCase(tf.test.TestCase):
         if activation_fn:
             output = activation_fn(output)
 
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
         output = session.run(output)
         return output
 

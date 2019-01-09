@@ -10,7 +10,7 @@ class AssertOpsTestCase(tf.test.TestCase):
     def test_assert_scalar_equal(self):
         with self.test_session() as sess:
             # test static comparison
-            _ = assert_scalar_equal(1, 1)
+            self.assertIsNone(assert_scalar_equal(1, 1))
             with pytest.raises(AssertionError,
                                match='Assertion failed for a == b: '
                                      '1 != 2; abcdefg'):
@@ -40,7 +40,7 @@ class AssertOpsTestCase(tf.test.TestCase):
         with self.test_session() as sess:
             # test static comparison
             x = np.zeros([2, 3, 4])
-            _ = assert_rank(x, 3)
+            self.assertIsNone(assert_rank(x, 3))
             with pytest.raises(AssertionError,
                                match=r'Assertion failed for rank\(x\) == ndims'
                                      r': 3 != 2; abcdefg'):
@@ -64,7 +64,7 @@ class AssertOpsTestCase(tf.test.TestCase):
         with self.test_session() as sess:
             # test static comparison
             x = np.zeros([2, 3, 4])
-            _ = assert_rank_at_least(x, 2)
+            self.assertIsNone(assert_rank_at_least(x, 2))
             with pytest.raises(AssertionError,
                                match=r'Assertion failed for rank\(x\) >= ndims'
                                      r': 3 < 4; abcdefg'):
@@ -83,3 +83,26 @@ class AssertOpsTestCase(tf.test.TestCase):
             self.assertEqual(sess.run(v1, feed_dict={x_in: x}), 1.)
             with pytest.raises(Exception, match='abcdefg'):
                 _ = sess.run(v2, feed_dict={x_in: x})
+
+    def test_assert_shape_equal(self):
+        with self.test_session() as sess:
+            # test static comparison
+            x1 = np.random.normal(size=[2, 3, 4])
+            x2 = np.random.normal(size=[2, 1, 4])
+            self.assertIsNone(assert_shape_equal(x1, np.copy(x1)))
+            with pytest.raises(AssertionError, match=r'Assertion failed for '
+                                                     r'x.shape == y.shape.*'
+                                                     r'abcdefg'):
+                _ = assert_shape_equal(x1, x2, message='abcdefg')
+
+            # prepare dynamic comparison
+            x1_in = tf.placeholder(dtype=tf.int32, shape=None)
+            x2_in = tf.placeholder(dtype=tf.int32, shape=None)
+            assert_op = assert_shape_equal(x1_in, x2_in, message='abcdefg')
+
+            with tf.control_dependencies([assert_op]):
+                v = tf.constant(1.)
+
+            self.assertEqual(sess.run(v, feed_dict={x1_in: x1, x2_in: x1}), 1.)
+            with pytest.raises(Exception, match='abcdefg'):
+                _ = sess.run(v, feed_dict={x1_in: x1, x2_in: x2})

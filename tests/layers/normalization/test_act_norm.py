@@ -1,14 +1,11 @@
-import copy
-from contextlib import contextmanager
-
 import numpy as np
 import pytest
 
-import mock
 import tensorflow as tf
 
 from tests.layers.flows.helper import invertible_flow_standard_check
 from tfsnippet.layers import ActNorm, act_norm
+from tfsnippet.reuse import global_reuse
 
 
 def naive_act_norm_initialize(x, axis):
@@ -17,18 +14,22 @@ def naive_act_norm_initialize(x, axis):
     axis = list(sorted(set([a + len(x.shape) if a < 0 else a for a in axis])))
     min_axis = np.min(axis)
     reduce_axis = tuple(a for a in range(len(x.shape)) if a not in axis)
-    var_shape = [x.shape[a] if a in axis else 1
-                 for a in range(min_axis, len(x.shape))]
-    mean = np.reshape(np.mean(x, axis=reduce_axis, keepdims=True), var_shape)
+    var_shape = [x.shape[a] for a in axis]
+    var_shape_aligned = [x.shape[a] if a in axis else 1
+                         for a in range(min_axis, len(x.shape))]
+    mean = np.reshape(np.mean(x, axis=reduce_axis), var_shape)
     bias = -mean
     scale = 1. / np.reshape(
-        np.sqrt(np.mean((x - mean) ** 2, axis=reduce_axis, keepdims=True)),
+        np.sqrt(np.mean((x - np.reshape(mean, var_shape_aligned)) ** 2,
+                        axis=reduce_axis)),
         var_shape
     )
-    return scale, bias
+    return scale, bias, var_shape_aligned
 
 
-def naive_act_norm_transform(x, value_ndims, scale, bias):
+def naive_act_norm_transform(x, var_shape_aligned, value_ndims, scale, bias):
+    scale = np.reshape(scale, var_shape_aligned)
+    bias = np.reshape(bias, var_shape_aligned)
     y = (x + bias) * scale
     log_det = np.log(np.abs(scale)) * np.ones_like(x)
     if value_ndims > 0:
@@ -52,13 +53,9 @@ class ActNormClassTestCase(tf.test.TestCase):
             _ = ActNorm(())
 
         with pytest.raises(ValueError,
-                           match='`ActNorm` requires `input` to build'):
-            _ = ActNorm(-1).build()
-
-        with pytest.raises(ValueError,
                            match='Initializing ActNorm requires multiple '
                                  '`x` samples, thus `x` must have at least '
-                                 'one more dimension than `var_shape`'):
+                                 'one more dimension than the variable shape'):
             act_norm = ActNorm([-3, -1], initializing=True)
             _ = act_norm.apply(tf.zeros([2, 3, 4]))
 
@@ -77,9 +74,9 @@ class ActNormClassTestCase(tf.test.TestCase):
             # -- static input shape, scale_type = 'linear', value_ndims = 0
             axis = [-1, -3]
             value_ndims = 0
-            var_shape = (5, 1, 7)
+            var_shape = (5, 7)
 
-            scale, bias = naive_act_norm_initialize(x, axis)
+            scale, bias, var_shape_aligned = naive_act_norm_initialize(x, axis)
             self.assertEqual(scale.shape, var_shape)
             self.assertEqual(bias.shape, var_shape)
 
@@ -95,7 +92,8 @@ class ActNormClassTestCase(tf.test.TestCase):
             assert_allclose(bias_out, bias)
 
             # test the transform output from the initializing procedure
-            y, log_det = naive_act_norm_transform(x, value_ndims, scale, bias)
+            y, log_det = naive_act_norm_transform(
+                x, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y.shape, x.shape)
             self.assertEqual(log_det.shape, x.shape)
             assert_allclose(y_out, y)
@@ -103,7 +101,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test use an initialized act_norm
             y2, log_det2 = naive_act_norm_transform(
-                x2, value_ndims, scale, bias)
+                x2, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y2.shape, x2.shape)
             self.assertEqual(log_det2.shape, x2.shape)
             y2_out, log_det2_out = sess.run(
@@ -127,7 +125,8 @@ class ActNormClassTestCase(tf.test.TestCase):
             assert_allclose(bias_out, bias)
 
             # test the transform output from the initializing procedure
-            y, log_det = naive_act_norm_transform(x, value_ndims, scale, bias)
+            y, log_det = naive_act_norm_transform(
+                x, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y.shape, x.shape)
             self.assertEqual(log_det.shape, x.shape[:-value_ndims])
             assert_allclose(y_out, y)
@@ -135,7 +134,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test use an initialized act_norm
             y2, log_det2 = naive_act_norm_transform(
-                x2, value_ndims, scale, bias)
+                x2, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y2.shape, x2.shape)
             self.assertEqual(log_det2.shape, x2.shape[:-value_ndims])
             y2_out, log_det2_out = sess.run(
@@ -162,7 +161,8 @@ class ActNormClassTestCase(tf.test.TestCase):
             assert_allclose(bias_out, bias)
 
             # test the transform output from the initializing procedure
-            y, log_det = naive_act_norm_transform(x, value_ndims, scale, bias)
+            y, log_det = naive_act_norm_transform(
+                x, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y.shape, x.shape)
             self.assertEqual(log_det.shape, x.shape[:-value_ndims])
             assert_allclose(y_out, y)
@@ -170,7 +170,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test use an initialized act_norm
             y3, log_det3 = naive_act_norm_transform(
-                x3, value_ndims, scale, bias)
+                x3, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y3.shape, x3.shape)
             self.assertEqual(log_det3.shape, x3.shape[:-value_ndims])
             y3_out, log_det3_out = sess.run(
@@ -181,43 +181,21 @@ class ActNormClassTestCase(tf.test.TestCase):
             # invertible flow standard checks
             invertible_flow_standard_check(self, act_norm, sess, x)
 
+    def test_channels_last(self):
+        # test reuse variables in ActNorm with different channels_last
+        @global_reuse
+        def f(x, channels_last=True, initializing=False):
+            an = ActNorm(axis=-1 if channels_last else -3, value_ndims=3,
+                         initializing=initializing)
+            return an.transform(x)
 
-class _ActNorm(ActNorm):
+        x = np.random.normal(size=[2, 3, 4, 5, 6])  # NHWC
+        x2 = np.transpose(x, [0, 1, 4, 2, 3])  # NCHW
+        self.assertTupleEqual(x2.shape, (2, 3, 6, 4, 5))
 
-    captured = None
+        with self.test_session() as sess:
+            y, log_det = sess.run(f(x, channels_last=True, initializing=True))
+            y2, log_det2 = sess.run(f(x2, channels_last=False))
 
-    def __init__(self, *args, **kwargs):
-        ActNorm.__init__(self, *args, **kwargs)
-        self.captured.append([
-            copy.copy(args),
-            copy.copy(kwargs),
-            self
-        ])
-        self.apply = mock.Mock(self.apply)
-
-    @classmethod
-    @contextmanager
-    def patch(cls):
-        from tfsnippet.layers.normalization import act_norm_
-        old_ActNorm = act_norm_.ActNorm
-        try:
-            act_norm_.ActNorm = _ActNorm
-            cls.captured = []
-            yield cls.captured
-        finally:
-            act_norm_.ActNorm = old_ActNorm
-
-
-class ActNormFuncTestCase(tf.test.TestCase):
-
-    def test_act_norm(self):
-        x = tf.zeros([2, 3, 4])
-        axis = (-2, -1)
-
-        with _ActNorm.patch() as captured:
-            _ = act_norm(x, axis=axis, value_ndims=3, epsilon=.5)
-            args, kwargs, o = captured[-1]
-            self.assertTupleEqual(args, ())
-            self.assertDictEqual(
-                kwargs, {'axis': axis, 'value_ndims': 3, 'epsilon': .5})
-            self.assertEqual(o.apply.call_args, ((x,), {}))
+            np.testing.assert_allclose(log_det2, log_det)
+            np.testing.assert_allclose(np.transpose(y2, (0, 1, 3, 4, 2)), y)

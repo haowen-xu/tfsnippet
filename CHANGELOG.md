@@ -9,7 +9,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 
 ### Added
 - Utilities have been exported to the root package, and now it's recommended to use TFSnippet by ``import tfsnippet as sn``.
-- `tfsnippet.layers` package, including layers (`dense`), normalizers (`act_norm`, `weight_norm`), convolutional layers (`conv2d`, `deconv2d`, `avg_pool2d`, `max_pool2d`, `global_avg_pool2d`, `resnet_general_block`, `resnet_conv2d_block`, `reset_deconv2d_block`) and flows.
+- `tfsnippet.layers` package, including dense layer, convolutional layers, normalization layers, and flow layers.
 - `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
 
 ### Changed

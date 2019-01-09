@@ -1,7 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.layers.flows.utils import assert_log_det_shape_matches_input
-from tfsnippet.ops import add_n_broadcast, assert_rank_at_least
+from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
                              get_default_scope_name, assert_deps,
                              get_static_shape)
