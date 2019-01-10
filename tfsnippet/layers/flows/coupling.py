@@ -267,9 +267,16 @@ class CouplingLayer(BaseCouplingLayer):
                  name=None,
                  scope=None):
         """
+        Construct a new :class:`CouplingLayer`.
 
         Args:
-            shift_and_scale_fn:
+            shift_and_scale_fn ((tf.Tensor, int) -> (tf.Tensor, tf.Tensor or None)):
+                A function to which maps ``(x1, x2.shape[axis])`` to
+                ``(shift, scale)`` (see above).  If `scale_type == None`,
+                it should return `scale == None`.  It should be a function
+                that reuses a fixed variable scope, e.g., a template function
+                derived by :func:`tf.make_template`, or an instance of
+                :class:`tfsnippet.layers.BaseLayer`.
             axis (int): The feature axis, to apply the transformation.
                 See above.
             value_ndims (int): Number of dimensions to be considered as the
