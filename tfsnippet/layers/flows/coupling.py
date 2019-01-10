@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfsnippet.ops import assert_shape_equal
 from tfsnippet.utils import (add_name_and_scope_arg_doc, get_static_shape,
                              validate_enum_arg, InputSpec, assert_deps,
-                             get_shape)
+                             get_shape, broadcast_to_shape)
 from .base import BaseFlow
 from .utils import SigmoidScale, ExpScale, LinearScale
 
@@ -11,6 +11,16 @@ __all__ = ['BaseCouplingLayer', 'CouplingLayer']
 
 
 class BaseCouplingLayer(BaseFlow):
+    """
+    The base class of :class:`CouplingLayer`.
+
+    The only situation this class is preferred to :class:`CouplingLayer`,
+    is that `shift_and_scale_fn` is provided as the class method, instead
+    of an argument of :class:`CouplingLayer`.
+
+    See Also:
+        :class:`tfsnippet.layers.CouplingLayer`
+    """
 
     @add_name_and_scope_arg_doc
     def __init__(self,
@@ -18,12 +28,33 @@ class BaseCouplingLayer(BaseFlow):
                  value_ndims=1,
                  secondary=False,
                  scale_type='linear',
+                 sigmoid_scale_bias=2.,
+                 epsilon=1e-6,
                  name=None,
                  scope=None):
+        """
+        Construct a new :class:`BaseCouplingLayer`.
+
+        Args:
+            axis (int): The feature axis, to apply the transformation.
+            value_ndims (int): Number of dimensions to be considered as the
+                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
+            secondary (bool): Whether or not this layer is a secondary layer?
+                See :class:`tfsnippet.layers.CouplingLayer`.
+            scale_type: One of {"exp", "sigmoid", "linear", None}.
+                See :class:`tfsnippet.layers.CouplingLayer`.
+            sigmoid_scale_bias (float or Tensor): Add this bias to the `scale`
+                if ``scale_type == 'sigmoid'``.  See the reason of adopting
+                this in :class:`tfsnippet.layers.CouplingLayer`.
+            epsilon: Small float number to avoid dividing by zero or taking
+                logarithm of zero.
+        """
         self._axis = int(axis)
         self._secondary = bool(secondary)
         self._scale_type = validate_enum_arg(
-            'scale_type', scale_type, ['linear', 'exp', 'sigmoid', None])
+            'scale_type', scale_type, ['exp', 'sigmoid', 'linear', None])
+        self._sigmoid_scale_bias = sigmoid_scale_bias
+        self._epsilon = epsilon
 
         super(BaseCouplingLayer, self).__init__(
             value_ndims=value_ndims, name=name, scope=scope)
@@ -112,6 +143,7 @@ class BaseCouplingLayer(BaseFlow):
         # Since the transform and inverse_transform are too similar, we
         # just implement these two methods by one super method, controlled
         # by `reverse == True/False`.
+
         # check the argument
         x = self._input_spec.validate(x)
         shape = get_static_shape(x)
@@ -126,7 +158,7 @@ class BaseCouplingLayer(BaseFlow):
             raise RuntimeError('`scale_type` != None, but no scale is '
                                'computed.')
         elif self._scale_type is None and pre_scale is not None:
-            raise RuntimeError('`scale_type` != None, but scale is computed.')
+            raise RuntimeError('`scale_type` == None, but scale is computed.')
 
         if pre_scale is not None:
             pre_scale = self._check_scale_or_shift_shape('scale', pre_scale, x2)
@@ -134,52 +166,48 @@ class BaseCouplingLayer(BaseFlow):
 
         # derive the scale class
         if self._scale_type == 'sigmoid':
-            scale_obj = SigmoidScale(pre_scale)
+            scale = SigmoidScale(
+                pre_scale + self._sigmoid_scale_bias, self._epsilon)
         elif self._scale_type == 'exp':
-            scale_obj = ExpScale(pre_scale)
+            scale = ExpScale(pre_scale, self._epsilon)
         elif self._scale_type == 'linear':
-            scale_obj = LinearScale(pre_scale)
+            scale = LinearScale(pre_scale, self._epsilon)
         else:
             assert (self._scale_type is None)
-            scale_obj = None
+            scale = None
 
         # compute y
         y = None
         if compute_y:
             y1 = x1
-
             if reverse:
                 y2 = x2
-                if scale_obj is not None:
-                    y2 = scale_obj.apply(y2, reverse=reverse)
-                y2 += shift
+                if scale is not None:
+                    y2 = y2 / scale
+                y2 -= shift
             else:
                 y2 = x2 + shift
-                if scale_obj is not None:
-                    y2 = scale_obj.apply(y2, reverse=reverse)
-
+                if scale is not None:
+                    y2 = y2 * scale
             y = self._unsplit(y1, y2)
 
         # compute log_det
         log_det = None
         if compute_log_det:
             assert (self.value_ndims >= 0)  # checked in `_build`
-
-            if scale_obj is not None:
+            if scale is not None:
                 log_det = tf.reduce_sum(
-                    scale_obj.log_scale(reverse=reverse),
+                    scale.neg_log_scale if reverse else scale.log_scale,
                     list(range(-self.value_ndims, 0))
                 )
-                if previous_log_det:
+                if previous_log_det is not None:
                     log_det = previous_log_det + log_det
-
             else:
-                log_det = tf.zeros(get_shape(x)[:-self.value_ndims])
-                if previous_log_det:
-                    # zeros is required here, to enforce a broadcast
-                    # between the x shape and the previous_log_det.
-                    # TODO: use broadcast function instead of adding zeros
-                    log_det = previous_log_det + log_det
+                dst_shape = get_shape(x)[:-self.value_ndims]
+                if previous_log_det is not None:
+                    log_det = broadcast_to_shape(previous_log_det, dst_shape)
+                else:
+                    log_det = tf.zeros(dst_shape, dtype=x.dtype.base_dtype)
 
         return y, log_det
 
@@ -198,6 +226,34 @@ class BaseCouplingLayer(BaseFlow):
 
 
 class CouplingLayer(BaseCouplingLayer):
+    """
+    A general implementation of the coupling layer (Dinh et al., 2016)
+
+    Basically, a :class:`CouplingLayer` does the following transformation::
+
+        x1, x2 = split(x)
+        if secondary:
+            x1, x2 = x2, x1
+
+        y1 = x1
+
+        shift, scale = shift_and_scale_fn(x1, x2.shape[axis])
+        if scale_type == 'exp':
+            y2 = (x2 + shift) * exp(scale)
+        elif scale_type == 'sigmoid':
+            y2 = (x2 + shift) * sigmoid(scale + sigmoid_scale_bias)
+        elif scale_type == 'linear':
+            y2 = (x2 + shift) * scale
+        else:
+            y2 = x2 + shift
+
+        if secondary:
+            y1, y2 = y2, y1
+        y = tf.concat([y1, y2], axis=axis)
+
+    The inverse transformation, and the log-determinants are computed
+    according to the above transformation, respectively.
+    """
 
     @add_name_and_scope_arg_doc
     def __init__(self,
@@ -206,14 +262,40 @@ class CouplingLayer(BaseCouplingLayer):
                  value_ndims=1,
                  secondary=False,
                  scale_type='linear',
+                 sigmoid_scale_bias=2.,
+                 epsilon=1e-6,
                  name=None,
                  scope=None):
+        """
+
+        Args:
+            shift_and_scale_fn:
+            axis (int): The feature axis, to apply the transformation.
+                See above.
+            value_ndims (int): Number of dimensions to be considered as the
+                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
+            secondary (bool): Whether or not this layer is a secondary layer?
+                See above.
+            scale_type: One of {"exp", "sigmoid", "linear", None}.
+                See above.
+            sigmoid_scale_bias (float or Tensor): Add this bias to
+                the `scale` if ``scale_type == 'sigmoid'``.
+                Here is the reason of adopting this: many random initializers
+                will cause the activation of a linear layer to have zero
+                mean, thus `sigmoid(scale)` will distribute around `0.5`.
+                A positive bias will shift `sigmoid(scale)` towards `1.`,
+                while a negative bias will shift `sigmoid(scale)` towards `0.`.
+            epsilon: Small float number to avoid dividing by zero or taking
+                logarithm of zero.
+        """
         self._shift_and_scale_fn = shift_and_scale_fn
         super(CouplingLayer, self).__init__(
             axis=axis,
             value_ndims=value_ndims,
             secondary=secondary,
             scale_type=scale_type,
+            sigmoid_scale_bias=sigmoid_scale_bias,
+            epsilon=epsilon,
             name=name,
             scope=scope,
         )

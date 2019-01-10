@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
-                             assert_deps, broadcast_to_shape_strict)
+                             assert_deps, broadcast_to_shape_strict,
+                             maybe_check_numerics, DocInherit, is_tensor_object)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -154,86 +155,123 @@ def broadcast_log_det_against_input(log_det, input, value_ndims, name=None):
         return broadcast_to_shape_strict(log_det, shape)
 
 
+def _scale_make_property(name):
+    @property
+    def inner(self):
+        meth = getattr(self, '_' + name)
+        with tf.name_scope(name, values=[self._pre_scale]):
+            return maybe_check_numerics(
+                meth(), message='numeric issues in {}.{}'.format(
+                    self.__class__.__name__, name
+                )
+            )
+    return inner
+
+
+@DocInherit
 class Scale(object):
     """
-    Base class to help compute `x * scale` and `log(scale)`, given that
-    `scale = f(pre_scale)`.
+    Base class to help compute `x * scale`, `x / scale`, `log(scale)` and
+    `log(1. / scale)`, given `scale = f(pre_scale)`.
     """
 
-    def __init__(self, pre_scale):
-        self.pre_scale = tf.convert_to_tensor(pre_scale)
-        self._neg_pre_scale = None
-
-    @property
-    def neg_pre_scale(self):
-        """Get `-pre_scale` with cache."""
-        if self._neg_pre_scale is None:
-            self._neg_pre_scale = -self.pre_scale
-        return self._neg_pre_scale
-
-    def apply(self, x, reverse=False):
+    def __init__(self, pre_scale, epsilon):
         """
-        Compute `x * scale` (reverse = False) or `x / scale` (otherwise).
+        Construct a new :class:`Scale`.
+
+        Args:
+            pre_scale: Used to compute the scale via `scale = f(pre_scale)`.
+            epsilon: Small float number to avoid dividing by zero or taking
+                logarithm of zero.
         """
+        self._pre_scale = tf.convert_to_tensor(pre_scale)
+        self._epsilon = epsilon
+
+    def _scale(self):
         raise NotImplementedError()
 
-    def log_scale(self, reverse=False):
-        """
-        Compute `log(scale)` (reverse = False) or `log(1. / scale)` (otherwise).
-        """
+    def _inv_scale(self):
+        """Get `scale = 1. / f(pre_scale)`."""
         raise NotImplementedError()
+
+    def _log_scale(self):
+        """Get `scale = log(f(pre_scale))`."""
+        raise NotImplementedError()
+
+    def _neg_log_scale(self):
+        """Get `scale = -log(f(pre_scale))`."""
+        raise NotImplementedError()
+
+    scale = _scale_make_property('scale')
+    inv_scale = _scale_make_property('inv_scale')
+    log_scale = _scale_make_property('log_scale')
+    neg_log_scale = _scale_make_property('neg_log_scale')
+
+    def _mult(self, x):
+        """Compute `x * f(pre_scale)`."""
+        return x * self.scale
+
+    def _div(self, x):
+        """Compute `x / f(pre_scale)`."""
+        return x * self.inv_scale
+
+    def __rdiv__(self, other):
+        return self._div(tf.convert_to_tensor(other))
+
+    def __rtruediv__(self, other):
+        return self._div(tf.convert_to_tensor(other))
+
+    def __rmul__(self, other):
+        return self._mult(tf.convert_to_tensor(other))
 
 
 class SigmoidScale(Scale):
-    """
-    Help compute `x * sigmoid(pre_scale)` and `log(sigmoid(pre_scale))`.
-    """
+    """A variant of :class:`Scale`, where `scale = sigmoid(pre_scale)`."""
 
-    def apply(self, x, reverse=False):
-        if reverse:
-            # 1. / sigmoid(pre_scale) = exp(-pre_scale) + 1
-            return x * (tf.exp(self.neg_pre_scale) + 1.)
-        else:
-            return x * tf.nn.sigmoid(self.pre_scale)
+    def _scale(self):
+        return tf.nn.sigmoid(self._pre_scale)
 
-    def log_scale(self, reverse=False):
-        if reverse:
-            return tf.nn.softplus(self.neg_pre_scale)
-        else:
-            return -tf.nn.softplus(self.neg_pre_scale)
+    def _inv_scale(self):
+        return tf.exp(-self._pre_scale) + 1.
+
+    def _log_scale(self):
+        return -tf.nn.softplus(-self._pre_scale)
+
+    def _neg_log_scale(self):
+        return tf.nn.softplus(-self._pre_scale)
 
 
 class ExpScale(Scale):
-    """
-    Help compute `x * exp(pre_scale)` and `log(exp(pre_scale))`.
-    """
+    """A variant of :class:`Scale`, where `scale = exp(pre_scale)`."""
 
-    def apply(self, x, reverse=False):
-        if reverse:
-            return x * tf.exp(self.neg_pre_scale)
-        else:
-            return x * tf.exp(self.pre_scale)
+    def _scale(self):
+        return tf.exp(self._pre_scale)
 
-    def log_scale(self, reverse=False):
-        if reverse:
-            return self.neg_pre_scale
-        else:
-            return self.pre_scale
+    def _inv_scale(self):
+        return tf.exp(-self._pre_scale)
+
+    def _log_scale(self):
+        return self._pre_scale
+
+    def _neg_log_scale(self):
+        return -self._pre_scale
 
 
 class LinearScale(Scale):
-    """
-    Help compute `x * pre_scale` and `log(abs(pre_scale))`.
-    """
+    """A variant of :class:`Scale`, where `scale = pre_scale`."""
 
-    def apply(self, x, reverse=False):
-        if reverse:
-            return x / self.pre_scale
-        else:
-            return x * self.pre_scale
+    def _scale(self):
+        return self._pre_scale
 
-    def log_scale(self, reverse=False):
-        if reverse:
-            return -tf.log(tf.abs(self.pre_scale))
-        else:
-            return tf.log(tf.abs(self.pre_scale))
+    def _inv_scale(self):
+        return 1. / self._pre_scale
+
+    def _log_scale(self):
+        return tf.log(tf.maximum(tf.abs(self._pre_scale), self._epsilon))
+
+    def _neg_log_scale(self):
+        return -tf.log(tf.maximum(tf.abs(self._pre_scale), self._epsilon))
+
+    def _div(self, x):
+        # TODO: use epsilon to prevent dividing by zero
+        return x / self.scale

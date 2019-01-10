@@ -157,24 +157,23 @@ class Pooling2DTestCase(tf.test.TestCase):
             return output
 
         with self.test_session() as sess:
+            assert_allclose = functools.partial(
+                np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
+
             np.random.seed(1234)
             x = np.random.normal(size=[17, 11, 32, 32, 5]).astype(np.float32)
             a1 = np.mean(x, axis=(-3, -2), keepdims=True)
             a2 = np.mean(x, axis=(-3, -2), keepdims=False)
 
             # test NHWC
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=True, keepdims=True) - a1)), 1e-5)
+            assert_allclose(f(x, channels_last=True, keepdims=True), a1)
             # test NCHW, not keep dims
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=False, keepdims=False) - a2)), 1e-5)
+            assert_allclose(f(x, channels_last=False, keepdims=False), a2)
             # test dynamic dimensions, NHWC, not keep dims
             ph = tf.placeholder(
                 dtype=tf.float32, shape=(None, None, None, None, 5))
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=True, keepdims=False, ph=ph) - a2)), 1e-5)
+            assert_allclose(f(x, channels_last=True, keepdims=False, ph=ph), a2)
             # test dynamic dimensions, NCHW
             ph = tf.placeholder(
                 dtype=tf.float32, shape=(None, None, 5, None, None))
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=False, keepdims=True, ph=ph) - a1)), 1e-5)
+            assert_allclose(f(x, channels_last=False, keepdims=True, ph=ph), a1)

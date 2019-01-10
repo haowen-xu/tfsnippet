@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -204,28 +206,17 @@ class ScaleTestCase(tf.test.TestCase):
 
     def test_scale(self):
         def check(f, cls, x, pre_scale):
-            o = cls(pre_scale)
-
-            np.testing.assert_allclose(
-                sess.run(o.apply(x)),
-                x * f(pre_scale),
-                rtol=1e-5
-            )
-            np.testing.assert_allclose(
-                sess.run(o.apply(x, reverse=True)),
-                x / f(pre_scale),
-                rtol=1e-5
-            )
-            np.testing.assert_allclose(
-                sess.run(o.log_scale()),
-                np.log(np.abs(f(pre_scale))),
-                rtol=1e-5
-            )
-            np.testing.assert_allclose(
-                sess.run(o.log_scale(reverse=True)),
-                -np.log(np.abs(f(pre_scale))),
-                rtol=1e-5
-            )
+            x_tensor = tf.convert_to_tensor(x)
+            o = cls(pre_scale, epsilon=1e-6)
+            assert_allclose = functools.partial(
+                np.testing.assert_allclose, rtol=1e-5)
+            assert_allclose(sess.run(o.scale), f(pre_scale))
+            assert_allclose(sess.run(o.inv_scale), 1. / f(pre_scale))
+            assert_allclose(sess.run(o.log_scale), np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(o.neg_log_scale),
+                            -np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(x_tensor * o), x * f(pre_scale))
+            assert_allclose(sess.run(x_tensor / o), x / f(pre_scale))
 
         with self.test_session() as sess:
             pre_scale = np.random.normal(size=[2, 3, 4, 5])

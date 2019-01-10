@@ -2,7 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.layers.flows.utils import broadcast_log_det_against_input
+from tfsnippet.layers.flows.utils import (broadcast_log_det_against_input,
+                                          ExpScale, LinearScale)
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              get_static_shape, maybe_check_numerics,
                              validate_int_tuple_arg, resolve_negative_axis,
@@ -68,7 +69,8 @@ class ActNorm(BaseFlow):
             scale_regularizer: The regularizer for `scale`.
             scale_constraint: The constraint for `scale`.
             trainable (bool): Whether or not the variables are trainable?
-            epsilon: Small float added to variance to avoid dividing by zero.
+            epsilon: Small float to avoid dividing by zero or taking
+                logarithm of zero.
         """
         self._axis = validate_int_tuple_arg('axis', axis)
         if not self._axis:
@@ -144,7 +146,7 @@ class ActNorm(BaseFlow):
             trainable=self._trainable
         )
         if self._scale_type == 'exp':
-            self._log_scale = tf.get_variable(
+            self._pre_scale = tf.get_variable(
                 'log_scale',
                 dtype=dtype,
                 shape=self._var_shape,
@@ -152,10 +154,8 @@ class ActNorm(BaseFlow):
                 constraint=self._log_scale_constraint,
                 trainable=self._trainable
             )
-            self._scale = None
         else:
-            self._log_scale = None
-            self._scale = tf.get_variable(
+            self._pre_scale = tf.get_variable(
                 'scale',
                 dtype=dtype,
                 shape=self._var_shape,
@@ -194,47 +194,45 @@ class ActNorm(BaseFlow):
 
                 bias = self._bias.assign(-x_mean)
                 if self._scale_type == 'exp':
-                    scale = None
-                    log_scale = self._log_scale.assign(
+                    pre_scale = self._pre_scale.assign(
                         -tf.constant(.5, dtype=dtype) *
-                        tf.log(x_var + self._epsilon)
+                        tf.log(tf.maximum(x_var, self._epsilon))
                     )
-                    log_scale = maybe_check_numerics(log_scale, 'log_scale')
+                    pre_scale = maybe_check_numerics(
+                        pre_scale, 'numeric issues in initializing log_scale')
                 else:
-                    scale = self._scale.assign(
+                    assert(self._scale_type == 'linear')
+                    pre_scale = self._pre_scale.assign(
                         tf.constant(1., dtype=dtype) /
-                        tf.sqrt(x_var + self._epsilon)
+                        tf.sqrt(tf.maximum(x_var, self._epsilon))
                     )
-                    scale = maybe_check_numerics(scale, 'scale')
-                    log_scale = None
+                    pre_scale = maybe_check_numerics(
+                        pre_scale, 'numeric issues in initializing scale')
             self._initialized = True
         else:
             bias = self._bias
-            scale = self._scale
-            log_scale = self._log_scale
+            pre_scale = self._pre_scale
 
-        # align the shape of variables
+        # align the shape of variables, and create the scale object
         bias = tf.reshape(bias, self._var_shape_aligned)
-        if log_scale is not None:
-            log_scale = tf.reshape(log_scale, self._var_shape_aligned)
+        pre_scale = tf.reshape(pre_scale, self._var_shape_aligned)
+
+        if self._scale_type == 'exp':
+            scale = ExpScale(pre_scale, self._epsilon)
         else:
-            scale = tf.reshape(scale, self._var_shape_aligned)
+            assert(self._scale_type == 'linear')
+            scale = LinearScale(pre_scale, self._epsilon)
 
         # compute y
         y = None
         if compute_y:
-            if log_scale is not None:
-                y = (x + bias) * tf.exp(log_scale, name='scale')
-            else:
-                y = (x + bias) * scale
+            y = (x + bias) * scale
 
         # compute log_det
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                if log_scale is None:
-                    log_scale = tf.log(tf.abs(scale), name='log_scale')
-                log_det = log_scale
+                log_det = scale.log_scale
                 reduce_ndims1 = min(
                     self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
@@ -258,7 +256,7 @@ class ActNorm(BaseFlow):
                     else:
                         log_det *= tf.cast(
                             tf.reduce_prod(reduce_shape1),
-                            dtype=log_scale.dtype
+                            dtype=log_det.dtype
                         )
 
                 # we need to broadcast `log_det` to match the shape of `x`
@@ -291,29 +289,26 @@ class ActNorm(BaseFlow):
         reduce_axis = tuple(sorted(
             set(range(-len(shape), 0)).difference(self._axis)))
 
-        # align the shape of variables
+        # align the shape of variables, and create the scale object
         bias = tf.reshape(self._bias, self._var_shape_aligned)
-        scale = log_scale = None
+        pre_scale = tf.reshape(self._pre_scale, self._var_shape_aligned)
+
         if self._scale_type == 'exp':
-            log_scale = tf.reshape(self._log_scale, self._var_shape_aligned)
+            scale = ExpScale(pre_scale, self._epsilon)
         else:
-            scale = tf.reshape(self._scale, self._var_shape_aligned)
+            assert(self._scale_type == 'linear')
+            scale = LinearScale(pre_scale, self._epsilon)
 
         # compute x
         x = None
         if compute_x:
-            if log_scale is not None:
-                x = y * tf.exp(-log_scale) - bias
-            else:
-                x = y / scale - bias
+            x = y / scale - bias
 
         # compute log_det
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                if log_scale is None:
-                    log_scale = tf.log(tf.abs(scale), name='log_scale')
-                log_det = -log_scale
+                log_det = scale.neg_log_scale
                 reduce_ndims1 = min(
                     self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
@@ -337,7 +332,7 @@ class ActNorm(BaseFlow):
                     else:
                         log_det *= tf.cast(
                             tf.reduce_prod(reduce_shape1),
-                            dtype=log_scale.dtype
+                            dtype=log_det.dtype
                         )
 
                 # we need to broadcast `log_det` to match the shape of `y`

@@ -69,7 +69,7 @@ class QuadraticFlow(BaseFlow):
 
 
 def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
-                                   rtol=1e-5):
+                                   atol=0., rtol=1e-5):
     x = tf.convert_to_tensor(x)
     self.assertTrue(flow.explicitly_invertible)
 
@@ -79,8 +79,9 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
 
     x_out, y_out, log_det_y_out, x2_out, log_det_x_out = \
         session.run([x, y, log_det_y, x2, log_det_x], feed_dict=feed_dict)
-    np.testing.assert_allclose(x_out, x2_out, rtol=rtol)
-    np.testing.assert_allclose(log_det_y_out, -log_det_x_out, rtol=rtol)
+    np.testing.assert_allclose(x2_out, x_out, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(
+        -log_det_x_out, log_det_y_out, atol=atol, rtol=rtol)
 
     # test with previous_log_det
     previous_log_det_y = 10. * np.random.normal(
@@ -94,7 +95,7 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
             feed_dict=feed_dict
         ),
         log_det_y_out + previous_log_det_y,
-        rtol=rtol
+        atol=atol, rtol=rtol
     )
 
     np.testing.assert_allclose(
@@ -103,5 +104,5 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
             feed_dict=feed_dict
         ),
         log_det_x_out + previous_log_det_x,
-        rtol=rtol
+        atol=atol, rtol=rtol
     )

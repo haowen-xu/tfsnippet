@@ -4,7 +4,7 @@ import pytest
 import tensorflow as tf
 
 from tests.layers.flows.helper import invertible_flow_standard_check
-from tfsnippet.layers import ActNorm, act_norm
+from tfsnippet.layers import ActNorm
 from tfsnippet.reuse import global_reuse
 
 
@@ -87,7 +87,8 @@ class ActNormClassTestCase(tf.test.TestCase):
                 act_norm.transform(tf.constant(x, dtype=tf.float64)))
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
 
-            scale_out, bias_out = sess.run([act_norm._scale, act_norm._bias])
+            scale_out, bias_out = sess.run(
+                [act_norm._pre_scale, act_norm._bias])
             assert_allclose(scale_out, scale)
             assert_allclose(bias_out, bias)
 
@@ -120,7 +121,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
 
             scale_out, bias_out = sess.run(
-                [tf.exp(act_norm._log_scale), act_norm._bias])
+                [tf.exp(act_norm._pre_scale), act_norm._bias])
             assert_allclose(scale_out, scale)
             assert_allclose(bias_out, bias)
 
@@ -156,7 +157,8 @@ class ActNormClassTestCase(tf.test.TestCase):
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
 
-            scale_out, bias_out = sess.run([act_norm._scale, act_norm._bias])
+            scale_out, bias_out = sess.run(
+                [act_norm._pre_scale, act_norm._bias])
             assert_allclose(scale_out, scale)
             assert_allclose(bias_out, bias)
 
