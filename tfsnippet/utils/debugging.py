@@ -93,10 +93,11 @@ def maybe_check_numerics(tensor, message, name=None):
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.
     """
+    tensor = tf.convert_to_tensor(tensor)
     if should_check_numerics():
         return tf.check_numerics(tensor, message, name=name)
     else:
-        return tf.identity(tensor)
+        return tensor
 
 
 @contextmanager

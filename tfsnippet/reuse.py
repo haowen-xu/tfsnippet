@@ -11,7 +11,7 @@ from tfsnippet.utils import (ContextStack, DocInherit, root_variable_scope,
                              is_tensorflow_version_higher_or_equal)
 
 __all__ = [
-    'reuse_stack_top', 'instance_reuse', 'global_reuse',
+    'get_reuse_stack_top', 'instance_reuse', 'global_reuse',
     'VarScopeObject'
 ]
 
@@ -27,7 +27,7 @@ def require_at_least_tensorflow_1_5():
 _reuse_stack = ContextStack()  # stack to track the opened reuse scopes
 
 
-def reuse_stack_top():
+def get_reuse_stack_top():
     """
     Get the top of the reuse scope stack.
 

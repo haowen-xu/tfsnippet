@@ -5,7 +5,7 @@ import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
-import tfsnippet as ts
+import tfsnippet as sn
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       save_images_collection,
@@ -37,61 +37,59 @@ class ExpConfig(MLConfig):
     test_batch_size = 128
 
 
-@ts.global_reuse
+@sn.global_reuse
 @add_arg_scope
 def q_net(x, observed=None, n_z=None, is_training=True):
-    net = ts.BayesianNet(observed=observed)
+    net = sn.BayesianNet(observed=observed)
 
     # compute the hidden features
-    with arg_scope([ts.layers.dense],
+    with arg_scope([sn.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg)):
+                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
-        h_x = ts.layers.dense(h_x, 500)
-        h_x = ts.layers.dense(h_x, 500)
+        h_x = sn.layers.dense(h_x, 500)
+        h_x = sn.layers.dense(h_x, 500)
 
     # sample z ~ q(z|x)
-    z_logits = ts.layers.dense(h_x, config.z_dim, name='z_logits')
-    z = net.add('z', ts.Bernoulli(logits=z_logits), n_samples=n_z,
+    z_logits = sn.layers.dense(h_x, config.z_dim, name='z_logits')
+    z = net.add('z', sn.Bernoulli(logits=z_logits), n_samples=n_z,
                 group_ndims=1)
 
     return net
 
 
-@ts.global_reuse
+@sn.global_reuse
 @add_arg_scope
 def p_net(observed=None, n_z=None, is_training=True):
-    net = ts.BayesianNet(observed=observed)
+    net = sn.BayesianNet(observed=observed)
 
     # sample z ~ p(z)
-    z = net.add('z', ts.Bernoulli(tf.zeros([1, config.z_dim])),
+    z = net.add('z', sn.Bernoulli(tf.zeros([1, config.z_dim])),
                 group_ndims=1, n_samples=n_z)
 
     # compute the hidden features
-    with arg_scope([ts.layers.dense],
+    with arg_scope([sn.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg)):
-        z = tf.to_float(z)
-        h_z, s1, s2 = ts.utils.flatten(z, 2)
-        h_z = ts.layers.dense(h_z, 500)
-        h_z = ts.layers.dense(h_z, 500)
+                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg)):
+        h_z = tf.to_float(z)
+        h_z = sn.layers.dense(h_z, 500)
+        h_z = sn.layers.dense(h_z, 500)
 
     # sample x ~ p(x|z)
-    x_logits = ts.utils.unflatten(
-        ts.layers.dense(h_z, config.x_dim, name='x_logits'), s1, s2)
-    x = net.add('x', ts.Bernoulli(logits=x_logits), group_ndims=1)
+    x_logits = sn.layers.dense(h_z, config.x_dim, name='x_logits')
+    x = net.add('x', sn.Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
 
 
-@ts.global_reuse
+@sn.global_reuse
 def baseline_net(x):
-    with arg_scope([ts.layers.dense],
+    with arg_scope([sn.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg)):
+                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
-        h_x = ts.layers.dense(h_x, 500)
-    return tf.squeeze(ts.layers.dense(h_x, 1), -1)
+        h_x = sn.layers.dense(h_x, 500)
+    return tf.squeeze(sn.layers.dense(h_x, 1), -1)
 
 
 @click.command()
@@ -113,7 +111,7 @@ def main(result_dir):
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = ts.AnnealingDynamicValue(config.initial_lr,
+    learning_rate_var = sn.AnnealingDynamicValue(config.initial_lr,
                                                  config.lr_anneal_factor)
 
     # build the model
@@ -155,7 +153,7 @@ def main(result_dir):
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            session = ts.utils.get_default_session_or_error()
+            session = sn.utils.get_default_session_or_error()
             images = session.run(x_plots, feed_dict={is_training: False})
             save_images_collection(
                 images=images,
@@ -165,22 +163,22 @@ def main(result_dir):
             )
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = ts.datasets.load_mnist()
+    (x_train, y_train), (x_test, y_test) = sn.datasets.load_mnist()
     train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
     test_flow = bernoulli_flow(
         x_test, config.test_batch_size, sample_now=True)
 
-    with ts.utils.create_session().as_default():
+    with sn.utils.create_session().as_default():
         # train the network
-        with ts.TrainLoop(params,
+        with sn.TrainLoop(params,
                           max_epoch=config.max_epoch,
                           max_step=config.max_step,
                           summary_dir=(results.system_path('train_summary')
                                        if config.write_summary else None),
                           summary_graph=tf.get_default_graph(),
                           early_stopping=False) as loop:
-            trainer = ts.Trainer(
+            trainer = sn.Trainer(
                 loop, train_op, [input_x], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss}
@@ -190,7 +188,7 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = ts.Evaluator(
+            evaluator = sn.Evaluator(
                 loop,
                 metrics={'test_nll': test_nll, 'test_lb': test_lb},
                 inputs=[input_x],

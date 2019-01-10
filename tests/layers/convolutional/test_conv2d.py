@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -7,7 +9,7 @@ from tests.layers.convolutional.helper import *
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import *
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
-from tfsnippet.utils import flatten, unflatten, is_integer
+from tfsnippet.utils import flatten_to_ndims, unflatten_from_ndims, is_integer
 
 tf_conv2d = tf.nn.conv2d
 tf_atrous_conv2d = tf.nn.atrous_conv2d
@@ -39,7 +41,7 @@ class Conv2dTestCase(tf.test.TestCase):
         strides = (1,) + strides + (1,)
 
         session = tf.get_default_session()
-        input, s1, s2 = flatten(input, 4)
+        input, s1, s2 = flatten_to_ndims(input, 4)
         padding = padding.upper()
 
         if dilations > 1:
@@ -66,7 +68,7 @@ class Conv2dTestCase(tf.test.TestCase):
         if activation_fn:
             output = activation_fn(output)
 
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
         output = session.run(output)
         return output
 
@@ -209,6 +211,8 @@ class Conv2dTestCase(tf.test.TestCase):
             self.assertTrue(kernel_var.name.endswith('/kernel:0'))
 
     def test_normalization_and_activation(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, atol=1e-5, rtol=1e-5)
         with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
                 self.test_session() as sess:
             np.random.seed(1234)
@@ -223,32 +227,26 @@ class Conv2dTestCase(tf.test.TestCase):
             activation_fn = lambda x: x * 2. + 1.
 
             # test weight_norm + normalizer + activation, NHWC
-            self.assertLess(
-                np.max(np.abs(
-                    self.run_conv2d(x, 7, (3, 4), 'same', kernel, bias, 1, 1,
-                                    channels_last=True, weight_norm=True,
-                                    normalizer_fn=normalizer_fn,
-                                    activation_fn=activation_fn) -
-                    self.conv2d_ans(x, 'same', normalized_kernel, None, 1, 1,
-                                    normalizer_fn=normalizer_fn,
-                                    activation_fn=activation_fn)
-                )),
-                1e-5
+            assert_allclose(
+                self.run_conv2d(x, 7, (3, 4), 'same', kernel, bias, 1, 1,
+                                channels_last=True, weight_norm=True,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn),
+                self.conv2d_ans(x, 'same', normalized_kernel, None, 1, 1,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn)
             )
 
             # test weight_norm + normalizer + activation, NCHW, use_bias = True
-            self.assertLess(
-                np.max(np.abs(
-                    self.run_conv2d(x, 7, (3, 4), 'valid', kernel, bias, 1, 1,
-                                    channels_last=False, weight_norm=True,
-                                    use_bias=True,
-                                    normalizer_fn=normalizer_fn,
-                                    activation_fn=activation_fn) -
-                    self.conv2d_ans(x, 'valid', normalized_kernel, bias, 1, 1,
-                                    normalizer_fn=normalizer_fn,
-                                    activation_fn=activation_fn)
-                )),
-                1e-5
+            assert_allclose(
+                self.run_conv2d(x, 7, (3, 4), 'valid', kernel, bias, 1, 1,
+                                channels_last=False, weight_norm=True,
+                                use_bias=True,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn),
+                self.conv2d_ans(x, 'valid', normalized_kernel, bias, 1, 1,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn)
             )
 
 
@@ -270,6 +268,8 @@ class Deconv2dTestCase(tf.test.TestCase):
 
     def check(self, x, padding, kernel, bias, strides):
         """Integrated tests for specific argument combinations."""
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, atol=1e-5, rtol=1e-5)
         strides = (strides,) * 2 if is_integer(strides) else tuple(strides)
 
         x_shape = (x.shape[-3], x.shape[-2])
@@ -296,21 +296,21 @@ class Deconv2dTestCase(tf.test.TestCase):
             y, x_channels, kernel_size, x_shape, padding,
             kernel, None, strides, channels_last=False, use_bias=False
         )
-        np.testing.assert_allclose(deconv_out, linear_out)
+        assert_allclose(deconv_out, linear_out)
 
         # test explicit dynamic output_shape, NHWC
         deconv_out = Deconv2dTestCase.run_deconv2d(
             y, x_channels, kernel_size, tf.constant(x_shape), padding,
             kernel, None, strides, channels_last=True, use_bias=False
         )
-        np.testing.assert_allclose(deconv_out, linear_out)
+        assert_allclose(deconv_out, linear_out)
 
         # test explicit dynamic output_shape, NCHW
         deconv_out = Deconv2dTestCase.run_deconv2d(
             y, x_channels, kernel_size, tf.constant(x_shape), padding,
             kernel, None, strides, channels_last=False, use_bias=False
         )
-        np.testing.assert_allclose(deconv_out, linear_out)
+        assert_allclose(deconv_out, linear_out)
 
         # test dynamic input, explicit dynamic output_shape, NHWC
         ph = tf.placeholder(
@@ -321,7 +321,7 @@ class Deconv2dTestCase(tf.test.TestCase):
             y, x_channels, kernel_size, tf.constant(x_shape), padding,
             kernel, None, strides, channels_last=True, ph=ph, use_bias=False
         )
-        np.testing.assert_allclose(deconv_out, linear_out)
+        assert_allclose(deconv_out, linear_out)
 
         # test dynamic input, explicit dynamic output_shape, NCHW
         ph = tf.placeholder(
@@ -332,7 +332,7 @@ class Deconv2dTestCase(tf.test.TestCase):
             y, x_channels, kernel_size, tf.constant(x_shape), padding,
             kernel, None, strides, channels_last=False, ph=ph, use_bias=False
         )
-        np.testing.assert_allclose(deconv_out, linear_out)
+        assert_allclose(deconv_out, linear_out)
 
         # if the given payload shape matches the auto-inferred shape
         # further test not giving explicit output_shape
@@ -345,14 +345,14 @@ class Deconv2dTestCase(tf.test.TestCase):
                 y, x_channels, kernel_size, None, padding, kernel, None,
                 strides, channels_last=True, use_bias=False
             )
-            np.testing.assert_allclose(deconv_out, linear_out)
+            assert_allclose(deconv_out, linear_out)
 
             # test static input, implicit output_shape, NCHW
             deconv_out = Deconv2dTestCase.run_deconv2d(
                 y, x_channels, kernel_size, None, padding, kernel, None,
                 strides, channels_last=False, use_bias=False
             )
-            np.testing.assert_allclose(deconv_out, linear_out)
+            assert_allclose(deconv_out, linear_out)
 
             # test dynamic input, implicit output_shape, NHWC
             ph = tf.placeholder(
@@ -364,7 +364,7 @@ class Deconv2dTestCase(tf.test.TestCase):
                 strides, channels_last=True, ph=ph,
                 use_bias=False
             )
-            np.testing.assert_allclose(deconv_out, linear_out)
+            assert_allclose(deconv_out, linear_out)
 
             # test dynamic input, implicit output_shape, NCHW
             ph = tf.placeholder(
@@ -375,7 +375,7 @@ class Deconv2dTestCase(tf.test.TestCase):
                 y, x_channels, kernel_size, None, padding, kernel, None,
                 strides, channels_last=False, ph=ph, use_bias=False
             )
-            np.testing.assert_allclose(deconv_out, linear_out)
+            assert_allclose(deconv_out, linear_out)
 
         # test normalization and activation
         activation_fn = lambda x: x * 2. + 1.
@@ -387,7 +387,7 @@ class Deconv2dTestCase(tf.test.TestCase):
             kernel, bias, strides, channels_last=True,
             normalizer_fn=normalizer_fn, activation_fn=activation_fn
         )
-        np.testing.assert_allclose(deconv_out, ans)
+        assert_allclose(deconv_out, ans)
 
         # test normalization and activation and force using bias
         ans = activation_fn(normalizer_fn(linear_out + bias))
@@ -396,7 +396,7 @@ class Deconv2dTestCase(tf.test.TestCase):
             kernel, bias, strides, channels_last=False, use_bias=True,
             normalizer_fn=normalizer_fn, activation_fn=activation_fn
         )
-        np.testing.assert_allclose(deconv_out, ans)
+        assert_allclose(deconv_out, ans)
 
         # test weight norm
         normalized_kernel = l2_normalize(kernel, axis=(0, 1, 2))
@@ -412,7 +412,7 @@ class Deconv2dTestCase(tf.test.TestCase):
             # this can force not using scale in weight_norm
             normalizer_fn=(lambda x: x)
         )
-        self.assertLess(np.max(np.abs(deconv_out - ans)), 5e-4)
+        assert_allclose(deconv_out, ans)
 
     @staticmethod
     def run_deconv2d(input, out_channels, kernel_size, output_shape, padding,

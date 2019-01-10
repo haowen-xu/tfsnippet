@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
-                             assert_deps, broadcast_to_shape)
+                             assert_deps, broadcast_to_shape_strict,
+                             maybe_check_numerics, DocInherit, is_tensor_object)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -151,4 +152,126 @@ def broadcast_log_det_against_input(log_det, input, value_ndims, name=None):
                     input, value_ndims, message=err_msg)]):
                 shape = shape[:-value_ndims]
 
-        return broadcast_to_shape(log_det, shape)
+        return broadcast_to_shape_strict(log_det, shape)
+
+
+def _scale_make_property(name):
+    @property
+    def inner(self):
+        meth = getattr(self, '_' + name)
+        with tf.name_scope(name, values=[self._pre_scale]):
+            return maybe_check_numerics(
+                meth(), message='numeric issues in {}.{}'.format(
+                    self.__class__.__name__, name
+                )
+            )
+    return inner
+
+
+@DocInherit
+class Scale(object):
+    """
+    Base class to help compute `x * scale`, `x / scale`, `log(scale)` and
+    `log(1. / scale)`, given `scale = f(pre_scale)`.
+    """
+
+    def __init__(self, pre_scale, epsilon):
+        """
+        Construct a new :class:`Scale`.
+
+        Args:
+            pre_scale: Used to compute the scale via `scale = f(pre_scale)`.
+            epsilon: Small float number to avoid dividing by zero or taking
+                logarithm of zero.
+        """
+        self._pre_scale = tf.convert_to_tensor(pre_scale)
+        self._epsilon = epsilon
+
+    def _scale(self):
+        raise NotImplementedError()
+
+    def _inv_scale(self):
+        """Get `scale = 1. / f(pre_scale)`."""
+        raise NotImplementedError()
+
+    def _log_scale(self):
+        """Get `scale = log(f(pre_scale))`."""
+        raise NotImplementedError()
+
+    def _neg_log_scale(self):
+        """Get `scale = -log(f(pre_scale))`."""
+        raise NotImplementedError()
+
+    scale = _scale_make_property('scale')
+    inv_scale = _scale_make_property('inv_scale')
+    log_scale = _scale_make_property('log_scale')
+    neg_log_scale = _scale_make_property('neg_log_scale')
+
+    def _mult(self, x):
+        """Compute `x * f(pre_scale)`."""
+        return x * self.scale
+
+    def _div(self, x):
+        """Compute `x / f(pre_scale)`."""
+        return x * self.inv_scale
+
+    def __rdiv__(self, other):
+        return self._div(tf.convert_to_tensor(other))
+
+    def __rtruediv__(self, other):
+        return self._div(tf.convert_to_tensor(other))
+
+    def __rmul__(self, other):
+        return self._mult(tf.convert_to_tensor(other))
+
+
+class SigmoidScale(Scale):
+    """A variant of :class:`Scale`, where `scale = sigmoid(pre_scale)`."""
+
+    def _scale(self):
+        return tf.nn.sigmoid(self._pre_scale)
+
+    def _inv_scale(self):
+        return tf.exp(-self._pre_scale) + 1.
+
+    def _log_scale(self):
+        return -tf.nn.softplus(-self._pre_scale)
+
+    def _neg_log_scale(self):
+        return tf.nn.softplus(-self._pre_scale)
+
+
+class ExpScale(Scale):
+    """A variant of :class:`Scale`, where `scale = exp(pre_scale)`."""
+
+    def _scale(self):
+        return tf.exp(self._pre_scale)
+
+    def _inv_scale(self):
+        return tf.exp(-self._pre_scale)
+
+    def _log_scale(self):
+        return self._pre_scale
+
+    def _neg_log_scale(self):
+        return -self._pre_scale
+
+
+class LinearScale(Scale):
+    """A variant of :class:`Scale`, where `scale = pre_scale`."""
+
+    def _scale(self):
+        return self._pre_scale
+
+    def _inv_scale(self):
+        return 1. / self._pre_scale
+
+    def _log_scale(self):
+        return tf.log(tf.maximum(tf.abs(self._pre_scale), self._epsilon))
+
+    def _neg_log_scale(self):
+        return -tf.log(tf.maximum(tf.abs(self._pre_scale), self._epsilon))
+
+    def _div(self, x):
+        # TODO: use epsilon to prevent dividing by zero
+        return x / self.scale

@@ -5,7 +5,7 @@ import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
-import tfsnippet as ts
+import tfsnippet as sn
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       MultiGPU,
@@ -32,9 +32,9 @@ class ExpConfig(MLConfig):
     lr_anneal_step_freq = None
 
 
-@ts.global_reuse
+@sn.global_reuse
 def model(x, is_training, channels_last):
-    with arg_scope([ts.layers.resnet_conv2d_block],
+    with arg_scope([sn.layers.resnet_conv2d_block],
                    kernel_size=config.kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=functools.partial(
@@ -46,18 +46,18 @@ def model(x, is_training, channels_last):
                        tf.layers.dropout,
                        training=is_training
                    ),
-                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg),
+                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
         h_x = tf.reshape(
             x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = ts.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = ts.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = ts.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = ts.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = ts.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
-        h_x = ts.layers.global_avg_pool2d(
+        h_x = sn.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = sn.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = sn.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = sn.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = sn.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
+        h_x = sn.layers.global_avg_pool2d(
             h_x, channels_last=channels_last)  # output: (64,)
-    logits = ts.layers.dense(h_x, 10, name='logits')
+    logits = sn.layers.dense(h_x, 10, name='logits')
     return logits
 
 
@@ -81,7 +81,7 @@ def main(result_dir):
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = ts.AnnealingDynamicValue(config.initial_lr,
+    learning_rate_var = sn.AnnealingDynamicValue(config.initial_lr,
                                                  config.lr_anneal_factor)
     multi_gpu = MultiGPU()
 
@@ -90,7 +90,7 @@ def main(result_dir):
     losses = []
     y_list = []
     acc_list = []
-    batch_size = ts.utils.get_batch_size(input_x)
+    batch_size = sn.utils.get_batch_size(input_x)
     params = None
     optimizer = tf.train.AdamOptimizer(learning_rate)
 
@@ -111,8 +111,8 @@ def main(result_dir):
                     dev_input_y, dev_logits
                 )
                 dev_loss = dev_cls_loss + tf.losses.get_regularization_loss()
-                dev_y = ts.ops.softmax_classification_output(dev_logits)
-                dev_acc = ts.ops.classification_accuracy(dev_y, dev_input_y)
+                dev_y = sn.ops.softmax_classification_output(dev_logits)
+                dev_acc = sn.ops.classification_accuracy(dev_y, dev_input_y)
                 losses.append(dev_loss)
                 y_list.append(dev_y)
                 acc_list.append(dev_acc)
@@ -133,22 +133,22 @@ def main(result_dir):
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = \
-        ts.datasets.load_mnist(normalize_x=True)
-    train_flow = ts.DataFlow.arrays([x_train, y_train], config.batch_size,
+        sn.datasets.load_mnist(normalize_x=True)
+    train_flow = sn.DataFlow.arrays([x_train, y_train], config.batch_size,
                                     shuffle=True, skip_incomplete=True)
-    test_flow = ts.DataFlow.arrays([x_test, y_test], config.test_batch_size)
+    test_flow = sn.DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
-    with ts.utils.create_session().as_default(), \
+    with sn.utils.create_session().as_default(), \
             train_flow.threaded(5) as train_flow:
         # train the network
-        with ts.TrainLoop(params,
+        with sn.TrainLoop(params,
                           max_epoch=config.max_epoch,
                           max_step=config.max_step,
                           summary_dir=(results.system_path('train_summary')
                                        if config.write_summary else None),
                           summary_graph=tf.get_default_graph(),
                           early_stopping=False) as loop:
-            trainer = ts.Trainer(
+            trainer = sn.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss, 'acc': acc}
@@ -158,7 +158,7 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = ts.Evaluator(
+            evaluator = sn.Evaluator(
                 loop,
                 metrics={'test_acc': acc},
                 inputs=[input_x, input_y],

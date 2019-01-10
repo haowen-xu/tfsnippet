@@ -1,11 +1,13 @@
 import tensorflow as tf
 
-from tfsnippet.utils import add_name_arg_doc, is_tensor_object, get_static_shape
+from tfsnippet.utils import (add_name_arg_doc, is_tensor_object,
+                             get_static_shape, is_shape_equal)
 
 __all__ = [
     'assert_scalar_equal',
     'assert_rank',
     'assert_rank_at_least',
+    'assert_shape_equal',
 ]
 
 
@@ -93,3 +95,33 @@ def assert_rank_at_least(x, ndims, message=None, name=None):
             )
     else:
         return tf.assert_rank_at_least(x, ndims, message=message, name=name)
+
+
+@add_name_arg_doc
+def assert_shape_equal(x, y, message=None, name=None):
+    """
+    Assert the shape of `x` equals to `y`.
+
+    Args:
+        x: A tensor.
+        y: Another tensor, to compare with `x`.
+        message: Message to display when assertion failed.
+
+    Returns:
+        tf.Operation or None: The TensorFlow assertion operation,
+            or None if can be statically asserted.
+    """
+    x = tf.convert_to_tensor(x)
+    y = tf.convert_to_tensor(y)
+
+    with tf.name_scope(name or 'assert_shape_equal', values=[x, y]):
+        err_msg = _assertion_error_message(
+            'x.shape == y.shape', '{!r} vs {!r}'.format(x, y), message)
+        compare_ret = is_shape_equal(x, y)
+
+        if compare_ret is False:
+            raise AssertionError(err_msg)
+        elif compare_ret is True:
+            return None
+        else:
+            return tf.assert_equal(compare_ret, True, message=message)

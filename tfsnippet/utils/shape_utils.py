@@ -8,13 +8,14 @@ from .doc_utils import add_name_arg_doc
 from .type_utils import is_tensor_object
 
 __all__ = [
-    'get_static_shape', 'resolve_negative_axis',
-    'flatten', 'unflatten',
-    'get_batch_size', 'get_rank', 'get_shape', 'get_dimensions_size',
-    'concat_shapes',
-    'broadcast_to_shape',
+    'get_static_shape', 'get_batch_size', 'get_rank', 'get_shape',
+    'get_dimensions_size',
+    'flatten_to_ndims', 'unflatten_from_ndims',
+    'resolve_negative_axis',  'concat_shapes', 'is_shape_equal',
+    'broadcast_to_shape', 'broadcast_to_shape_strict',
     'transpose_conv2d_axis', 'transpose_conv2d_channels_last_to_x',
-    'transpose_conv2d_channels_x_to_last', 'reshape_conv2d_to_dense',
+    'transpose_conv2d_channels_x_to_last',
+    'reshape_tail',
 ]
 
 
@@ -66,18 +67,22 @@ def resolve_negative_axis(ndims, axis):
             raise ValueError('`axis` out of range: {} vs ndims {}.'.
                              format(axis, ndims))
         ret.append(a)
+    if len(set(ret)) != len(ret):
+        raise ValueError('`axis` has duplicated elements after resolving '
+                         'negative axis: ndims {}, axis {}.'.
+                         format(ndims, axis))
     return tuple(ret)
 
 
 @add_name_arg_doc
-def flatten(x, k, name=None):
+def flatten_to_ndims(x, ndims, name=None):
     """
     Flatten the front dimensions of `x`, such that the resulting tensor
-    will have at most `k` dimensions.
+    will have at most `ndims` dimensions.
 
     Args:
         x (Tensor): The tensor to be flatten.
-        k (int): The maximum number of dimensions for the resulting tensor.
+        ndims (int): The maximum number of dimensions for the resulting tensor.
 
     Returns:
         (tf.Tensor, tuple[int or None], tuple[int] or tf.Tensor) or (tf.Tensor, None, None):
@@ -85,34 +90,34 @@ def flatten(x, k, name=None):
             or (the original tensor, None, None)
     """
     x = tf.convert_to_tensor(x)
-    if k < 1:
+    if ndims < 1:
         raise ValueError('`k` must be greater or equal to 1.')
     if not x.get_shape():
         raise ValueError('`x` is required to have known number of '
                          'dimensions.')
     shape = get_static_shape(x)
-    if len(shape) < k:
+    if len(shape) < ndims:
         raise ValueError('`k` is {}, but `x` only has rank {}.'.
-                         format(k, len(shape)))
-    if len(shape) == k:
+                         format(ndims, len(shape)))
+    if len(shape) == ndims:
         return x, None, None
 
     with tf.name_scope(name, default_name='flatten', values=[x]):
-        if k == 1:
+        if ndims == 1:
             static_shape = shape
             if None in shape:
                 shape = tf.shape(x)
             return tf.reshape(x, [-1]), static_shape, shape
         else:
-            front_shape, back_shape = shape[:-(k-1)], shape[-(k-1):]
+            front_shape, back_shape = shape[:-(ndims - 1)], shape[-(ndims - 1):]
             static_front_shape = front_shape
             static_back_shape = back_shape
             if None in front_shape or None in back_shape:
                 dynamic_shape = tf.shape(x)
                 if None in front_shape:
-                    front_shape = dynamic_shape[:-(k-1)]
+                    front_shape = dynamic_shape[:-(ndims - 1)]
                 if None in back_shape:
-                    back_shape = dynamic_shape[-(k-1):]
+                    back_shape = dynamic_shape[-(ndims - 1):]
             if isinstance(back_shape, tuple):
                 x = tf.reshape(x, [-1] + list(back_shape))
             else:
@@ -122,7 +127,7 @@ def flatten(x, k, name=None):
 
 
 @add_name_arg_doc
-def unflatten(x, static_front_shape, front_shape, name=None):
+def unflatten_from_ndims(x, static_front_shape, front_shape, name=None):
     """
     The inverse transformation of :func:`flatten`.
 
@@ -272,160 +277,237 @@ def concat_shapes(shapes, name=None):
         return sum((tuple(s) for s in shapes), ())
 
 
-def broadcast_to_shape_sub(x, shape, cannot_broadcast_msg):
+@add_name_arg_doc
+def is_shape_equal(x, y, name=None):
     """
-    A sub-procedure to broadcast the shape of `x` to match `shape`.
-    If the length of `shape` is lower than the dimension of `x`, only
-    the tail of `x` will be matched.
+    Check whether the shape of `x` equals to `y`.
+
+    Args:
+        x: A tensor.
+        y: Another tensor, to compare with `x`.
+
+    Returns:
+        bool or tf.Tensor: The static or dynamic comparison result.
+    """
+    x = tf.convert_to_tensor(x)
+    y = tf.convert_to_tensor(y)
+
+    x_shape = get_static_shape(x)
+    y_shape = get_static_shape(y)
+
+    # both shapes have deterministic dimensions, we can perform a fast check
+    if x_shape is not None and y_shape is not None:
+        # dimension mismatch, cannot be equal
+        if len(x_shape) != len(y_shape):
+            return False
+
+        # gather the axis to check
+        axis_to_check = []
+        for i, (a, b) in enumerate(zip(x_shape, y_shape)):
+            if a is None or b is None:
+                axis_to_check.append(i)
+            else:
+                if a != b:
+                    return False
+
+        # no dynamic axis to check, confirm equality
+        if not axis_to_check:
+            return True
+
+        # generate the dynamic check
+        with tf.name_scope(name or 'is_shape_equal', values=[x, y]):
+            x_shape = get_shape(x)
+            y_shape = get_shape(y)
+            return tf.reduce_all([tf.equal(x_shape[a], y_shape[a])
+                                  for a in axis_to_check])
+
+    # either one of the shapes has non-deterministic dimensions
+    with tf.name_scope(name or 'is_shape_equal', values=[x, y]):
+        x_shape = get_shape(x)
+        y_shape = get_shape(y)
+        return tf.cond(
+            tf.equal(tf.rank(x), tf.rank(y)),
+            lambda: tf.reduce_all(
+                tf.equal(
+                    tf.concat([x_shape, y_shape], axis=0),
+                    tf.concat([y_shape, x_shape], axis=0)
+                )
+            ),
+            lambda: tf.constant(False, dtype=tf.bool)
+        )
+
+
+def broadcast_to_shape(x, shape, name=None):
+    """
+    Broadcast `x` to match `shape`.
+
+    If ``rank(x) > len(shape)``, only the tail dimensions will be broadcasted
+    to match `shape`.
 
     Args:
         x: A tensor.
         shape (tuple[int] or tf.Tensor): Broadcast `x` to match this shape.
-        cannot_broadcast_msg (str): Error message to display when `x`
-            cannot broadcast to match `shape`.
 
     Returns:
         tf.Tensor: The broadcasted tensor.
     """
     from tfsnippet.ops import smart_cond
+
+    # check the parameters
+    x = tf.convert_to_tensor(x)
     x_shape = get_static_shape(x)
-
-    # fast routine: shape is tuple[int] and x_shape is all known,
-    # we can use reshape + tile to do the broadcast, which should be faster
-    # than using ``x * ones(shape)``.
-    if isinstance(shape, tuple) and x_shape is not None and \
-            all(s is not None for s in x_shape):
-        # reshape to have the same dimension
-        if len(x_shape) < len(shape):
-            x_shape = (1,) * (len(shape) - len(x_shape)) + x_shape
-            x = tf.reshape(x, x_shape)
-
-        # tile to have the same shape
-        tile = []
-        i = -1
-        while i > -len(shape) - 1:
-            a, b = x_shape[i], shape[i]
-            if a == 1 and b > 1:
-                tile.append(b)
-            elif a != b:
-                raise ValueError(cannot_broadcast_msg)
-            else:
-                tile.append(1)
-            i -= 1
-        tile = [1] * (len(x_shape) - len(shape)) + list(reversed(tile))
-        if any(s > 1 for s in tile):
-            x = tf.tile(x, tile)
-
-        return x
-
-    # slow routine: we may need ``x * ones(shape)`` to do the broadcast
-    assertions = []
-    post_assert_shape = False
-    static_shape = tf.TensorShape(None)
-
-    if isinstance(shape, tuple) and x_shape is not None:
-        need_multiply_ones = False
-
-        # it should always broadcast if len(x_shape) < len(shape)
-        if len(x_shape) < len(shape):
-            need_multiply_ones = True
-
-        # check the consistency of x and shape
-        static_shape_hint = []  # list to gather the static shape hint
-        axis_to_check = []  # list to gather the axis to check
-        i = -1
-        while i >= -len(shape) and i >= -len(x_shape):
-            a, b = x_shape[i], shape[i]
-            if a is None:
-                axis_to_check.append(i)
-            else:
-                if a != b:
-                    if a == 1:
-                        need_multiply_ones = True
-                    else:
-                        raise ValueError(cannot_broadcast_msg)
-            static_shape_hint.append(b)
-            i -= 1
-
-        # compose the static shape hint
-        if len(shape) < len(x_shape):
-            static_shape = x_shape[:-len(shape)]
-        elif len(shape) > len(x_shape):
-            static_shape = shape[:-len(x_shape)]
-        else:
-            static_shape = ()
-        static_shape = tf.TensorShape(
-            static_shape + tuple(reversed(static_shape_hint)))
-
-        # compose the assertion operations and the multiply flag
-        if axis_to_check:
-            need_multiply_flags = []
-            x_dynamic_shape = tf.shape(x)
-
-            for i in axis_to_check:
-                assertions.append(tf.assert_equal(
-                    tf.logical_or(
-                        tf.equal(x_dynamic_shape[i], shape[i]),
-                        tf.equal(x_dynamic_shape[i], 1),
-                    ),
-                    True,
-                    message=cannot_broadcast_msg
-                ))
-                if len(x_shape) >= len(shape):
-                    need_multiply_flags.append(
-                        tf.not_equal(x_dynamic_shape[i], shape[i]))
-
-            if not need_multiply_ones:
-                need_multiply_ones = \
-                    tf.reduce_any(tf.stack(need_multiply_flags))
-
+    ns_values = [x]
+    if is_tensor_object(shape):
+        shape = tf.convert_to_tensor(shape)
+        ns_values.append(shape)
     else:
-        # we have no ideal about what `shape` is here, thus we need to assert
-        # the shape after ``x * ones(shape)``.
-        need_multiply_ones = True
-        post_assert_shape = True
+        shape = tuple(int(s) for s in shape)
 
-    # do broadcast if `x_shape` != `shape`
-    def multiply_branch():
-        with assert_deps(assertions):
-            ones_template = tf.ones(shape, dtype=x.dtype.base_dtype)
-        try:
-            return x * ones_template
-        except ValueError:  # pragma: no cover
-            raise ValueError(cannot_broadcast_msg)
-
-    def identity_branch():
-        with assert_deps(assertions) as asserted:
-            if asserted:
-                return tf.identity(x)
-            else:  # pragma: no cover
-                return x
-
-    t = smart_cond(need_multiply_ones, multiply_branch, identity_branch)
-    t.set_shape(static_shape)
-
-    if post_assert_shape:
-        post_assert_op = tf.assert_equal(
-            tf.reduce_all(tf.equal(tf.shape(t)[-tf.size(shape):], shape)),
-            True,
-            message=cannot_broadcast_msg
+    with tf.name_scope(name=name or 'broadcast_to_shape', values=ns_values):
+        cannot_broadcast_msg = (
+            '`x` cannot be broadcasted to match `shape`: x {!r} vs shape {!r}'.
+            format(x, shape)
         )
-        with assert_deps([post_assert_op]) as asserted:
-            if asserted:
-                t = tf.identity(t)
 
-    return t
+        # fast routine: shape is tuple[int] and x_shape is all known,
+        # we can use reshape + tile to do the broadcast, which should be faster
+        # than using ``x * ones(shape)``.
+        if isinstance(shape, tuple) and x_shape is not None and \
+                all(s is not None for s in x_shape):
+            # reshape to have the same dimension
+            if len(x_shape) < len(shape):
+                x_shape = (1,) * (len(shape) - len(x_shape)) + x_shape
+                x = tf.reshape(x, x_shape)
+
+            # tile to have the same shape
+            tile = []
+            i = -1
+            while i > -len(shape) - 1:
+                a, b = x_shape[i], shape[i]
+                if a == 1 and b > 1:
+                    tile.append(b)
+                elif a != b:
+                    raise ValueError(cannot_broadcast_msg)
+                else:
+                    tile.append(1)
+                i -= 1
+            tile = [1] * (len(x_shape) - len(shape)) + list(reversed(tile))
+            if any(s > 1 for s in tile):
+                x = tf.tile(x, tile)
+
+            return x
+
+        # slow routine: we may need ``x * ones(shape)`` to do the broadcast
+        assertions = []
+        post_assert_shape = False
+        static_shape = tf.TensorShape(None)
+
+        if isinstance(shape, tuple) and x_shape is not None:
+            need_multiply_ones = False
+
+            # it should always broadcast if len(x_shape) < len(shape)
+            if len(x_shape) < len(shape):
+                need_multiply_ones = True
+
+            # check the consistency of x and shape
+            static_shape_hint = []  # list to gather the static shape hint
+            axis_to_check = []  # list to gather the axis to check
+            i = -1
+            while i >= -len(shape) and i >= -len(x_shape):
+                a, b = x_shape[i], shape[i]
+                if a is None:
+                    axis_to_check.append(i)
+                else:
+                    if a != b:
+                        if a == 1:
+                            need_multiply_ones = True
+                        else:
+                            raise ValueError(cannot_broadcast_msg)
+                static_shape_hint.append(b)
+                i -= 1
+
+            # compose the static shape hint
+            if len(shape) < len(x_shape):
+                static_shape = x_shape[:-len(shape)]
+            elif len(shape) > len(x_shape):
+                static_shape = shape[:-len(x_shape)]
+            else:
+                static_shape = ()
+            static_shape = tf.TensorShape(
+                static_shape + tuple(reversed(static_shape_hint)))
+
+            # compose the assertion operations and the multiply flag
+            if axis_to_check:
+                need_multiply_flags = []
+                x_dynamic_shape = tf.shape(x)
+
+                for i in axis_to_check:
+                    assertions.append(tf.assert_equal(
+                        tf.logical_or(
+                            tf.equal(x_dynamic_shape[i], shape[i]),
+                            tf.equal(x_dynamic_shape[i], 1),
+                        ),
+                        True,
+                        message=cannot_broadcast_msg
+                    ))
+                    if len(x_shape) >= len(shape):
+                        need_multiply_flags.append(
+                            tf.not_equal(x_dynamic_shape[i], shape[i]))
+
+                if not need_multiply_ones:
+                    need_multiply_ones = \
+                        tf.reduce_any(tf.stack(need_multiply_flags))
+
+        else:
+            # we have no ideal about what `shape` is here, thus we need to
+            # assert the shape after ``x * ones(shape)``.
+            need_multiply_ones = True
+            post_assert_shape = True
+
+        # do broadcast if `x_shape` != `shape`
+        def multiply_branch():
+            with assert_deps(assertions):
+                ones_template = tf.ones(shape, dtype=x.dtype.base_dtype)
+            try:
+                return x * ones_template
+            except ValueError:  # pragma: no cover
+                raise ValueError(cannot_broadcast_msg)
+
+        def identity_branch():
+            with assert_deps(assertions) as asserted:
+                if asserted:
+                    return tf.identity(x)
+                else:  # pragma: no cover
+                    return x
+
+        t = smart_cond(need_multiply_ones, multiply_branch, identity_branch)
+        t.set_shape(static_shape)
+
+        if post_assert_shape:
+            post_assert_op = tf.assert_equal(
+                tf.reduce_all(tf.equal(tf.shape(t)[-tf.size(shape):], shape)),
+                True,
+                message=cannot_broadcast_msg
+            )
+            with assert_deps([post_assert_op]) as asserted:
+                if asserted:
+                    t = tf.identity(t)
+
+        return t
 
 
 @add_name_arg_doc
-def broadcast_to_shape(x, shape, name=None):
+def broadcast_to_shape_strict(x, shape, name=None):
     """
     Broadcast `x` to match `shape`.
+
+    This method requires `rank(x)` to be less than or equal to `len(shape)`.
+    You may use :func:`broadcast_to_shape` instead, to allow the cases where
+    ``rank(x) > len(shape)``.
 
     Args:
         x: A tensor.
         shape (tuple[int] or tf.Tensor): Broadcast `x` to match this shape.
-            It must hold that ``rank(x) <= len(shape)``.
 
     Returns:
         tf.Tensor: The broadcasted tensor.
@@ -465,7 +547,7 @@ def broadcast_to_shape(x, shape, name=None):
                 x = tf.identity(x)
 
         # do broadcast
-        return broadcast_to_shape_sub(x, shape, cannot_broadcast_msg)
+        return broadcast_to_shape(x, shape)
 
 
 @add_name_arg_doc
@@ -550,46 +632,95 @@ def transpose_conv2d_channels_x_to_last(input, channels_last, name=None):
 
 
 @add_name_arg_doc
-def reshape_conv2d_to_dense(input, name=None):
+def reshape_tail(input, ndims, shape, name=None):
     """
-    Flatten the last three axis of `input` into one dimension.
+    Reshape the tail (last) `ndims` into specified `shape`.
 
-    This operation is generally used to reshape 2-d convolution outputs
-    to dense layer inputs, which is the origin of the method name.
+    Usage::
+
+        x = tf.zeros([2, 3, 4, 5, 6])
+        reshape_tail(x, 3, [-1])  # output: zeros([2, 3, 120])
+        reshape_tail(x, 1, [3, 2])  # output: zeros([2, 3, 4, 5, 3, 2])
 
     Args:
-        input: The input tensor.
+        input (Tensor): The input tensor, at least `ndims` dimensions.
+        ndims (int): To reshape this number of dimensions at tail.
+        shape (Iterable[int] or tf.Tensor): The shape of the new tail.
 
     Returns:
-        tf.Tensor: The output tensor.
+        tf.Tensor: The reshaped tensor.
     """
-    from .tensor_spec import InputSpec
+    from tfsnippet.ops import assert_rank_at_least
 
-    input_spec = InputSpec(shape=('...', '?', '?', '?', '?'))
-    input = input_spec.validate(input)
+    input = tf.convert_to_tensor(input)
+    if not is_tensor_object(shape):
+        shape = list(int(s) for s in shape)
+        neg_one_count = 0
+        for s in shape:
+            if s <= 0:
+                if s == -1:
+                    if neg_one_count > 0:
+                        raise ValueError('`shape` is not a valid shape: at '
+                                         'most one `-1` can be specified.')
+                    else:
+                        neg_one_count += 1
+                else:
+                    raise ValueError('`shape` is not a valid shape: {} is '
+                                     'not allowed.'.format(s))
 
-    with tf.name_scope(name or 'reshape_conv2d_to_dense', values=[input]):
-        input_shape = get_static_shape(input)
+    with tf.name_scope(name or 'reshape_tail', values=[input]):
+        # assert the dimension
+        with assert_deps([
+                    assert_rank_at_least(
+                        input, ndims,
+                        message='rank(input) must be at least ndims')
+                ]) as asserted:
+            if asserted:
+                input = tf.identity(input)
 
-        # inspect the static shape
-        left_shape = input_shape[:-3]
-        right_shape = input_shape[-3:]
+        # compute the static shape
+        static_input_shape = get_static_shape(input)
+        static_output_shape = None
 
-        if any(i is None for i in right_shape):
-            static_shape = left_shape + (None,)
+        if static_input_shape is not None:
+            if ndims > 0:
+                left_shape = static_input_shape[:-ndims]
+                right_shape = static_input_shape[-ndims:]
+            else:
+                left_shape = static_input_shape
+                right_shape = ()
+
+            # attempt to resolve "-1" in `shape`
+            if isinstance(shape, list):
+                if None not in right_shape:
+                    shape_size = int(np.prod([s for s in shape if s != -1]))
+                    right_shape_size = int(np.prod(right_shape))
+
+                    if (-1 not in shape and shape_size != right_shape_size) or \
+                            (-1 in shape and right_shape_size % shape_size != 0):
+                        raise ValueError(
+                            'Cannot reshape the tail dimensions of '
+                            '`input` into `shape`: input {!r}, ndims '
+                            '{}, shape {}.'.format(input, ndims, shape)
+                        )
+
+                    if -1 in shape:
+                        pos = shape.index(-1)
+                        shape[pos] = right_shape_size // shape_size
+
+                static_output_shape = left_shape + \
+                    tuple(s if s != -1 else None for s in shape)
+
+        static_output_shape = tf.TensorShape(static_output_shape)
+
+        # compute the dynamic shape
+        input_shape = get_shape(input)
+        if ndims > 0:
+            output_shape = concat_shapes([input_shape[:-ndims], shape])
         else:
-            static_shape = left_shape + (int(np.prod(right_shape)),)
-        static_shape = tf.TensorShape(static_shape)
+            output_shape = concat_shapes([input_shape, shape])
 
-        # inspect the dynamic shape
-        if any(i is None for i in left_shape):
-            left_shape = get_shape(input)[:-3]
-            shape = tf.concat([left_shape, [-1]], axis=0)
-        else:
-            shape = left_shape + (-1,)
-
-        # now reshape the tensor
-        output = tf.reshape(input, shape)
-        output.set_shape(static_shape)
-
-    return output
+        # do reshape
+        output = tf.reshape(input, output_shape)
+        output.set_shape(static_output_shape)
+        return output

@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.utils import *
-from tfsnippet.utils.shape_utils import broadcast_to_shape_sub
 
 
 class IntShapeTestCase(tf.test.TestCase):
@@ -29,6 +28,10 @@ class ResolveNegativeAxisTestCase(tf.test.TestCase):
                                              'vs ndims 4.'):
             _ = resolve_negative_axis(4, (-5,))
 
+        with pytest.raises(ValueError, match='`axis` has duplicated elements '
+                                             'after resolving negative axis.'):
+            _ = resolve_negative_axis(4, (0, -4))
+
 
 class FlattenUnflattenTestCase(tf.test.TestCase):
 
@@ -42,8 +45,8 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
                 run = lambda sess, *args: sess.run(*args)
 
             if len(x.shape) == k:
-                self.assertEqual(flatten(t, k), (t, None, None))
-                self.assertEqual(unflatten(t, None, None), t)
+                self.assertEqual(flatten_to_ndims(t, k), (t, None, None))
+                self.assertEqual(unflatten_from_ndims(t, None, None), t)
 
             else:
                 if k == 1:
@@ -56,7 +59,7 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
                     xx = x.reshape([-1] + list(x.shape)[-(k-1):])
 
                 with self.test_session() as sess:
-                    tt, s1, s2 = flatten(t, k)
+                    tt, s1, s2 = flatten_to_ndims(t, k)
                     self.assertEqual(s1, static_front_shape)
                     if not dynamic_shape:
                         self.assertEqual(s2, front_shape)
@@ -64,7 +67,7 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
                         self.assertEqual(tuple(run(sess, s2)), front_shape)
                     np.testing.assert_equal(run(sess, tt), xx)
                     np.testing.assert_equal(
-                        run(sess, unflatten(tt, s1, s2)),
+                        run(sess, unflatten_from_ndims(tt, s1, s2)),
                         x
                     )
 
@@ -81,23 +84,23 @@ class FlattenUnflattenTestCase(tf.test.TestCase):
     def test_flatten_errors(self):
         with pytest.raises(ValueError,
                            match='`k` must be greater or equal to 1'):
-            _ = flatten(tf.constant(0.), 0)
+            _ = flatten_to_ndims(tf.constant(0.), 0)
         with pytest.raises(ValueError,
                            match='`x` is required to have known number of '
                                  'dimensions'):
-            _ = flatten(tf.placeholder(tf.float32, None), 1)
+            _ = flatten_to_ndims(tf.placeholder(tf.float32, None), 1)
         with pytest.raises(ValueError,
                            match='`k` is 2, but `x` only has rank 1'):
-            _ = flatten(tf.zeros([3]), 2)
+            _ = flatten_to_ndims(tf.zeros([3]), 2)
 
     def test_unflatten_errors(self):
         with pytest.raises(ValueError,
                            match='`x` is required to have known number of '
                                  'dimensions'):
-            _ = unflatten(tf.placeholder(tf.float32, None), (1,), (1,))
+            _ = unflatten_from_ndims(tf.placeholder(tf.float32, None), (1,), (1,))
         with pytest.raises(ValueError,
                            match='`x` only has rank 0, required at least 1'):
-            _ = unflatten(tf.constant(0.), (1,), (1,))
+            _ = unflatten_from_ndims(tf.constant(0.), (1,), (1,))
 
 
 class GetBatchSizeTestCase(tf.test.TestCase):
@@ -264,9 +267,54 @@ class ConcatShapesTestCase(tf.test.TestCase):
             np.testing.assert_equal(sess.run(shape), (1, 2, 3, 4, 5))
 
 
+class IsShapeEqualTestCase(tf.test.TestCase):
+
+    def test_is_shape_equal(self):
+        def check(x, y, x_ph=None, y_ph=None):
+            ans = x.shape == y.shape
+            feed_dict = {}
+            if x_ph is not None:
+                feed_dict[x_ph] = x
+                x = x_ph
+            if y_ph is not None:
+                feed_dict[y_ph] = y
+                y = y_ph
+
+            result = is_shape_equal(x, y)
+            if is_tensor_object(result):
+                result = sess.run(result, feed_dict=feed_dict)
+
+            self.assertEqual(result, ans)
+
+        with self.test_session() as sess:
+            # check static shapes
+            x1 = np.random.normal(size=[2, 3, 4])
+            x2 = np.random.normal(size=[2, 1, 4])
+            x3 = np.random.normal(size=[1, 2, 3, 4])
+            check(x1, np.copy(x1))
+            check(x1, x2)
+            check(x1, x3)
+
+            # check partial dynamic shapes
+            x1_ph = tf.placeholder(dtype=tf.float32, shape=[2, None, 4])
+            x2_ph = tf.placeholder(dtype=tf.float32, shape=[2, None, 4])
+            x3_ph = tf.placeholder(dtype=tf.float32, shape=[None] * 4)
+            check(x1, np.copy(x1), x1_ph, x2_ph)
+            check(x1, x2, x1_ph, x2_ph)
+            check(x1, x3, x1_ph, x3_ph)
+
+            # check fully dimension shapes
+            x1_ph = tf.placeholder(dtype=tf.float32, shape=None)
+            x2_ph = tf.placeholder(dtype=tf.float32, shape=None)
+            x3_ph = tf.placeholder(dtype=tf.float32, shape=None)
+            check(x1, np.copy(x1), x1_ph, x2_ph)
+            check(x1, x2, x1_ph, x2_ph)
+            check(x1, x3, x1_ph, x3_ph)
+
+
 class BroadcastTestCase(tf.test.TestCase):
 
-    def test_broadcast_to_shape_sub(self):
+    def test_broadcast_to_shape(self):
         def check(x, shape, x_ph=None, shape_ph=None, static_shape=None):
             # compute the expected answer
             try:
@@ -286,11 +334,12 @@ class BroadcastTestCase(tf.test.TestCase):
                 shape = shape_ph
 
             if y is None:
-                with pytest.raises(Exception, match='abcdefg'):
-                    t = broadcast_to_shape_sub(x, shape, 'abcdefg')
+                with pytest.raises(Exception, match='`x` cannot be broadcasted '
+                                                    'to match `shape`'):
+                    t = broadcast_to_shape(x, shape)
                     _ = sess.run(t, feed_dict=feed_dict)
             else:
-                t = broadcast_to_shape_sub(x, shape, 'should never trigger')
+                t = broadcast_to_shape(x, shape)
                 if static_shape is not None:
                     self.assertTupleEqual(get_static_shape(t), static_shape)
 
@@ -366,7 +415,7 @@ class BroadcastTestCase(tf.test.TestCase):
             check(x, (1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
             check(x, (1, 1), x_ph=x_ph, shape_ph=shape_ph)
 
-    def test_broadcast_to_shape(self):
+    def test_broadcast_to_shape_strict(self):
         def check(x, shape, x_ph=None, shape_ph=None, static_shape=None):
             # compute the expected answer
             try:
@@ -388,10 +437,10 @@ class BroadcastTestCase(tf.test.TestCase):
             if y is None:
                 with pytest.raises(Exception, match='`x` cannot be broadcasted '
                                                     'to match `shape`'):
-                    t = broadcast_to_shape(x, shape)
+                    t = broadcast_to_shape_strict(x, shape)
                     _ = sess.run(t, feed_dict=feed_dict)
             else:
-                t = broadcast_to_shape(x, shape)
+                t = broadcast_to_shape_strict(x, shape)
                 if static_shape is not None:
                     self.assertTupleEqual(get_static_shape(t), static_shape)
 
@@ -503,18 +552,112 @@ class TransposeConv2dAxisTestCase(tf.test.TestCase):
             np.testing.assert_allclose(g(y, False), x)
 
 
-class ReshapeConv2dToDenseTestCase(tf.test.TestCase):
+class ReshapeTailTestCase(tf.test.TestCase):
 
-    def test_reshape_conv2d_to_dense(self):
-        x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
-        y = np.reshape(x, [17, 11, -1])
+    def test_reshape_tail(self):
+        def check(x, ndims, shape, expected_shape, static_shape=None,
+                  x_ph=None, shape_ph=None):
+            # compute the answer
+            assert(len(x.shape) >= ndims)
+            if ndims > 0:
+                y = np.reshape(x, x.shape[:-ndims] + tuple(shape))
+            else:
+                y = np.reshape(x, x.shape + tuple(shape))
+            self.assertEqual(y.shape, expected_shape)
+
+            # validate the output
+            feed_dict = {}
+            if x_ph is not None:
+                feed_dict[x_ph] = x
+                x = x_ph
+            if shape_ph is not None:
+                feed_dict[shape_ph] = shape
+                shape = shape_ph
+
+            y_tensor = reshape_tail(x, ndims, shape)
+            if static_shape is not None:
+                self.assertTupleEqual(get_static_shape(y_tensor), static_shape)
+            y_out = sess.run(y_tensor, feed_dict=feed_dict)
+
+            self.assertTupleEqual(y_out.shape, y.shape)
+            np.testing.assert_equal(y_out, y)
+
+        x = np.random.normal(size=[4, 5, 6]).astype(np.float32)
 
         with self.test_session() as sess:
-            # test static
-            np.testing.assert_equal(
-                sess.run(reshape_conv2d_to_dense(tf.constant(x))), y)
+            # check static shape
+            check(x, 0, [], (4, 5, 6), (4, 5, 6))
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (4, 5, 6, 1, 1))
+            check(x, 1, [-1], (4, 5, 6), (4, 5, 6))
+            check(x, 1, [2, 3], (4, 5, 2, 3), (4, 5, 2, 3))
+            check(x, 2, [-1], (4, 30), (4, 30))
+            check(x, 2, [6, 5], (4, 6, 5), (4, 6, 5))
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), (4, 3, 2, 5))
+            check(x, 3, [-1], (120,), (120,))
+            check(x, 3, [3, -1], (3, 40), (3, 40))
 
-            # test dynamic
-            ph = tf.placeholder(dtype=tf.float32, shape=[None] * 5)
-            np.testing.assert_equal(
-                sess.run(reshape_conv2d_to_dense(ph), feed_dict={ph: x}), y)
+            # check dynamic shape #1
+            x_ph = tf.placeholder(dtype=tf.float32, shape=[None, 5, 6])
+
+            check(x, 0, [], (4, 5, 6), (None, 5, 6), x_ph=x_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (None, 5, 6, 1, 1),
+                  x_ph=x_ph)
+            check(x, 1, [-1], (4, 5, 6), (None, 5, 6), x_ph=x_ph)
+            check(x, 1, [2, -1], (4, 5, 2, 3), (None, 5, 2, 3), x_ph=x_ph)
+            check(x, 2, [-1], (4, 30), (None, 30), x_ph=x_ph)
+            check(x, 2, [-1, 5], (4, 6, 5), (None, 6, 5), x_ph=x_ph)
+            check(x, 2, [3, -1, 5], (4, 3, 2, 5), (None, 3, 2, 5), x_ph=x_ph)
+            check(x, 3, [-1], (120,), (None,), x_ph=x_ph)
+            check(x, 3, [3, -1], (3, 40), (3, None), x_ph=x_ph)
+
+            # check dynamic shape #2
+            x_ph = tf.placeholder(dtype=tf.float32, shape=[None, 5, None])
+
+            check(x, 0, [], (4, 5, 6), (None, 5, None), x_ph=x_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), (None, 5, None, 1, 1),
+                  x_ph=x_ph)
+            check(x, 1, [-1], (4, 5, 6), (None, 5, None), x_ph=x_ph)
+            check(x, 1, [2, 3], (4, 5, 2, 3), (None, 5, 2, 3), x_ph=x_ph)
+            check(x, 2, [-1], (4, 30), (None, None), x_ph=x_ph)
+            check(x, 2, [6, 5], (4, 6, 5), (None, 6, 5), x_ph=x_ph)
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), (None, 3, 2, 5), x_ph=x_ph)
+            check(x, 3, [-1], (120,), (None,), x_ph=x_ph)
+            check(x, 3, [3, -1], (3, 40), (3, None), x_ph=x_ph)
+
+            # check fully dynamic shape
+            x_ph = tf.placeholder(dtype=tf.float32, shape=None)
+            shape_ph = tf.placeholder(dtype=tf.int32, shape=None)
+
+            check(x, 0, [], (4, 5, 6), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 0, [1, 1], (4, 5, 6, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 1, [-1], (4, 5, 6), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 1, [2, 3], (4, 5, 2, 3), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [-1], (4, 30), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [6, 5], (4, 6, 5), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 2, [3, 2, 5], (4, 3, 2, 5), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 3, [-1], (120,), x_ph=x_ph, shape_ph=shape_ph)
+            check(x, 3, [3, -1], (3, 40), x_ph=x_ph, shape_ph=shape_ph)
+
+            # check errors
+            with pytest.raises(ValueError,
+                               match='`shape` is not a valid shape: at most '
+                                     'one `-1` can be specified'):
+                _ = reshape_tail(x, 1, [-1, -1])
+
+            with pytest.raises(ValueError,
+                               match='`shape` is not a valid shape: 0 is not '
+                                     'allowed'):
+                _ = reshape_tail(x, 1, [0])
+
+            with pytest.raises(Exception,
+                               match=r'rank\(input\) must be at least ndims'):
+                _ = sess.run(reshape_tail(x, 5, [-1]))
+
+            with pytest.raises(Exception,
+                               match=r'rank\(input\) must be at least ndims'):
+                _ = sess.run(reshape_tail(x_ph, 5, [-1]), feed_dict={x_ph: x})
+
+            with pytest.raises(Exception,
+                               match=r'Cannot reshape the tail dimensions of '
+                                     r'`input` into `shape`'):
+                _ = sess.run(reshape_tail(x, 2, [7, -1]))

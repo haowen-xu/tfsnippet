@@ -3,8 +3,8 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.ops import assert_rank, assert_scalar_equal
-from tfsnippet.utils import (validate_positive_int_arg, ParamSpec, unflatten,
-                             flatten, is_tensor_object, assert_deps, get_shape,
+from tfsnippet.utils import (validate_positive_int_arg, ParamSpec, unflatten_from_ndims,
+                             flatten_to_ndims, is_tensor_object, assert_deps, get_shape,
                              add_name_and_scope_arg_doc)
 from .utils import *
 from ..initialization import default_kernel_initializer
@@ -145,7 +145,7 @@ def conv2d(input,
             )
 
         # flatten to 4d
-        output, s1, s2 = flatten(input, 4)
+        output, s1, s2 = flatten_to_ndims(input, 4)
 
         # do convolution
         if dilations > 1:
@@ -178,7 +178,7 @@ def conv2d(input,
             output = activation_fn(output)
 
         # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
 
     return output
 
@@ -388,7 +388,7 @@ def deconv2d(input,
             )
 
         # flatten to 4d
-        output, s1, s2 = flatten(input, 4)
+        output, s1, s2 = flatten_to_ndims(input, 4)
 
         # do convolution or deconvolution
         output = tf.nn.conv2d_transpose(
@@ -415,6 +415,6 @@ def deconv2d(input,
             output = activation_fn(output)
 
         # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
 
     return output

@@ -1,7 +1,6 @@
 import tensorflow as tf
 
-from tfsnippet.layers.flows.utils import assert_log_det_shape_matches_input
-from tfsnippet.ops import add_n_broadcast
+from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
                              get_default_scope_name, assert_deps,
                              get_static_shape)
@@ -57,7 +56,7 @@ class BaseFlow(BaseLayer):
         """
         raise NotImplementedError()
 
-    def _transform(self, x, compute_y, compute_log_det):
+    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
         raise NotImplementedError()
 
     def build(self, input=None):
@@ -70,7 +69,8 @@ class BaseFlow(BaseLayer):
                                  format(input, self._value_ndims))
         return super(BaseFlow, self).build(input)
 
-    def transform(self, x, compute_y=True, compute_log_det=True, name=None):
+    def transform(self, x, compute_y=True, compute_log_det=True,
+                  previous_log_det=None, name=None):
         """
         Transform `x` into `y`, and the log-determinant of `f` at `x`, i.e.,
         :math:`\\log \\det \\frac{\\partial f(x)}{\\partial x}`.
@@ -81,12 +81,15 @@ class BaseFlow(BaseLayer):
                 Default :obj:`True`.
             compute_log_det (bool): Whether or not to compute the
                 log-determinant?  Default :obj:`True`.
+            previous_log_det (Tensor): If specified, add the log-determinant
+                of this flow to the log-determinants computed from previous
+                flows, and return the summed log-determinant.
             name (str): If specified, will use this name as the TensorFlow
                 operational name scope.
             \\**kwargs: Other named arguments.
 
         Returns:
-            (tf.Tensor, tf.Tensor): `y` and the log-determinant.
+            (tf.Tensor, tf.Tensor): `y` and the (maybe summed) log-determinant.
                 The items in the returned tuple might be :obj:`None`
                 if corresponding `compute_?` argument is set to :obj:`False`.
 
@@ -95,15 +98,21 @@ class BaseFlow(BaseLayer):
                 to :obj:`False`.
         """
         if not compute_y and not compute_log_det:
-            raise RuntimeError('At least one of `compute_y` and '
-                               '`compute_log_det` should be True.')
+            raise ValueError('At least one of `compute_y` and '
+                             '`compute_log_det` should be True.')
+        if previous_log_det is not None and not compute_log_det:
+            raise ValueError('`previous_log_det` is specified but '
+                             '`compute_log_det` is False.')
 
         x = tf.convert_to_tensor(x)
-        x_shape = get_static_shape(x)
-        if x_shape is None or len(x_shape) < self._value_ndims:
-            raise ValueError('`x.ndims` must be known and >= `value_ndims`: '
-                             'x {} vs value_ndims {}.'.
-                             format(x, self._value_ndims))
+        with assert_deps([
+                    assert_rank_at_least(
+                        x, self.value_ndims,
+                        message='`x.ndims` must be known and >= `value_ndims`'
+                    )
+                ]) as flag:
+            if flag:  # pragma: no cover
+                x = tf.identity(x)
 
         if not self._has_built:
             self.build(x)
@@ -112,25 +121,17 @@ class BaseFlow(BaseLayer):
                 name,
                 default_name=get_default_scope_name('transform', self),
                 values=[x]):
-            y, log_det = self._transform(x, compute_y, compute_log_det)
-
-            if log_det is not None:
-                with assert_deps([
-                        assert_log_det_shape_matches_input(
-                            log_det=log_det,
-                            input=x,
-                            value_ndims=self.value_ndims
-                        )]) as asserted:
-                    if asserted:  # pragma: no cover
-                        log_det = tf.identity(log_det)
+            y, log_det = self._transform(
+                x, compute_y, compute_log_det, previous_log_det)
 
             return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det,
+                           previous_log_det):
         raise NotImplementedError()
 
     def inverse_transform(self, y, compute_x=True, compute_log_det=True,
-                          name=None):
+                          previous_log_det=None, name=None):
         """
         Transform `y` into `x`, and the log-determinant of `f^{-1}` at `y`,
         i.e., :math:`\\log \\det \\frac{\\partial f^{-1}(y)}{\\partial y}`.
@@ -141,11 +142,14 @@ class BaseFlow(BaseLayer):
                 Default :obj:`True`.
             compute_log_det (bool): Whether or not to compute the
                 log-determinant?  Default :obj:`True`.
+            previous_log_det (Tensor): If specified, add the log-determinant
+                of this flow to the log-determinants computed from previous
+                flows, and return the summed log-determinant.
             name (str): If specified, will use this name as the TensorFlow
                 operational name scope.
 
         Returns:
-            (tf.Tensor, tf.Tensor): `x` and the log-determinant.
+            (tf.Tensor, tf.Tensor): `x` and the (maybe summed) log-determinant.
                 The items in the returned tuple might be :obj:`None`
                 if corresponding `compute_?` argument is set to :obj:`False`.
 
@@ -158,8 +162,11 @@ class BaseFlow(BaseLayer):
             raise RuntimeError('The flow is not explicitly invertible: {!r}'.
                                format(self))
         if not compute_x and not compute_log_det:
-            raise RuntimeError('At least one of `compute_x` and '
-                               '`compute_log_det` should be True.')
+            raise ValueError('At least one of `compute_x` and '
+                             '`compute_log_det` should be True.')
+        if previous_log_det is not None and not compute_log_det:
+            raise ValueError('`previous_log_det` is specified but '
+                             '`compute_log_det` is False.')
         if not self._has_built:
             raise RuntimeError('`inverse_transform` cannot be called before '
                                'the flow has been built; it can be built by '
@@ -167,27 +174,21 @@ class BaseFlow(BaseLayer):
                                '{!r}'.format(self))
 
         y = tf.convert_to_tensor(y)
-        y_shape = get_static_shape(y)
-        if y_shape is None or len(y_shape) < self._value_ndims:
-            raise ValueError('`y.ndims` must be known and >= `value_ndims`: '
-                             'y {} vs value_ndims {}.'.
-                             format(y, self._value_ndims))
+        with assert_deps([
+                    assert_rank_at_least(
+                        y, self.value_ndims,
+                        message='`y.ndims` must be known and >= `value_ndims`'
+                    )
+                ]) as flag:
+            if flag:  # pragma: no cover
+                y = tf.identity(y)
 
         with tf.name_scope(
                 name,
                 default_name=get_default_scope_name('inverse_transform', self),
                 values=[y]):
-            x, log_det = self._inverse_transform(y, compute_x, compute_log_det)
-
-            if log_det is not None:
-                with assert_deps([
-                        assert_log_det_shape_matches_input(
-                            log_det=log_det,
-                            input=y,
-                            value_ndims=self.value_ndims
-                        )]) as asserted:
-                    if asserted:  # pragma: no cover
-                        log_det = tf.identity(log_det)
+            x, log_det = self._inverse_transform(
+                y, compute_x, compute_log_det, previous_log_det)
 
             return x, log_det
 
@@ -228,52 +229,44 @@ class MultiLayerFlow(BaseFlow):
         """
         return self._n_layers
 
-    def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
+    def _transform_layer(self, layer_id, x, compute_y, compute_log_det,
+                         previous_log_det):
         raise NotImplementedError()
 
-    def _transform(self, x, compute_y, compute_log_det):
-        log_det_list = []
-
+    def _transform(self, x, compute_y, compute_log_det,
+                   previous_log_det):
         # apply transformation of each layer
+        log_det = previous_log_det
         for i in range(self._n_layers):
             with tf.name_scope('_{}'.format(i)):
                 x, log_det = self._transform_layer(
                     layer_id=i,
                     x=x,
                     compute_y=True if i < self._n_layers - 1 else compute_y,
-                    compute_log_det=compute_log_det
+                    compute_log_det=compute_log_det,
+                    previous_log_det=log_det
                 )
-                log_det_list.append(log_det)
-
-        # merge the log-determinants
-        log_det = None
-        if compute_log_det:
-            log_det = add_n_broadcast(log_det_list)
 
         y = x if compute_y else None
         return y, log_det
 
-    def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det):
+    def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det,
+                                 previous_log_det):
         raise NotImplementedError()
 
-    def _inverse_transform(self, y, compute_x, compute_log_det):
-        log_det_list = []
-
+    def _inverse_transform(self, y, compute_x, compute_log_det,
+                           previous_log_det):
         # apply transformation of each layer
+        log_det = previous_log_det
         for i in range(self._n_layers - 1, -1, -1):
             with tf.name_scope('_{}'.format(i)):
                 y, log_det = self._inverse_transform_layer(
                     layer_id=i,
                     y=y,
                     compute_x=True if i > 0 else compute_x,
-                    compute_log_det=compute_log_det
+                    compute_log_det=compute_log_det,
+                    previous_log_det=log_det
                 )
-                log_det_list.append(log_det)
-
-        # merge the log-determinants
-        log_det = None
-        if compute_log_det:
-            log_det = add_n_broadcast(log_det_list)
 
         x = y if compute_x else None
         return x, log_det

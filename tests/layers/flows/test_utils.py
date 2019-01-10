@@ -1,10 +1,15 @@
+import functools
+
 import numpy as np
 import pytest
 import tensorflow as tf
 
 from tfsnippet.layers.flows.utils import (is_log_det_shape_matches_input,
                                           assert_log_det_shape_matches_input,
-                                          broadcast_log_det_against_input)
+                                          broadcast_log_det_against_input,
+                                          SigmoidScale,
+                                          ExpScale,
+                                          LinearScale)
 
 
 class IsLogDetShapeMatchesInputTestCase(tf.test.TestCase):
@@ -195,3 +200,29 @@ class BroadcastLogDetAgainstInputTestCase(tf.test.TestCase):
                     broadcast_log_det_against_input(log_det_ph, input_ph, 5),
                     feed_dict={input_ph: input, log_det_ph: log_det[..., 0]}
                 )
+
+
+class ScaleTestCase(tf.test.TestCase):
+
+    def test_scale(self):
+        def check(f, cls, x, pre_scale):
+            x_tensor = tf.convert_to_tensor(x)
+            o = cls(pre_scale, epsilon=1e-6)
+            assert_allclose = functools.partial(
+                np.testing.assert_allclose, rtol=1e-5)
+            assert_allclose(sess.run(o.scale), f(pre_scale))
+            assert_allclose(sess.run(o.inv_scale), 1. / f(pre_scale))
+            assert_allclose(sess.run(o.log_scale), np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(o.neg_log_scale),
+                            -np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(x_tensor * o), x * f(pre_scale))
+            assert_allclose(sess.run(x_tensor / o), x / f(pre_scale))
+
+        with self.test_session() as sess:
+            pre_scale = np.random.normal(size=[2, 3, 4, 5])
+            x = np.random.normal(size=pre_scale.shape)
+
+            check((lambda x: 1. / (1 + np.exp(-x))), SigmoidScale,
+                  x, pre_scale)
+            check(np.exp, ExpScale, x, pre_scale)
+            check((lambda x: x), LinearScale, x, pre_scale)
