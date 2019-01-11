@@ -56,7 +56,7 @@ class ActNormClassTestCase(tf.test.TestCase):
                            match='Initializing ActNorm requires multiple '
                                  '`x` samples, thus `x` must have at least '
                                  'one more dimension than the variable shape'):
-            act_norm = ActNorm([-3, -1], initializing=True)
+            act_norm = ActNorm([-3, -1])
             _ = act_norm.apply(tf.zeros([2, 3, 4]))
 
     def test_act_norm(self):
@@ -82,7 +82,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='linear', initializing=True)
+                               scale_type='linear')
             y_out, log_det_out = sess.run(
                 act_norm.transform(tf.constant(x, dtype=tf.float64)))
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -115,7 +115,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='exp', initializing=True)
+                               scale_type='exp')
             y_out, log_det_out = sess.run(
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -152,7 +152,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='linear', initializing=True)
+                               scale_type='linear')
             y_out, log_det_out = sess.run(
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -188,7 +188,7 @@ class ActNormClassTestCase(tf.test.TestCase):
         @global_reuse
         def f(x, channels_last=True, initializing=False):
             an = ActNorm(axis=-1 if channels_last else -3, value_ndims=3,
-                         initializing=initializing)
+                         initialized=not initializing)
             return an.transform(x)
 
         x = np.random.normal(size=[2, 3, 4, 5, 6])  # NHWC

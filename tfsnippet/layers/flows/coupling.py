@@ -197,7 +197,7 @@ class BaseCouplingLayer(BaseFlow):
             assert (self.value_ndims >= 0)  # checked in `_build`
             if scale is not None:
                 log_det = tf.reduce_sum(
-                    scale.neg_log_scale if reverse else scale.log_scale,
+                    scale.neg_log_scale() if reverse else scale.log_scale(),
                     list(range(-self.value_ndims, 0))
                 )
                 if previous_log_det is not None:

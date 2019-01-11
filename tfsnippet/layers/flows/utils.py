@@ -155,19 +155,6 @@ def broadcast_log_det_against_input(log_det, input, value_ndims, name=None):
         return broadcast_to_shape_strict(log_det, shape)
 
 
-def _scale_make_property(name):
-    @property
-    def inner(self):
-        meth = getattr(self, '_' + name)
-        with tf.name_scope(name, values=[self._pre_scale]):
-            return maybe_check_numerics(
-                meth(), message='numeric issues in {}.{}'.format(
-                    self.__class__.__name__, name
-                )
-            )
-    return inner
-
-
 @DocInherit
 class Scale(object):
     """
@@ -191,29 +178,41 @@ class Scale(object):
         raise NotImplementedError()
 
     def _inv_scale(self):
-        """Get `scale = 1. / f(pre_scale)`."""
         raise NotImplementedError()
 
     def _log_scale(self):
-        """Get `scale = log(f(pre_scale))`."""
         raise NotImplementedError()
 
     def _neg_log_scale(self):
-        """Get `scale = -log(f(pre_scale))`."""
         raise NotImplementedError()
 
-    scale = _scale_make_property('scale')
-    inv_scale = _scale_make_property('inv_scale')
-    log_scale = _scale_make_property('log_scale')
-    neg_log_scale = _scale_make_property('neg_log_scale')
+    def scale(self):
+        """Compute `f(pre_scale)`."""
+        with tf.name_scope('scale', values=[self._pre_scale]):
+            return self._scale()
+
+    def inv_scale(self):
+        """Compute `1. / f(pre_scale)`."""
+        with tf.name_scope('inv_scale', values=[self._pre_scale]):
+            return self._inv_scale()
+
+    def log_scale(self):
+        """Compute `log(f(pre_scale))`."""
+        with tf.name_scope('log_scale', values=[self._pre_scale]):
+            return self._log_scale()
+
+    def neg_log_scale(self):
+        """Compute `-log(f(pre_scale))`."""
+        with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
+            return self._neg_log_scale()
 
     def _mult(self, x):
         """Compute `x * f(pre_scale)`."""
-        return x * self.scale
+        return x * self.scale()
 
     def _div(self, x):
         """Compute `x / f(pre_scale)`."""
-        return x * self.inv_scale
+        return x * self.inv_scale()
 
     def __rdiv__(self, other):
         return self._div(tf.convert_to_tensor(other))
@@ -274,4 +273,4 @@ class LinearScale(Scale):
 
     def _div(self, x):
         # TODO: use epsilon to prevent dividing by zero
-        return x / self.scale
+        return x / self.scale()

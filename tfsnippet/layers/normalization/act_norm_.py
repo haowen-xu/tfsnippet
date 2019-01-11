@@ -33,7 +33,7 @@ class ActNorm(BaseFlow):
     def __init__(self,
                  axis=-1,
                  value_ndims=1,
-                 initializing=False,
+                 initialized=False,
                  scale_type='exp',
                  bias_regularizer=None,
                  bias_constraint=None,
@@ -55,9 +55,13 @@ class ActNorm(BaseFlow):
                 All items of the `axis` should be covered by `value_ndims`.
             value_ndims (int): Number of dimensions to be considered as the
                 value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
-            initializing (bool): Whether or not to use the first input `x`
-                in the forward pass to initialize the layer parameters?
-                (default :obj:`True`)
+            initialized (bool): Whether or not the variables have been
+                initialized?  If :obj:`False`, the first input `x` in the
+                forward pass will be used to initialize the variables.
+
+                Normally, it should take the default value, :obj:`False`.
+                Setting it to :obj:`True` only if you're constructing a
+                :class:`ActNorm` instance inside some reused variable scope.
             scale_type: One of {"exp", "linear"}.
                 If "exp", ``y = (x + bias) * tf.exp(log_scale)``.
                 If "linear", ``y = (x + bias) * scale``.
@@ -78,7 +82,7 @@ class ActNorm(BaseFlow):
                              format(self._axis))
         self._scale_type = validate_enum_arg(
             'scale_type', scale_type, ['exp', 'linear'])
-        self._initialized = not bool(initializing)
+        self._initialized = bool(initialized)
         self._bias_regularizer = bias_regularizer
         self._bias_constraint = bias_constraint
         self._log_scale_regularizer = log_scale_regularizer
@@ -232,7 +236,7 @@ class ActNorm(BaseFlow):
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                log_det = scale.log_scale
+                log_det = scale.log_scale()
                 reduce_ndims1 = min(
                     self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
@@ -308,7 +312,7 @@ class ActNorm(BaseFlow):
         log_det = None
         if compute_log_det:
             with tf.name_scope('log_det'):
-                log_det = scale.neg_log_scale
+                log_det = scale.neg_log_scale()
                 reduce_ndims1 = min(
                     self.value_ndims, len(self._var_shape_aligned))
                 reduce_ndims2 = self.value_ndims - reduce_ndims1
@@ -352,7 +356,22 @@ class ActNorm(BaseFlow):
 
 
 @add_arg_scope
-def act_norm(input, **kwargs):  # pragma: no cover
+@add_name_and_scope_arg_doc
+def act_norm(input,
+             axis=-1,
+             value_ndims=1,
+             initializing=False,
+             scale_type='exp',
+             bias_regularizer=None,
+             bias_constraint=None,
+             log_scale_regularizer=None,
+             log_scale_constraint=None,
+             scale_regularizer=None,
+             scale_constraint=None,
+             trainable=True,
+             epsilon=1e-6,
+             name=None,
+             scope=None):  # pragma: no cover
     """
     ActNorm proposed by (Kingma & Dhariwal, 2018).
 
@@ -378,9 +397,45 @@ def act_norm(input, **kwargs):  # pragma: no cover
 
     Args:
         input (tf.Tensor): The input tensor.
-        \\**kwargs: Other arguments passed to :class:`ActNorm`.
+        axis (int or Iterable[int]): The axis to apply ActNorm.
+            Dimensions not in `axis` will be averaged out when computing
+            the mean of activations. Default `-1`, the last dimension.
+            All items of the `axis` should be covered by `value_ndims`.
+        value_ndims (int): Number of dimensions to be considered as the
+            value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
+        initializing (bool): Whether or not to use the input `x` to initialize
+            the layer parameters? (default :obj:`True`)
+        scale_type: One of {"exp", "linear"}.
+            If "exp", ``y = (x + bias) * tf.exp(log_scale)``.
+            If "linear", ``y = (x + bias) * scale``.
+            Default is "exp".
+        bias_regularizer: The regularizer for `bias`.
+        bias_constraint: The constraint for `bias`.
+        log_scale_regularizer: The regularizer for `log_scale`.
+        log_scale_constraint: The constraint for `log_scale`.
+        scale_regularizer: The regularizer for `scale`.
+        scale_constraint: The constraint for `scale`.
+        trainable (bool): Whether or not the variables are trainable?
+        epsilon: Small float to avoid dividing by zero or taking
+            logarithm of zero.
 
     Returns:
         tf.Tensor: The output after the ActNorm has been applied.
     """
-    return ActNorm(**kwargs).apply(input)
+    layer = ActNorm(
+        axis=axis,
+        value_ndims=value_ndims,
+        initialized=not initializing,
+        scale_type=scale_type,
+        bias_regularizer=bias_regularizer,
+        bias_constraint=bias_constraint,
+        log_scale_regularizer=log_scale_regularizer,
+        log_scale_constraint=log_scale_constraint,
+        scale_regularizer=scale_regularizer,
+        scale_constraint=scale_constraint,
+        trainable=trainable,
+        epsilon=epsilon,
+        name=name,
+        scope=scope
+    )
+    return layer.apply(input)
