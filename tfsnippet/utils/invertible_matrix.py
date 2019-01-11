@@ -202,10 +202,12 @@ class PermutationMatrix(object):
 
 class InvertibleMatrix(VarScopeObject):
     """
-    A partially trainable invertible matrix.
+    A matrix initialized to be an invertible, orthogonal matrix.
 
-    This class composes the invertible matrix by a variant of PLU
-    decomposition, proposed in (Kingma & Dhariwal, 2018), as follows:
+    If `strict` is :obj:`False`, then there is no guarantee that the matrix
+    will keep invertible during training.  Otherwise, the matrix will be
+    derived through a variant of PLU decomposition as proposed in
+    (Kingma & Dhariwal, 2018):
 
     .. math::
 
@@ -215,35 +217,58 @@ class InvertibleMatrix(VarScopeObject):
     where `P` is a permutation matrix, `L` is a lower triangular matrix
     with all its diagonal elements equal to one, `U` is an upper triangular
     matrix with all its diagonal elements equal to zero, `sign` is a vector
-    of `{-1, 1}`, and `s` is a vector.
+    of `{-1, 1}`, and `s` is a vector.  `P` and `sign` are fixed variables,
+    while `L`, `U`, `s` are trainable variables.
 
-    `P` and `sign` are fixed variables, while `L`, `U`, `s` are trainable
-    variables.  They are initialized via the following method:
-
-    .. code-block:: python
-
-        Q, _ = scipy.linalg.qr(
-            random_state.normal(loc=0., scale=1., size=shape))
-        P, L, U = scipy.linalg.lu(Q)
-        sign = np.sign(np.diag(U))
-        s = np.log(np.abs(np.diag(U)))
-        U = np.triu(U, k=1)
-
-    The `random_state` can be specified via the constructor.  If it is not
+    A `random_state` can be specified via the constructor.  If it is not
     specified, an instance of :class:`VarScopeRandomState` will be created
     according to the variable scope name of the object.
     """
 
     @add_name_and_scope_arg_doc
-    def __init__(self, size, epsilon=1e-6, dtype=tf.float32, random_state=None,
-                 name=None, scope=None):
-        # validate the shape
-        if is_integer(size):
-            shape = (int(size),) * 2
-        else:
-            h, w = size
-            shape = (int(h), int(w))
+    def __init__(self, size, strict=False, dtype=tf.float32, epsilon=1e-6,
+                 trainable=True, random_state=None, name=None, scope=None):
+        """
+        Construct a new :class:`InvertibleMatrix`.
+
+        Args:
+            size (int or (int, int)): Size of the matrix.
+            strict (bool): If :obj:`True`, will derive the matrix using a
+                variant of PLU decomposition, to enforce invertibility
+                (see above).  If :obj:`False`, the matrix will only be
+                initialized to be an orthogonal, invertible matrix, without
+                further constraint.  (default :obj:`False`)
+            dtype (tf.DType): The data type of the variables.
+            epsilon: Small float to avoid dividing by zero or taking
+                logarithm of zero.
+            trainable (bool): Whether or not the parameters are trainable?
+            random_state (np.random.RandomState): Use this random state,
+                instead of constructing a :class:`VarScopeRandomState`.
+        """
+        # validate the arguments
+        def validate_shape():
+            if is_integer(size):
+                shape = (int(size),) * 2
+            else:
+                h, w = size
+                shape = (int(h), int(w))
+            if shape[0] != shape[1] or shape[0] < 1:
+                raise ValueError()
+            return shape
+
+        try:
+            shape = validate_shape()
+        except Exception:
+            raise ValueError('`size` is not valid for a square matrix: {!r}.'.
+                             format(size))
+
+        strict = bool(strict)
+        dtype = tf.as_dtype(dtype)
+
         self._shape = shape
+        self._strict = strict
+        self._dtype = dtype
+        self._epsilon = epsilon
 
         # initialize the variable scope and the random state
         super(InvertibleMatrix, self).__init__(name=name, scope=scope)
@@ -251,22 +276,122 @@ class InvertibleMatrix(VarScopeObject):
             random_state = VarScopeRandomState(self.variable_scope)
         self._random_state = random_state
 
-        # generate random matrix
-        np_Q, _ = la.qr(random_state.normal(loc=0., scale=1., size=shape))
-        np_P, np_L, np_U = la.lu(np_Q)
-        np_s = np.diag(np_U)
-        np_sign = np.sign(np_s)
-        np_log_s = np.log(np.maximum(np.abs(np_s), epsilon))
-        np_U = np.triu(np_U, k=1)
+        # generate the initial orthogonal matrix
+        initial_matrix = la.qr(random_state.normal(size=shape))[0]
 
-        # create the variables and random initialize the matrix
+        # create the variables
         with reopen_variable_scope(self.variable_scope):
-            self._P = PermutationMatrix(np_P)
-            self._L = tf.get_variable('L', initializer=np_L, dtype=dtype)
-            self._U = tf.get_variable('U', initializer=np_U, dtype=dtype)
-            self._sign = tf.get_variable('sign', initializer=np_sign,
-                                         dtype=dtype, trainable=False)
-            self._log_s = tf.get_variable('log_s', initializer=np_log_s,
-                                          dtype=dtype)
+            if not strict:
+                self._matrix = tf.get_variable(
+                    'matrix',
+                    initializer=tf.constant(initial_matrix, dtype=dtype),
+                    dtype=dtype,
+                    trainable=trainable
+                )
+                self._inv_matrix = tf.matrix_inverse(
+                    self._matrix, name='inv_matrix')
 
+                self._log_det = tf.linalg.slogdet(
+                    self._matrix, name='log_det')[1]
 
+            else:
+                initial_P, initial_L, initial_U = la.lu(initial_matrix)
+                initial_s = np.diag(initial_U)
+                initial_sign = np.sign(initial_s)
+                initial_log_s = np.log(
+                    np.maximum(np.abs(initial_s), self._epsilon))
+                initial_U = np.triu(initial_U, k=1)
+
+                # TODO: use PermutationMatrix to derive P once we can export it
+                #
+                # PermutationMatrix is faster, however, it cannot be exported
+                # by just saving the TensorFlow variables.  Thus for the time
+                # being, we have to use a true TensorFlow variable to derive P.
+                #
+                # P = self._P = PermutationMatrix(initial_P)
+
+                P = self._P = tf.get_variable(
+                    'P',
+                    initializer=tf.constant(initial_P, dtype=dtype),
+                    dtype=dtype,
+                    trainable=False
+                )
+                pre_L = self._pre_L = tf.get_variable(
+                    'pre_L',
+                    initializer=tf.constant(initial_L, dtype=dtype),
+                    dtype=dtype,
+                    trainable=trainable
+                )
+                pre_U = self._pre_U = tf.get_variable(
+                    'pre_U',
+                    initializer=tf.constant(initial_U, dtype=dtype),
+                    dtype=dtype,
+                    trainable=trainable
+                )
+                sign = self._sign = tf.get_variable(
+                    'sign',
+                    initializer=tf.constant(initial_sign, dtype=dtype),
+                    dtype=dtype,
+                    trainable=False
+                )
+                log_s = self._log_s = tf.get_variable(
+                    'log_s',
+                    initializer=tf.constant(initial_log_s, dtype=dtype),
+                    dtype=dtype,
+                    trainable=True
+                )
+
+                with tf.name_scope('L', values=[pre_L]):
+                    L_mask = tf.constant(np.tril(np.ones(shape), k=-1),
+                                         dtype=dtype)
+                    L = self._L = L_mask * pre_L + tf.eye(*shape, dtype=dtype)
+
+                with tf.name_scope('U', values=[pre_U, sign, log_s]):
+                    U_mask = tf.constant(np.triu(np.ones(shape), k=1),
+                                         dtype=dtype)
+                    U = self._U = U_mask * pre_U + tf.diag(sign * tf.exp(log_s))
+
+                with tf.name_scope('matrix', values=[P, L, U]):
+                    self._matrix = tf.matmul(P, tf.matmul(L, U))
+
+                with tf.name_scope('inv_matrix', values=[P, L, U]):
+                    self._inv_matrix = tf.matmul(
+                        tf.matrix_inverse(U, name='inv_U'),
+                        tf.matmul(
+                            tf.matrix_inverse(L, name='inv_L'),
+                            tf.matrix_inverse(P, name='inv_P'),
+                        )
+                    )
+
+                with tf.name_scope('log_det', values=[log_s]):
+                    self._log_det = tf.reduce_sum(log_s)
+
+    @property
+    def matrix(self):
+        """
+        Get the matrix tensor.
+
+        Returns:
+            tf.Tensor or tf.Variable: The matrix tensor.
+        """
+        return self._matrix
+
+    @property
+    def inv_matrix(self):
+        """
+        Get the inverted matrix.
+
+        Returns:
+            tf.Tensor: The inverted matrix tensor.
+        """
+        return self._inv_matrix
+
+    @property
+    def log_det(self):
+        """
+        Get the log-determinant of the matrix.
+
+        Returns:
+            tf.Tensor: The log-determinant tensor.
+        """
+        return self._log_det

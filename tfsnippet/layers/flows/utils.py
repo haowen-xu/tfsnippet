@@ -173,6 +173,10 @@ class Scale(object):
         """
         self._pre_scale = tf.convert_to_tensor(pre_scale)
         self._epsilon = epsilon
+        self._cached_scale = None
+        self._cached_inv_scale = None
+        self._cached_log_scale = None
+        self._cached_neg_log_scale = None
 
     def _scale(self):
         raise NotImplementedError()
@@ -188,23 +192,31 @@ class Scale(object):
 
     def scale(self):
         """Compute `f(pre_scale)`."""
-        with tf.name_scope('scale', values=[self._pre_scale]):
-            return self._scale()
+        if self._cached_scale is None:
+            with tf.name_scope('scale', values=[self._pre_scale]):
+                self._cached_scale = self._scale()
+        return self._cached_scale
 
     def inv_scale(self):
         """Compute `1. / f(pre_scale)`."""
-        with tf.name_scope('inv_scale', values=[self._pre_scale]):
-            return self._inv_scale()
+        if self._cached_inv_scale is None:
+            with tf.name_scope('inv_scale', values=[self._pre_scale]):
+                self._cached_inv_scale = self._inv_scale()
+        return self._cached_inv_scale
 
     def log_scale(self):
         """Compute `log(f(pre_scale))`."""
-        with tf.name_scope('log_scale', values=[self._pre_scale]):
-            return self._log_scale()
+        if self._cached_log_scale is None:
+            with tf.name_scope('log_scale', values=[self._pre_scale]):
+                self._cached_log_scale = self._log_scale()
+        return self._cached_log_scale
 
     def neg_log_scale(self):
         """Compute `-log(f(pre_scale))`."""
-        with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
-            return self._neg_log_scale()
+        if self._cached_neg_log_scale is None:
+            with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
+                self._cached_neg_log_scale = self._neg_log_scale()
+        return self._cached_neg_log_scale
 
     def _mult(self, x):
         """Compute `x * f(pre_scale)`."""

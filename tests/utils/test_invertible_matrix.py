@@ -1,10 +1,12 @@
+import functools
 import itertools
 
 import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.utils import PermutationMatrix
+from tfsnippet.utils import PermutationMatrix, InvertibleMatrix, \
+    ensure_variables_initialized, global_reuse
 
 
 class PermutationMatrixTestCase(tf.test.TestCase):
@@ -105,3 +107,102 @@ class PermutationMatrixTestCase(tf.test.TestCase):
         with pytest.raises(ValueError,
                            match=r'Cannot compute matmul\(input, self\)'):
             p.right_mult(np.random.normal(size=(4, 4)))
+
+
+class InvertibleMatrixTestCase(tf.test.TestCase):
+
+    def test_strict_mode(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
+        tf.set_random_seed(1234)
+        np.random.seed(1234)
+
+        with self.test_session() as sess:
+            shape = (5, 5)
+            m = InvertibleMatrix(shape, strict=True)
+            ensure_variables_initialized()
+
+            # check whether `P` is a permutation matrix
+            P = sess.run(m._P)
+            _ = PermutationMatrix(P)
+
+            # check `L` is a lower triangular matrix and has unit diags
+            pre_L, L = sess.run([m._pre_L, m._L])
+            assert_allclose(
+                pre_L * np.tril(np.ones(shape), k=-1) + np.eye(*shape),
+                L
+            )
+
+            # check `U` is an upper triangular matrix and has `exp(s)` diags
+            pre_U, sign, log_s, U = sess.run(
+                [m._pre_U, m._sign, m._log_s, m._U])
+            assert_allclose(
+                (pre_U * np.triu(np.ones(shape), k=1) +
+                 np.diag(sign * np.exp(log_s))),
+                U
+            )
+
+            # check `matrix`, `inv_matrix` and `log_det`
+            matrix, inv_matrix, log_det = \
+                sess.run([m.matrix, m.inv_matrix, m.log_det])
+            assert_allclose(matrix, np.dot(P, np.dot(L, U)))
+            assert_allclose(inv_matrix, np.linalg.inv(matrix))
+            assert_allclose(log_det, np.sum(log_s))
+
+            # check whether or not `matrix` is orthogonal
+            assert_allclose(np.transpose(matrix), inv_matrix)
+
+    def test_non_strict_mode(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
+        tf.set_random_seed(1234)
+        np.random.seed(1234)
+
+        with self.test_session() as sess:
+            m = InvertibleMatrix(5, strict=False)
+            ensure_variables_initialized()
+
+            # check `matrix`, `inv_matrix` and `log_det`
+            matrix, inv_matrix, log_det = \
+                sess.run([m.matrix, m.inv_matrix, m.log_det])
+            assert_allclose(inv_matrix, np.linalg.inv(matrix))
+            assert_allclose(log_det, np.linalg.slogdet(matrix)[1])
+
+            # check whether or not `matrix` is orthogonal
+            assert_allclose(np.transpose(matrix), inv_matrix)
+
+    def test_errors(self):
+        def check_shape_error(shape):
+            with pytest.raises(ValueError,
+                               match='`size` is not valid for a square matrix'):
+                _ = InvertibleMatrix(shape)
+
+        check_shape_error('')
+        check_shape_error(0)
+        check_shape_error((2, 3))
+        check_shape_error((2, 2, 2))
+
+    def test_reuse(self):
+        @global_reuse
+        def f():
+            m = InvertibleMatrix((5, 5))
+            ensure_variables_initialized()
+            return sess.run(m.matrix), m._random_state.randint(10000)
+
+        @global_reuse
+        def g():
+            m = InvertibleMatrix((5, 5))
+            ensure_variables_initialized()
+            return sess.run(m.matrix), m._random_state.randint(10000)
+
+        tf.set_random_seed(1234)
+        np.random.seed(1234)
+
+        with self.test_session() as sess:
+            m1, i1 = f()
+            m2, i2 = f()
+            m3, i3 = g()
+            np.testing.assert_allclose(m2, m1)
+            self.assertEqual(i2, i1)
+            self.assertGreater(np.max(np.abs(m3 - m1)), 1e-4)
+            self.assertNotEqual(i3, i1)
