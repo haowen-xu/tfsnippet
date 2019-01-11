@@ -5,8 +5,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.utils import PermutationMatrix, InvertibleMatrix, \
-    ensure_variables_initialized, global_reuse
+from tfsnippet.utils import *
 
 
 class PermutationMatrixTestCase(tf.test.TestCase):
@@ -116,6 +115,7 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
         tf.set_random_seed(1234)
         np.random.seed(1234)
+        VarScopeRandomState.set_global_seed(0)
 
         with self.test_session() as sess:
             shape = (5, 5)
@@ -157,6 +157,7 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
         tf.set_random_seed(1234)
         np.random.seed(1234)
+        VarScopeRandomState.set_global_seed(0)
 
         with self.test_session() as sess:
             m = InvertibleMatrix(5, strict=False)

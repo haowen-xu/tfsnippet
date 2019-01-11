@@ -8,8 +8,7 @@ __all__ = ['set_random_seed', 'VarScopeRandomState']
 
 def set_random_seed(seed):
     """
-    Initialize the random modules of Python standard lib, NumPy, TensorFlow
-    and TFSnippet, with a single seed.
+    Generate random seeds for NumPy, TensorFlow and TFSnippet.
 
     Args:
         seed (int): The seed used to generate the separated seeds for
@@ -19,10 +18,13 @@ def set_random_seed(seed):
         return np.random.randint(0xffffffff)
 
     np.random.seed(seed)
-    random.seed(next_seed())
-    tf.set_random_seed(next_seed())
-    VarScopeRandomState.set_global_seed(next_seed())
-    np.random.seed(next_seed())
+    seeds = [next_seed() for _ in range(4)]
+
+    if hasattr(random, 'seed'):
+        random.seed(seeds[0])
+    np.random.seed(seeds[1])
+    tf.set_random_seed(seeds[2])
+    VarScopeRandomState.set_global_seed(seeds[3])
 
 
 class VarScopeRandomState(np.random.RandomState):

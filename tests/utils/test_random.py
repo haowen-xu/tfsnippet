@@ -12,13 +12,11 @@ class SetRandomSeedTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             with self.test_session() as sess:
                 set_random_seed(0)
-                py_x = random.random()
                 np_x = np.random.randn()
                 tf_x = sess.run(tf.random_normal(shape=[], seed=0))
                 vsrs_seed = VarScopeRandomState._global_seed
 
                 set_random_seed(1)
-                self.assertNotEqual(random.random(), py_x)
                 self.assertNotEqual(np.random.randn(), np_x)
                 self.assertNotEqual(
                     sess.run(tf.random_normal(shape=[], seed=0)), tf_x)
@@ -27,7 +25,6 @@ class SetRandomSeedTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             with self.test_session() as sess:
                 set_random_seed(0)
-                self.assertEqual(random.random(), py_x)
                 self.assertEqual(np.random.randn(), np_x)
                 self.assertEqual(
                     sess.run(tf.random_normal(shape=[], seed=0)), tf_x)
@@ -42,6 +39,8 @@ class VarScopeRandomStateTestCase(tf.test.TestCase):
             return state.randint(0, 0xffffffff, size=[100])
 
         with tf.Graph().as_default():
+            VarScopeRandomState.set_global_seed(0)
+
             with tf.variable_scope('a'):
                 a = get_seq()
 
@@ -52,6 +51,8 @@ class VarScopeRandomStateTestCase(tf.test.TestCase):
                 self.assertFalse(np.all(get_seq() == a))
 
         with tf.Graph().as_default():
+            VarScopeRandomState.set_global_seed(0)
+
             with tf.variable_scope('a'):
                 np.testing.assert_equal(get_seq(), a)
 
