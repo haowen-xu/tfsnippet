@@ -3,7 +3,7 @@ from logging import getLogger
 
 import tensorflow as tf
 
-from tfsnippet.reuse import VarScopeObject
+from tfsnippet.shortcuts import VarScopeObject
 from tfsnippet.utils import (makedirs, reopen_variable_scope,
                              get_default_session_or_error)
 

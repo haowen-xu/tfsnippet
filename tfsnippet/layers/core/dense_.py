@@ -62,14 +62,14 @@ def dense(input, units,
         bias_initializer: The initializer for `bias`.
         bias_regularizer: The regularizer for `bias`.
         bias_constraint: The constraint for `bias`.
-        trainable: Whether or not the parameters are trainable?
+        trainable (bool): Whether or not the variables are trainable?
 
     Returns:
         tf.Tensor: The output tensor.
     """
     # get the specification of inputs
     input_spec = InputSpec(shape=('...', '?', '*'))
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     dtype = input.dtype.base_dtype
     input_shape = get_static_shape(input)
     in_units = input_shape[-1]
@@ -87,11 +87,13 @@ def dense(input, units,
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the dense layer
     with tf.variable_scope(scope, default_name=name or 'dense'):

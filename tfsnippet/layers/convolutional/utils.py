@@ -23,7 +23,7 @@ def validate_conv2d_input(input, channels_last):
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         channel_axis = -3
         data_format = 'NCHW'
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     input_shape = get_static_shape(input)
     in_channels = input_shape[channel_axis]
 

@@ -111,11 +111,13 @@ def conv2d(input,
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the conv2d layer
     with tf.variable_scope(scope, default_name=name or 'conv2d'):
@@ -286,11 +288,13 @@ def deconv2d(input,
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the conv2d layer
     with tf.variable_scope(scope, default_name=name or 'deconv2d'):

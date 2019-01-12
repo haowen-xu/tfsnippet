@@ -158,7 +158,7 @@ class PermutationMatrix(object):
             return input[self._row_perm, :]
 
         # slow routine: left multiply to a TensorFlow matrix
-        input = InputSpec(shape=(self.shape[1], '?')).validate(input)
+        input = InputSpec(shape=(self.shape[1], '?')).validate('input', input)
         return tf.gather(input, indices=self._row_perm, axis=0,
                          name=name or 'left_mult')
 
@@ -186,7 +186,7 @@ class PermutationMatrix(object):
             return input[:, self._col_perm]
 
         # slow routine: right multiply to a TensorFlow matrix
-        input = InputSpec(shape=('?', self.shape[0])).validate(input)
+        input = InputSpec(shape=('?', self.shape[0])).validate('input', input)
         return tf.gather(input, indices=self._col_perm, axis=1,
                          name=name or 'right_mult')
 
@@ -236,7 +236,7 @@ class InvertibleMatrix(VarScopeObject):
             strict (bool): If :obj:`True`, will derive the matrix using a
                 variant of PLU decomposition, to enforce invertibility
                 (see above).  If :obj:`False`, the matrix will only be
-                initialized to be an orthogonal, invertible matrix, without
+                initialized to be an orthogonal invertible matrix, without
                 further constraint.  (default :obj:`False`)
             dtype (tf.DType): The data type of the variables.
             epsilon: Small float to avoid dividing by zero or taking
@@ -338,7 +338,7 @@ class InvertibleMatrix(VarScopeObject):
                     'log_s',
                     initializer=tf.constant(initial_log_s, dtype=dtype),
                     dtype=dtype,
-                    trainable=True
+                    trainable=trainable
                 )
 
                 with tf.name_scope('L', values=[pre_L]):

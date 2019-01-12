@@ -47,7 +47,7 @@ def weight_norm(kernel,
         scale_initializer: The initializer for `scale`.
         scale_regularizer: The regularizer for `scale`.
         scale_constraint: The constraint for `scale`.
-        trainable (bool): Whether or not `log_scale` and `scale` are trainable?
+        trainable (bool): Whether or not the variables are trainable?
         epsilon: Small float number to avoid dividing by zero.
     """
     # check the parameters
@@ -65,7 +65,7 @@ def weight_norm(kernel,
     if scale_initializer is None:
         scale_initializer = tf.ones_initializer(dtype=dtype)
     if scale is not None:
-        scale = var_spec.validate(scale)
+        scale = var_spec.validate('scale', scale)
 
     # any dimension not specified in `axis` should be averaged out
     axis = resolve_negative_axis(len(kernel_shape), axis)

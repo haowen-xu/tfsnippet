@@ -350,32 +350,13 @@ class CouplingLayerTestCase(tf.test.TestCase):
             )
 
     def test_errors(self):
-        with pytest.raises(ValueError, match='`axis` out of range, or not '
-                                             'covered by `value_ndims`'):
-            layer = CouplingLayer(
-                (lambda x1, n2: None, None), axis=-2, value_ndims=1)
-            _ = layer.apply(tf.zeros([2, 3]))
-
-        with pytest.raises(ValueError, match='`axis` out of range, or not '
-                                             'covered by `value_ndims`'):
-            layer = CouplingLayer(
-                (lambda x1, n2: None, None), axis=0, value_ndims=1)
-            _ = layer.apply(tf.zeros([2, 3]))
-
-        with pytest.raises(ValueError, match='The feature axis of `input` '
-                                             'is not deterministic'):
-            layer = CouplingLayer(
-                (lambda x1, n2: None, None), axis=-2, value_ndims=2)
-            _ = layer.apply(tf.placeholder(dtype=tf.float32, shape=[None, 3]))
+        def shift_and_scale_fn(x1, n2):
+            return tf.constant(0.), None
 
         with pytest.raises(ValueError, match='The feature axis of `input` must '
                                              'be at least 2'):
-            layer = CouplingLayer(
-                (lambda x1, n2: None, None), axis=-1, value_ndims=1)
+            layer = CouplingLayer(shift_and_scale_fn, axis=-1, value_ndims=1)
             _ = layer.apply(tf.zeros([2, 1]))
-
-        def shift_and_scale_fn(x1, n2):
-            return tf.constant(0.), None
 
         with pytest.raises(RuntimeError, match='`scale_type` != None, but no '
                                                'scale is computed'):

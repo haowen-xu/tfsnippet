@@ -21,7 +21,8 @@ def classification_accuracy(y_pred, y_true, name=None):
         tf.Tensor: The accuracy.
     """
     y_pred = tf.convert_to_tensor(y_pred)
-    y_true = InputSpec(shape=get_static_shape(y_pred)).validate(y_true)
+    y_true = InputSpec(shape=get_static_shape(y_pred)). \
+        validate('y_true', y_true)
     with tf.name_scope(name, default_name='classification_accuracy',
                        values=[y_pred, y_true]):
         return tf.reduce_mean(
@@ -40,7 +41,7 @@ def softmax_classification_output(logits, name=None):
     Returns:
         tf.Tensor: tf.int32 tensor, the class label for each logit.
     """
-    logits = InputSpec(shape=('...', '?', '?')).validate(logits)
+    logits = InputSpec(shape=('...', '?', '?')).validate('logits', logits)
     with tf.name_scope(name, default_name='softmax_classification_output',
                        values=[logits]):
         return tf.argmax(logits, axis=-1, output_type=tf.int32)

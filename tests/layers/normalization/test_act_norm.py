@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from tests.layers.flows.helper import invertible_flow_standard_check
 from tfsnippet.layers import ActNorm
-from tfsnippet.reuse import global_reuse
+from tfsnippet.shortcuts import global_reuse
 
 
 def naive_act_norm_initialize(x, axis):

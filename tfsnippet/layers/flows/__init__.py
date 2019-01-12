@@ -1,12 +1,13 @@
 from .base import *
 from .coupling import *
-from .invertible_map import *
+from .linear import *
 from .planar_nf import *
 from .sequential import *
 from .utils import *
 
 __all__ = [
-    'BaseCouplingLayer', 'BaseFlow', 'CouplingLayer', 'InvertibleConv2d',
-    'MultiLayerFlow', 'PlanarNormalizingFlow', 'SequentialFlow',
+    'BaseCouplingLayer', 'BaseFlow', 'CouplingLayer', 'FeatureMappingFlow',
+    'InvertibleConv2d', 'InvertibleDense', 'MultiLayerFlow',
+    'PlanarNormalizingFlow', 'SequentialFlow',
     'broadcast_log_det_against_input', 'planar_normalizing_flows',
 ]

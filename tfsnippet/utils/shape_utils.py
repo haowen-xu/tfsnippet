@@ -571,7 +571,7 @@ def transpose_conv2d_axis(input, from_channels_last, to_channels_last,
         input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
     else:
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     input_shape = get_static_shape(input)
     sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
 

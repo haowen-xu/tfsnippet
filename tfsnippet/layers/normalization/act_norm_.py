@@ -138,7 +138,7 @@ class ActNorm(BaseFlow):
         self._var_spec = ParamSpec(self._var_shape)
 
         # validate the input
-        self._input_spec.validate(input)
+        self._input_spec.validate('input', input)
 
         # build the variables
         self._bias = tf.get_variable(
@@ -174,7 +174,6 @@ class ActNorm(BaseFlow):
 
     def _transform(self, x, compute_y, compute_log_det, previous_log_det):
         # check the argument
-        x = self._input_spec.validate(x)
         dtype = x.dtype.base_dtype
         shape = get_static_shape(x)
         assert(len(shape) >= self.value_ndims)  # checked in `BaseFlow`
@@ -286,7 +285,6 @@ class ActNorm(BaseFlow):
         assert(self._initialized)
 
         # check the argument
-        y = self._input_spec.validate(y)
         shape = get_static_shape(y)
         assert(len(shape) >= self.value_ndims)  # checked in `BaseFlow`
         assert(-len(shape) <= min(self._axis))
