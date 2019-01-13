@@ -210,10 +210,10 @@ class ScaleTestCase(tf.test.TestCase):
             o = cls(pre_scale, epsilon=1e-6)
             assert_allclose = functools.partial(
                 np.testing.assert_allclose, rtol=1e-5)
-            assert_allclose(sess.run(o.scale), f(pre_scale))
-            assert_allclose(sess.run(o.inv_scale), 1. / f(pre_scale))
-            assert_allclose(sess.run(o.log_scale), np.log(np.abs(f(pre_scale))))
-            assert_allclose(sess.run(o.neg_log_scale),
+            assert_allclose(sess.run(o.scale()), f(pre_scale))
+            assert_allclose(sess.run(o.inv_scale()), 1. / f(pre_scale))
+            assert_allclose(sess.run(o.log_scale()), np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(o.neg_log_scale()),
                             -np.log(np.abs(f(pre_scale))))
             assert_allclose(sess.run(x_tensor * o), x * f(pre_scale))
             assert_allclose(sess.run(x_tensor / o), x / f(pre_scale))

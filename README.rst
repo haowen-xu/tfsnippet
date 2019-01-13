@@ -2,23 +2,23 @@ TFSnippet
 =========
 
 +---------+-----------------+-----------------+---------------+
-| Master  | |master_build|  | |master_cover|  | |master_doc|  |
+| Stable  | |stable_build|  | |stable_cover|  | |stable_doc|  |
 +---------+-----------------+-----------------+---------------+
 | Develop | |develop_build| | |develop_cover| | |develop_doc| |
 +---------+-----------------+-----------------+---------------+
 
-.. |master_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=master
+.. |stable_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=stable
     :target: https://travis-ci.org/haowen-xu/tfsnippet
-.. |master_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=master
-    :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=master
-.. |master_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=latest
-    :target: http://tfsnippet.readthedocs.io/en/latest/?badge=latest
+.. |stable_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=stable
+    :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=stable
+.. |stable_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=stable
+    :target: http://tfsnippet.readthedocs.io/en/stable/
 .. |develop_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=develop
     :target: https://travis-ci.org/haowen-xu/tfsnippet
 .. |develop_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=develop
     :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=develop
-.. |develop_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=develop
-    :target: http://tfsnippet.readthedocs.io/en/develop/?badge=develop
+.. |develop_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=latest
+    :target: http://tfsnippet.readthedocs.io/en/latest/
 
 TFSnippet is a set of utilities for writing and testing TensorFlow models.
 

@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims, add_name_and_scope_arg_doc,
-                             InputSpec, get_static_shape, assert_deps,
-                             validate_positive_int_arg)
-from .base import BaseFlow
+from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims,
+                             add_name_and_scope_arg_doc, assert_deps,
+                             validate_positive_int_arg, get_static_shape)
+from .base import FeatureMappingFlow
 from .sequential import SequentialFlow
 from .utils import assert_log_det_shape_matches_input
 
@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 
-class PlanarNormalizingFlow(BaseFlow):
+class PlanarNormalizingFlow(FeatureMappingFlow):
     """
     A single layer Planar Normalizing Flow (Danilo 2016) with `tanh` activation
     function, as well as the invertible trick.  The `x` and `y` are assumed to
@@ -63,14 +63,15 @@ class PlanarNormalizingFlow(BaseFlow):
         self._u_regularizer = u_regularizer
         self._trainable = bool(trainable)
 
-        super(PlanarNormalizingFlow, self).__init__(value_ndims=1,
-                                                    name=name, scope=scope)
+        super(PlanarNormalizingFlow, self).__init__(
+            axis=-1, value_ndims=1, require_batch_dims=True,
+            name=name, scope=scope
+        )
 
     def _build(self, input=None):
-        input = InputSpec(shape=('...', '?', '*')).validate(input)
+        super(PlanarNormalizingFlow, self)._build(input)
         dtype = input.dtype.base_dtype
-        n_units = get_static_shape(input)[-1]
-        self._input_spec = InputSpec(shape=('...', '?', n_units))
+        n_units = get_static_shape(input)[self.axis]
 
         w = tf.get_variable(
             'w',
@@ -107,7 +108,6 @@ class PlanarNormalizingFlow(BaseFlow):
         return False
 
     def _transform(self, x, compute_y, compute_log_det, previous_log_det):
-        x = self._input_spec.validate(x)
         w, b, u, u_hat = self._w, self._b, self._u, self._u_hat
 
         # flatten x for better performance

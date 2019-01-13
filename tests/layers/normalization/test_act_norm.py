@@ -3,9 +3,10 @@ import pytest
 
 import tensorflow as tf
 
+from tests.helper import assert_variables
 from tests.layers.flows.helper import invertible_flow_standard_check
-from tfsnippet.layers import ActNorm
-from tfsnippet.reuse import global_reuse
+from tfsnippet.layers import ActNorm, act_norm
+from tfsnippet.shortcuts import global_reuse
 
 
 def naive_act_norm_initialize(x, axis):
@@ -56,7 +57,7 @@ class ActNormClassTestCase(tf.test.TestCase):
                            match='Initializing ActNorm requires multiple '
                                  '`x` samples, thus `x` must have at least '
                                  'one more dimension than the variable shape'):
-            act_norm = ActNorm([-3, -1], initializing=True)
+            act_norm = ActNorm([-3, -1])
             _ = act_norm.apply(tf.zeros([2, 3, 4]))
 
     def test_act_norm(self):
@@ -82,7 +83,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='linear', initializing=True)
+                               scale_type='linear')
             y_out, log_det_out = sess.run(
                 act_norm.transform(tf.constant(x, dtype=tf.float64)))
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -115,7 +116,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='exp', initializing=True)
+                               scale_type='exp')
             y_out, log_det_out = sess.run(
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -152,7 +153,7 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='linear', initializing=True)
+                               scale_type='linear')
             y_out, log_det_out = sess.run(
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
@@ -188,7 +189,7 @@ class ActNormClassTestCase(tf.test.TestCase):
         @global_reuse
         def f(x, channels_last=True, initializing=False):
             an = ActNorm(axis=-1 if channels_last else -3, value_ndims=3,
-                         initializing=initializing)
+                         initialized=not initializing)
             return an.transform(x)
 
         x = np.random.normal(size=[2, 3, 4, 5, 6])  # NHWC
@@ -201,3 +202,18 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             np.testing.assert_allclose(log_det2, log_det)
             np.testing.assert_allclose(np.transpose(y2, (0, 1, 3, 4, 2)), y)
+
+    def test_act_norm_vars(self):
+        # test trainable
+        with tf.Graph().as_default():
+            _ = act_norm(tf.zeros([2, 3]), trainable=True, scale_type='linear')
+            assert_variables(['scale', 'bias'], trainable=True,
+                             scope='act_norm')
+            assert_variables(['log_scale'], exist=False,  scope='act_norm')
+
+        # test non-trainable
+        with tf.Graph().as_default():
+            _ = act_norm(tf.zeros([2, 3]), trainable=False, scale_type='exp')
+            assert_variables(['log_scale', 'bias'], trainable=False,
+                             scope='act_norm')
+            assert_variables(['scale'], exist=False,  scope='act_norm')

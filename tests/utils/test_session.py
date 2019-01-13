@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from tfsnippet.reuse import global_reuse
+from tfsnippet.shortcuts import global_reuse
 from tfsnippet.utils import (get_default_session_or_error,
                              get_variables_as_dict,
                              get_uninitialized_variables,

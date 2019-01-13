@@ -3,14 +3,14 @@ __version__ = '0.2.0-alpha.1'
 
 from . import (dataflows, datasets, distributions, layers, ops,
                preprocessing, scaffold, trainer, utils, variational,
-               bayes, reuse, stochastic)
+               bayes, shortcuts, stochastic)
 from .dataflows import *
 from .distributions import *
 from .scaffold import *
 from .trainer import *
 from .variational import *
 from .bayes import *
-from .reuse import *
+from .shortcuts import *
 from .stochastic import *
 
 
@@ -19,15 +19,12 @@ def _exports():
         # export modules
         'dataflows', 'datasets', 'distributions', 'layers', 'ops',
         'preprocessing', 'scaffold', 'trainer', 'utils', 'variational',
-        'bayes', 'reuse', 'stochastic',
-
-        # export classes and functions
-        'DataFlow',
+        'bayes', 'stochastic',
     ]
 
     # recursively export classes and functions
-    for pkg in (distributions, scaffold, trainer, variational, bayes,
-                reuse, stochastic):
+    for pkg in (dataflows, distributions, scaffold, trainer, variational, bayes,
+                shortcuts, stochastic):
         exports += list(pkg.__all__)
 
     # remove `_exports` from root namespace

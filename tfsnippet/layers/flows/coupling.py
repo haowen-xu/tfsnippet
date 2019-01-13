@@ -2,15 +2,15 @@ import tensorflow as tf
 
 from tfsnippet.ops import assert_shape_equal
 from tfsnippet.utils import (add_name_and_scope_arg_doc, get_static_shape,
-                             validate_enum_arg, InputSpec, assert_deps,
+                             validate_enum_arg, assert_deps,
                              get_shape, broadcast_to_shape)
-from .base import BaseFlow
+from .base import FeatureMappingFlow
 from .utils import SigmoidScale, ExpScale, LinearScale
 
 __all__ = ['BaseCouplingLayer', 'CouplingLayer']
 
 
-class BaseCouplingLayer(BaseFlow):
+class BaseCouplingLayer(FeatureMappingFlow):
     """
     The base class of :class:`CouplingLayer`.
 
@@ -49,64 +49,36 @@ class BaseCouplingLayer(BaseFlow):
             epsilon: Small float number to avoid dividing by zero or taking
                 logarithm of zero.
         """
-        self._axis = int(axis)
+        axis = int(axis)
         self._secondary = bool(secondary)
         self._scale_type = validate_enum_arg(
             'scale_type', scale_type, ['exp', 'sigmoid', 'linear', None])
         self._sigmoid_scale_bias = sigmoid_scale_bias
         self._epsilon = epsilon
+        self._n_features = None  # type: int
 
         super(BaseCouplingLayer, self).__init__(
-            value_ndims=value_ndims, name=name, scope=scope)
-
-    def _build(self, input=None):
-        # check the input.
-        input = tf.convert_to_tensor(input)
-        dtype = input.dtype.base_dtype
-        shape = get_static_shape(input)
-
-        # These facts should have been checked in `BaseFlow.build`.
-        assert (shape is not None)
-        assert (len(shape) >= self.value_ndims)
-
-        # validate the feature axis, ensure it is covered by `value_ndims`.
-        axis = self._axis
-        if axis < 0:
-            axis += len(shape)
-        if axis < 0 or axis < len(shape) - self.value_ndims:
-            raise ValueError('`axis` out of range, or not covered by '
-                             '`value_ndims`: axis {}, value_ndims {}, input {}'.
-                             format(self._axis, self.value_ndims, input))
-        if shape[axis] is None:
-            raise ValueError('The feature axis of `input` is not deterministic'
-                             ': input {}, axis {}'.format(input, self._axis))
-        if shape[axis] < 2:
-            raise ValueError('The feature axis of `input` must be at least 2: '
-                             'got {}, input {}, axis {}.'.
-                             format(shape[axis], input, self._axis))
-        self._n_features = shape[axis]
-
-        # store the negative axis, such that new inputs can have more dimensions
-        # than this input.
-        self._axis = axis - len(shape)
-
-        # build the input spec
-        shape_spec = ['...'] + (['?'] * self.value_ndims)
-        shape_spec[self._axis] = self._n_features
-        self._input_spec = InputSpec(shape=shape_spec, dtype=dtype)
-
-        # validate the input
-        self._input_spec.validate(input)
+            axis=axis, value_ndims=value_ndims, name=name, scope=scope)
 
     @property
     def explicitly_invertible(self):
         return True
 
+    def _build(self, input=None):
+        super(BaseCouplingLayer, self)._build(input)
+        n_features = get_static_shape(input)[self.axis]
+        if n_features < 2:
+            raise ValueError('The feature axis of `input` must be at least 2: '
+                             'got {}, input {}, axis {}.'.
+                             format(n_features, input, self.axis))
+        self._n_features = n_features
+
     def _split(self, x):
-        assert(get_static_shape(x)[self._axis] == self._n_features)
-        n1 = self._n_features // 2
-        n2 = self._n_features - n1
-        x1, x2 = tf.split(x, [n1, n2], self._axis)
+        n_features = get_static_shape(x)[self.axis]
+        assert(self._n_features == n_features)
+        n1 = n_features // 2
+        n2 = n_features - n1
+        x1, x2 = tf.split(x, [n1, n2], self.axis)
         if self._secondary:
             return x2, x1, n1
         else:
@@ -117,9 +89,9 @@ class BaseCouplingLayer(BaseFlow):
         n2 = self._n_features - n1
         if self._secondary:
             x1, x2 = x2, x1
-        assert(get_static_shape(x1)[self._axis] == n1)
-        assert(get_static_shape(x2)[self._axis] == n2)
-        return tf.concat([x1, x2], axis=self._axis)
+        assert(get_static_shape(x1)[self.axis] == n1)
+        assert(get_static_shape(x2)[self.axis] == n2)
+        return tf.concat([x1, x2], axis=self.axis)
 
     def _compute_shift_and_scale(self, x1, n2):
         raise NotImplementedError()
@@ -145,7 +117,6 @@ class BaseCouplingLayer(BaseFlow):
         # by `reverse == True/False`.
 
         # check the argument
-        x = self._input_spec.validate(x)
         shape = get_static_shape(x)
         assert (len(shape) >= self.value_ndims)  # checked in `BaseFlow`
 
@@ -197,7 +168,7 @@ class BaseCouplingLayer(BaseFlow):
             assert (self.value_ndims >= 0)  # checked in `_build`
             if scale is not None:
                 log_det = tf.reduce_sum(
-                    scale.neg_log_scale if reverse else scale.log_scale,
+                    scale.neg_log_scale() if reverse else scale.log_scale(),
                     list(range(-self.value_ndims, 0))
                 )
                 if previous_log_det is not None:

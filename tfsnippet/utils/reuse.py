@@ -6,9 +6,10 @@ from contextlib import contextmanager
 import six
 import tensorflow as tf
 
-from tfsnippet.utils import (ContextStack, DocInherit, root_variable_scope,
-                             get_default_scope_name, camel_to_underscore,
-                             is_tensorflow_version_higher_or_equal)
+from .doc_utils import DocInherit
+from .scope import root_variable_scope, get_default_scope_name
+from .misc import ContextStack, camel_to_underscore
+from .tfver import is_tensorflow_version_higher_or_equal
 
 __all__ = [
     'get_reuse_stack_top', 'instance_reuse', 'global_reuse',

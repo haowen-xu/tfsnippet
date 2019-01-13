@@ -89,7 +89,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
         mean = tf.constant([0., 1., 2.], dtype=tf.float64)
         normal = Normal(mean=mean, std=tf.constant(1., dtype=tf.float64))
         flow = QuadraticFlow(2., 5.)
-        flow.build()
+        flow.build(tf.constant(0.))
         distrib = FlowDistribution(normal, flow)
 
         y = tf.constant([1., -1., 2.], dtype=tf.float64)

@@ -1,7 +1,5 @@
 import functools
 
-from .normalization import weight_norm as weight_norm_fn
-
 __all__ = []
 
 
@@ -21,6 +19,7 @@ def validate_weight_norm_arg(weight_norm, axis, use_scale):
         None or (tf.Tensor) -> tf.Tensor: The weight normalization function,
             or None if weight normalization is not enabled.
     """
+    from .normalization import weight_norm as weight_norm_fn
     if callable(weight_norm):
         return weight_norm
     elif weight_norm is True:

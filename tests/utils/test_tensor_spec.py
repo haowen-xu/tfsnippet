@@ -109,12 +109,12 @@ class TensorSpecTestCase(tf.test.TestCase):
     def test_validate(self):
         def good(s, t):
             t = tf.convert_to_tensor(t)
-            self.assertIs(s.validate(t), t)
+            self.assertIs(s.validate('x', t), t)
 
         def bad(s, t, err_class, err_msg):
             t = tf.convert_to_tensor(t)
             with pytest.raises(err_class, match=err_msg):
-                _ = s.validate(t)
+                _ = s.validate('x', t)
 
         bad_dtype = functools.partial(
             bad, err_class=TypeError, err_msg='The dtype of `x` is invalid')

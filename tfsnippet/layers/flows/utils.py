@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              assert_deps, broadcast_to_shape_strict,
-                             maybe_check_numerics, DocInherit, is_tensor_object)
+                             maybe_check_numerics, DocInherit)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -155,19 +155,6 @@ def broadcast_log_det_against_input(log_det, input, value_ndims, name=None):
         return broadcast_to_shape_strict(log_det, shape)
 
 
-def _scale_make_property(name):
-    @property
-    def inner(self):
-        meth = getattr(self, '_' + name)
-        with tf.name_scope(name, values=[self._pre_scale]):
-            return maybe_check_numerics(
-                meth(), message='numeric issues in {}.{}'.format(
-                    self.__class__.__name__, name
-                )
-            )
-    return inner
-
-
 @DocInherit
 class Scale(object):
     """
@@ -186,34 +173,74 @@ class Scale(object):
         """
         self._pre_scale = tf.convert_to_tensor(pre_scale)
         self._epsilon = epsilon
+        self._cached_scale = None
+        self._cached_inv_scale = None
+        self._cached_log_scale = None
+        self._cached_neg_log_scale = None
 
     def _scale(self):
         raise NotImplementedError()
 
     def _inv_scale(self):
-        """Get `scale = 1. / f(pre_scale)`."""
         raise NotImplementedError()
 
     def _log_scale(self):
-        """Get `scale = log(f(pre_scale))`."""
         raise NotImplementedError()
 
     def _neg_log_scale(self):
-        """Get `scale = -log(f(pre_scale))`."""
         raise NotImplementedError()
 
-    scale = _scale_make_property('scale')
-    inv_scale = _scale_make_property('inv_scale')
-    log_scale = _scale_make_property('log_scale')
-    neg_log_scale = _scale_make_property('neg_log_scale')
+    def scale(self):
+        """Compute `f(pre_scale)`."""
+        if self._cached_scale is None:
+            with tf.name_scope('scale', values=[self._pre_scale]):
+                self._cached_scale = maybe_check_numerics(
+                    self._scale(),
+                    message=('numeric issues in {}.scale'.
+                             format(self.__class__.__name__))
+                )
+        return self._cached_scale
+
+    def inv_scale(self):
+        """Compute `1. / f(pre_scale)`."""
+        if self._cached_inv_scale is None:
+            with tf.name_scope('inv_scale', values=[self._pre_scale]):
+                self._cached_inv_scale = maybe_check_numerics(
+                    self._inv_scale(),
+                    message=('numeric issues in {}.inv_scale'.
+                             format(self.__class__.__name__))
+                )
+        return self._cached_inv_scale
+
+    def log_scale(self):
+        """Compute `log(f(pre_scale))`."""
+        if self._cached_log_scale is None:
+            with tf.name_scope('log_scale', values=[self._pre_scale]):
+                self._cached_log_scale = maybe_check_numerics(
+                    self._log_scale(),
+                    message=('numeric issues in {}.log_scale'.
+                             format(self.__class__.__name__))
+                )
+        return self._cached_log_scale
+
+    def neg_log_scale(self):
+        """Compute `-log(f(pre_scale))`."""
+        if self._cached_neg_log_scale is None:
+            with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
+                self._cached_neg_log_scale = maybe_check_numerics(
+                    self._neg_log_scale(),
+                    message=('numeric issues in {}.neg_log_scale'.
+                             format(self.__class__.__name__))
+                )
+        return self._cached_neg_log_scale
 
     def _mult(self, x):
         """Compute `x * f(pre_scale)`."""
-        return x * self.scale
+        return x * self.scale()
 
     def _div(self, x):
         """Compute `x / f(pre_scale)`."""
-        return x * self.inv_scale
+        return x * self.inv_scale()
 
     def __rdiv__(self, other):
         return self._div(tf.convert_to_tensor(other))
@@ -274,4 +301,5 @@ class LinearScale(Scale):
 
     def _div(self, x):
         # TODO: use epsilon to prevent dividing by zero
-        return x / self.scale
+        return maybe_check_numerics(
+            x / self.scale(), message='numeric issues in LinearScale._div')

@@ -234,7 +234,7 @@ def resnet_conv2d_block(input,
     else:
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         c_axis = -3
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     in_channels = get_static_shape(input)[c_axis]
 
     # check the functional arguments
@@ -342,7 +342,7 @@ def resnet_deconv2d_block(input,
     else:
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         c_axis = -3
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     in_channels = get_static_shape(input)[c_axis]
 
     # check the functional arguments

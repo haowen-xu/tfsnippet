@@ -5,6 +5,7 @@ import pytest
 import tensorflow as tf
 from mock import mock
 
+from tests.helper import assert_variables
 from tests.layers.convolutional.helper import *
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import *
@@ -185,30 +186,38 @@ class Conv2dTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             # test NHWC
             _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True)
+            assert_variables(['kernel', 'bias'], trainable=True, scope='conv2d')
+
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
             self.assertEqual(bias_var.shape, bias.shape)
-            self.assertTrue(bias_var.name.endswith('/bias:0'))
 
             # test NCHW
             _ = conv2d(np.transpose(x, [0, 1, -1, -3, -2]), 7, (3, 4),
                        padding='valid', channels_last=False)
+            assert_variables(['kernel', 'bias'], trainable=True,
+                             scope='conv2d_1')
+
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
             self.assertEqual(bias_var.shape, bias.shape)
-            self.assertTrue(bias_var.name.endswith('/bias:0'))
+
+        # test create variables, non-trainable
+        with tf.Graph().as_default():
+            # test NHWC
+            _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True,
+                       trainable=False)
+            assert_variables(['kernel', 'bias'], trainable=False,
+                             scope='conv2d')
 
         # test create variables with use_bias = False
         with tf.Graph().as_default():
             _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True,
                        use_bias=False)
-            kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
-            self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
+            assert_variables(['kernel'], trainable=True, scope='conv2d')
+            assert_variables(['bias'], exist=False, scope='conv2d')
 
     def test_normalization_and_activation(self):
         assert_allclose = functools.partial(
@@ -477,27 +486,36 @@ class Deconv2dTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             # test NHWC
             _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True)
+            assert_variables(['kernel', 'bias'], trainable=True,
+                             scope='deconv2d')
+
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
             self.assertEqual(bias_var.shape, bias.shape)
-            self.assertTrue(bias_var.name.endswith('/bias:0'))
 
             # test NCHW
             _ = deconv2d(np.transpose(x, [0, 1, -1, -3, -2]), 5, (3, 4),
                          padding='valid', channels_last=False)
+            assert_variables(['kernel', 'bias'], trainable=True,
+                             scope='deconv2d_1')
+
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
             self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
             self.assertEqual(bias_var.shape, bias.shape)
-            self.assertTrue(bias_var.name.endswith('/bias:0'))
+
+        # test create variables, non-trainable
+        with tf.Graph().as_default():
+            # test NHWC
+            _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True,
+                         trainable=False)
+            assert_variables(['kernel', 'bias'], trainable=False,
+                             scope='deconv2d')
 
         # test create variables with use_bias = False
         with tf.Graph().as_default():
             _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True,
                          use_bias=False)
-            kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
-            self.assertEqual(kernel_var.shape, kernel.shape)
-            self.assertTrue(kernel_var.name.endswith('/kernel:0'))
+            assert_variables(['kernel'], trainable=True, scope='deconv2d')
+            assert_variables(['bias'], exist=False, scope='deconv2d')
