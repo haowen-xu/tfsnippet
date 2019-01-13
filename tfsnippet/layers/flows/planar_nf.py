@@ -43,7 +43,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
                  name=None,
                  scope=None):
         """
-        Construct a new :class:`PlanarNF`.
+        Construct a new :class:`PlanarNormalizingFlow`.
 
         Args:
             w_initializer: The initializer for parameter `w`.
@@ -166,12 +166,10 @@ def planar_normalizing_flows(
         name=None,
         scope=None):
     """
-    Construct multi-layer Planar Normalizing Flow (Danilo 2016) with `tanh`
-    activation function, as well as the invertible trick.  The `x` and `y`
-    are assumed to be 1-D random variable (i.e., ``value_ndims == 1``)
+    Construct a sequential of :class`PlanarNormalizingFlow`.
 
     Args:
-        n_layers (int): The number of normalizing flow layers. (default 1)
+        n_layers (int): The number of :class`PlanarNormalizingFlow`.
         w_initializer: The initializer for parameter `w`.
         w_regularizer: The regularizer for parameter `w`.
         b_regularizer: The regularizer for parameter `b`.
@@ -182,10 +180,12 @@ def planar_normalizing_flows(
             (default :obj:`True`)
 
     Returns:
-        BaseFlow: The constructed flow.
+        SequentialFlow or PlanarNormalizingFlow: A :class:`SequentialFlow`
+            if `n_layers > 1`, or a :class:`PlanarNormalizingFlow` if
+            `n_layers == 1`.
 
     See Also:
-        :class:`tfsnippet.layers.PlanarNF`.
+        :class:`tfsnippet.layers.PlanarNormalizingFlow`
     """
     n_layers = validate_positive_int_arg('n_layers', n_layers)
     flow_kwargs = {

@@ -21,8 +21,13 @@ class BaseFlow(BaseLayer):
     """
 
     @add_name_and_scope_arg_doc
-    def __init__(self, value_ndims=0, require_batch_dims=False,
-                 name=None, scope=None):
+    def __init__(self,
+                 value_ndims=0,
+                 require_batch_dims=False,
+                 name=None,
+                 scope=None,
+                 **_kwargs  # just to support multi-inheritance
+                 ):
         """
         Construct a new :class:`BaseFlow`.
 
@@ -34,7 +39,7 @@ class BaseFlow(BaseLayer):
                 If :obj:`False`, the `input` tensors are required to have
                 at least `value_ndims` dimensions.
         """
-        super(BaseFlow, self).__init__(name=name, scope=scope)
+        super(BaseFlow, self).__init__(name=name, scope=scope, **_kwargs)
         self._value_ndims = int(value_ndims)
         self._require_batch_dims = bool(require_batch_dims)
 
@@ -246,7 +251,13 @@ class MultiLayerFlow(BaseFlow):
     """Base class for multi-layer normalizing flows."""
 
     @add_name_and_scope_arg_doc
-    def __init__(self, n_layers, value_ndims=0, name=None, scope=None):
+    def __init__(self,
+                 n_layers,
+                 value_ndims=0,
+                 name=None,
+                 scope=None,
+                 **_kwargs  # just to support multi-inheritance
+                 ):
         """
         Construct a new :class:`MultiLayerFlow`.
 
@@ -262,7 +273,7 @@ class MultiLayerFlow(BaseFlow):
         self._layer_params = []
 
         super(MultiLayerFlow, self).__init__(
-            value_ndims=value_ndims, name=name, scope=scope)
+            value_ndims=value_ndims, name=name, scope=scope, **_kwargs)
 
     @property
     def n_layers(self):
@@ -349,7 +360,9 @@ class FeatureMappingFlow(BaseFlow):
                  value_ndims=1,
                  require_batch_dims=False,
                  name=None,
-                 scope=None):
+                 scope=None,
+                 **_kwargs  # just to support multi-inheritance
+                 ):
         """
         Construct a new :class:`FeatureMappingFlow`.
 
@@ -369,8 +382,6 @@ class FeatureMappingFlow(BaseFlow):
             axis = tuple(int(a) for a in axis)
             if not axis:
                 raise ValueError('`axis` must not be empty.')
-
-        value_ndims = int(value_ndims)
         self._axis = axis
 
         super(FeatureMappingFlow, self).__init__(
@@ -378,6 +389,7 @@ class FeatureMappingFlow(BaseFlow):
             require_batch_dims=require_batch_dims,
             name=name,
             scope=scope,
+            **_kwargs
         )
 
     @property
