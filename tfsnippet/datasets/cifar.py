@@ -164,4 +164,3 @@ def load_cifar100(label_mode='fine', channels_last=True, x_shape=None,
     assert(len(test_x) == len(test_y) == 10000)
 
     return (train_x, train_y), (test_x, test_y)
-

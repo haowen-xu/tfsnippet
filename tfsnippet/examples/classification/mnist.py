@@ -3,7 +3,7 @@ import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope
 
-import tfsnippet as sn
+import tfsnippet as spt
 from tfsnippet.examples.utils import (MLConfig,
                                       MLResults,
                                       global_config as config,
@@ -29,15 +29,15 @@ class ExpConfig(MLConfig):
     lr_anneal_step_freq = None
 
 
-@sn.global_reuse
-def model(x, is_training):
-    with arg_scope([sn.layers.dense],
+@spt.global_reuse
+def model(x):
+    with arg_scope([spt.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg)):
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h_x = x
-        h_x = sn.layers.dense(h_x, 500)
-        h_x = sn.layers.dense(h_x, 500)
-    logits = sn.layers.dense(h_x, 10, name='logits')
+        h_x = spt.layers.dense(h_x, 500)
+        h_x = spt.layers.dense(h_x, 500)
+    logits = spt.layers.dense(h_x, 10, name='logits')
     return logits
 
 
@@ -58,18 +58,16 @@ def main(result_dir):
         dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
     input_y = tf.placeholder(
         dtype=tf.int32, shape=[None], name='input_y')
-    is_training = tf.placeholder(
-        dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = sn.AnnealingDynamicValue(config.initial_lr,
+    learning_rate_var = spt.AnnealingDynamicValue(config.initial_lr,
                                                  config.lr_anneal_factor)
 
     # derive the loss, output and accuracy
-    logits = model(input_x, is_training=is_training)
+    logits = model(input_x)
     cls_loss = tf.losses.sparse_softmax_cross_entropy(input_y, logits)
     loss = cls_loss + tf.losses.get_regularization_loss()
-    y = sn.ops.softmax_classification_output(logits)
-    acc = sn.ops.classification_accuracy(y, input_y)
+    y = spt.ops.softmax_classification_output(logits)
+    acc = spt.ops.classification_accuracy(y, input_y)
 
     # derive the optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -81,24 +79,24 @@ def main(result_dir):
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = \
-        sn.datasets.load_mnist(normalize_x=True)
-    train_flow = sn.DataFlow.arrays([x_train, y_train], config.batch_size,
-                                    shuffle=True, skip_incomplete=True)
-    test_flow = sn.DataFlow.arrays([x_test, y_test], config.test_batch_size)
+        spt.datasets.load_mnist(normalize_x=True)
+    train_flow = spt.DataFlow.arrays([x_train, y_train], config.batch_size,
+                                     shuffle=True, skip_incomplete=True)
+    test_flow = spt.DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
-    with sn.utils.create_session().as_default(), \
+    with spt.utils.create_session().as_default(), \
             train_flow.threaded(5) as train_flow:
         # train the network
-        with sn.TrainLoop(params,
-                          max_epoch=config.max_epoch,
-                          max_step=config.max_step,
-                          summary_dir=(results.system_path('train_summary')
-                                       if config.write_summary else None),
-                          summary_graph=tf.get_default_graph(),
-                          early_stopping=False) as loop:
-            trainer = sn.Trainer(
+        with spt.TrainLoop(params,
+                           max_epoch=config.max_epoch,
+                           max_step=config.max_step,
+                           summary_dir=(results.system_path('train_summary')
+                                        if config.write_summary else None),
+                           summary_graph=tf.get_default_graph(),
+                           early_stopping=False) as loop:
+            trainer = spt.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True},
+                feed_dict={learning_rate: learning_rate_var},
                 metrics={'loss': loss, 'acc': acc}
             )
             trainer.anneal_after(
@@ -106,12 +104,11 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = sn.Evaluator(
+            evaluator = spt.Evaluator(
                 loop,
                 metrics={'test_acc': acc},
                 inputs=[input_x, input_y],
                 data_flow=test_flow,
-                feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(

@@ -552,7 +552,7 @@ class TrainLoop(DisposableContext):
                 else:
                     self._is_best_valid_metric = False
                 if self._early_stopping:
-                     self._early_stopping.update(v, self.step)
+                    self._early_stopping.update(v, self.step)
         if self.valid_metric_name:
             if metrics:
                 update_valid_metric(metrics)

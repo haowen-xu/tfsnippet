@@ -193,7 +193,10 @@ class ActNorm(BaseFlow):
             with tf.name_scope('initialization'):
                 x_mean, x_var = tf.nn.moments(x, reduce_axis)
                 x_mean = tf.reshape(x_mean, self._var_shape)
-                x_var = tf.reshape(x_var, self._var_shape)
+                x_var = maybe_check_numerics(
+                    tf.reshape(x_var, self._var_shape),
+                    'numeric issues in computed x_var'
+                )
 
                 bias = self._bias.assign(-x_mean)
                 if self._scale_type == 'exp':
@@ -375,23 +378,23 @@ def act_norm(input,
 
     Examples::
 
-        import tfsnippet as sn
+        import tfsnippet as spt
 
         # apply act_norm on a dense layer
-        x = sn.layers.dense(x, units, activation_fn=tf.nn.relu,
-                            normalizer_fn=functools.partial(
-                                act_norm, initializing=initializing))
+        x = spt.layers.dense(x, units, activation_fn=tf.nn.relu,
+                             normalizer_fn=functools.partial(
+                                 act_norm, initializing=initializing))
 
         # apply act_norm on a conv2d layer
-        x = sn.layers.conv2d(x, out_channels, (3, 3),
-                            channels_last=channels_last,
-                            activation_fn=tf.nn.relu,
-                            normalizer_fn=functools.partial(
-                                act_norm,
-                                axis=-1 if channels_last else -3,
-                                value_ndims=3,
-                                initializing=initializing,
-                            ))
+        x = spt.layers.conv2d(x, out_channels, (3, 3),
+                              channels_last=channels_last,
+                              activation_fn=tf.nn.relu,
+                              normalizer_fn=functools.partial(
+                                  act_norm,
+                                  axis=-1 if channels_last else -3,
+                                  value_ndims=3,
+                                  initializing=initializing,
+                              ))
 
     Args:
         input (tf.Tensor): The input tensor.
