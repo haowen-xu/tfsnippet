@@ -24,7 +24,7 @@ class BaseFlow(BaseLayer):
     def __init__(self, value_ndims=0, require_batch_dims=False,
                  name=None, scope=None):
         """
-        Construct a new :class:`Flow`.
+        Construct a new :class:`BaseFlow`.
 
         Args:
             value_ndims (int): Number of dimensions to be considered as the
@@ -92,8 +92,8 @@ class BaseFlow(BaseLayer):
     def transform(self, x, compute_y=True, compute_log_det=True,
                   previous_log_det=None, name=None):
         """
-        Transform `x` into `y`, and the log-determinant of `f` at `x`, i.e.,
-        :math:`\\log \\det \\frac{\\partial f(x)}{\\partial x}`.
+        Transform `x` into `y`, and compute the log-determinant of `f` at `x`
+        (i.e., :math:`\\log \\det \\frac{\\partial f(x)}{\\partial x}`).
 
         Args:
             x (Tensor): The samples of `x`.
@@ -165,8 +165,9 @@ class BaseFlow(BaseLayer):
     def inverse_transform(self, y, compute_x=True, compute_log_det=True,
                           previous_log_det=None, name=None):
         """
-        Transform `y` into `x`, and the log-determinant of `f^{-1}` at `y`,
-        i.e., :math:`\\log \\det \\frac{\\partial f^{-1}(y)}{\\partial y}`.
+        Transform `y` into `x`, and compute the log-determinant of `f^{-1}` at
+        `y` (i.e.,
+        :math:`\\log \\det \\frac{\\partial f^{-1}(y)}{\\partial y}`).
 
         Args:
             y (Tensor): The samples of `y`.

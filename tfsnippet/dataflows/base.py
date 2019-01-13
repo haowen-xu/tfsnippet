@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['DataFlow']
+__all__ = ['DataFlow', 'ExtraInfoDataFlow']
 
 
 class DataFlow(object):

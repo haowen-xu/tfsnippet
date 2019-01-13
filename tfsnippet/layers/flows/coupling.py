@@ -198,7 +198,7 @@ class BaseCouplingLayer(FeatureMappingFlow):
 
 class CouplingLayer(BaseCouplingLayer):
     """
-    A general implementation of the coupling layer (Dinh et al., 2016)
+    A general implementation of the coupling layer (Dinh et al., 2016).
 
     Basically, a :class:`CouplingLayer` does the following transformation::
 

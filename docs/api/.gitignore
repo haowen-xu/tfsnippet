@@ -3,6 +3,7 @@
 !index.rst
 
 !tfsnippet.rst
+!tfsnippet.dataflows.rst
 !tfsnippet.datasets.rst
 !tfsnippet.layers.rst
 !tfsnippet.ops.rst
