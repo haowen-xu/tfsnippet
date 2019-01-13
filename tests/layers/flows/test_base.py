@@ -217,25 +217,39 @@ class MultiLayerFlowTestCase(tf.test.TestCase):
 class FeatureMappingFlowTestCase(tf.test.TestCase):
 
     def test_property(self):
+        # test axis is integer
         flow = FeatureMappingFlow(axis=1, value_ndims=2)
         flow.build(tf.zeros([2, 3, 4]))
         self.assertEqual(flow.axis, -2)
-        self.assertEqual(flow.n_features, 3)
+
+        # test axis is tuple
+        flow = FeatureMappingFlow(axis=[-1, 1], value_ndims=2)
+        flow.build(tf.zeros([2, 3, 4]))
+        self.assertEqual(flow.axis, (-2, -1))
 
     def test_errors(self):
+        with pytest.raises(ValueError, match='`axis` must not be empty'):
+            _ = FeatureMappingFlow(axis=(), value_ndims=1)
+
         with pytest.raises(ValueError, match='`axis` out of range, or not '
                                              'covered by `value_ndims`'):
             layer = FeatureMappingFlow(axis=-2, value_ndims=1)
             _ = layer.apply(tf.zeros([2, 3]))
 
+        with pytest.raises(ValueError, match='Duplicated elements after '
+                                             'resolving negative `axis` with '
+                                             'respect to the `input`'):
+            layer = FeatureMappingFlow(axis=[1, -1], value_ndims=1)
+            _ = layer.apply(tf.zeros([2, 3]))
+
         with pytest.raises(ValueError, match='`axis` out of range, or not '
                                              'covered by `value_ndims`'):
-            layer = FeatureMappingFlow(axis=0, value_ndims=1)
+            layer = FeatureMappingFlow(axis=-2, value_ndims=1)
             _ = layer.apply(tf.zeros([2, 3]))
 
         with pytest.raises(ValueError, match='The feature axis of `input` '
                                              'is not deterministic'):
-            layer = FeatureMappingFlow(axis=-2, value_ndims=2)
+            layer = FeatureMappingFlow(axis=(-1, -2), value_ndims=2)
             _ = layer.apply(tf.placeholder(dtype=tf.float32, shape=[None, 3]))
 
         with pytest.raises(ValueError, match='The feature axis of `input` '

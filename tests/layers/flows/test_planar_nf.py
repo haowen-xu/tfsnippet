@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from tests.helper import assert_variables
 from tfsnippet.layers import *
 from tfsnippet.utils import get_static_shape, ensure_variables_initialized
 
@@ -76,6 +77,19 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
                                previous_log_det=previous_log_det))
             np.testing.assert_allclose(
                 log_det3, log_det + previous_log_det, rtol=1e-5)
+
+    def test_planar_nf_vars(self):
+        # test trainable
+        with tf.Graph().as_default():
+            _ = PlanarNormalizingFlow().apply(tf.zeros([2, 3]))
+            assert_variables(['w', 'b', 'u'], trainable=True,
+                             scope='planar_normalizing_flow')
+
+        # test non-trainable
+        with tf.Graph().as_default():
+            _ = PlanarNormalizingFlow(trainable=False).apply(tf.zeros([2, 3]))
+            assert_variables(['w', 'b', 'u'], trainable=False,
+                             scope='planar_normalizing_flow')
 
     def test_planar_normalizing_flows(self):
         # test single-layer flow

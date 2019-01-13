@@ -367,6 +367,16 @@ class InvertibleMatrix(VarScopeObject):
                     self._log_det = tf.reduce_sum(log_s)
 
     @property
+    def shape(self):
+        """
+        Get the shape of the matrix.
+
+        Returns:
+            (int, int): The shape of the matrix.
+        """
+        return self._shape
+
+    @property
     def matrix(self):
         """
         Get the matrix tensor.

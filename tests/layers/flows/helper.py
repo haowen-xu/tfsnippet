@@ -83,6 +83,13 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
     np.testing.assert_allclose(
         -log_det_x_out, log_det_y_out, atol=atol, rtol=rtol)
 
+    if flow.value_ndims > 0:
+        log_det_shape = x_out.shape[:-flow.value_ndims]
+    else:
+        log_det_shape = x_out.shape
+    self.assertTupleEqual(log_det_y_out.shape, log_det_shape)
+    self.assertTupleEqual(log_det_x_out.shape, log_det_shape)
+
     # test with previous_log_det
     previous_log_det_y = 10. * np.random.normal(
         size=log_det_y_out.shape).astype(log_det_y_out.dtype)

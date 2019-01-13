@@ -3,8 +3,9 @@ import pytest
 
 import tensorflow as tf
 
+from tests.helper import assert_variables
 from tests.layers.flows.helper import invertible_flow_standard_check
-from tfsnippet.layers import ActNorm
+from tfsnippet.layers import ActNorm, act_norm
 from tfsnippet.shortcuts import global_reuse
 
 
@@ -201,3 +202,18 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             np.testing.assert_allclose(log_det2, log_det)
             np.testing.assert_allclose(np.transpose(y2, (0, 1, 3, 4, 2)), y)
+
+    def test_act_norm_vars(self):
+        # test trainable
+        with tf.Graph().as_default():
+            _ = act_norm(tf.zeros([2, 3]), trainable=True, scale_type='linear')
+            assert_variables(['scale', 'bias'], trainable=True,
+                             scope='act_norm')
+            assert_variables(['log_scale'], exist=False,  scope='act_norm')
+
+        # test non-trainable
+        with tf.Graph().as_default():
+            _ = act_norm(tf.zeros([2, 3]), trainable=False, scale_type='exp')
+            assert_variables(['log_scale', 'bias'], trainable=False,
+                             scope='act_norm')
+            assert_variables(['scale'], exist=False,  scope='act_norm')

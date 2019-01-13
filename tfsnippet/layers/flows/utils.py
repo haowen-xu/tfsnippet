@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              assert_deps, broadcast_to_shape_strict,
-                             maybe_check_numerics, DocInherit, is_tensor_object)
+                             maybe_check_numerics, DocInherit)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -194,28 +194,44 @@ class Scale(object):
         """Compute `f(pre_scale)`."""
         if self._cached_scale is None:
             with tf.name_scope('scale', values=[self._pre_scale]):
-                self._cached_scale = self._scale()
+                self._cached_scale = maybe_check_numerics(
+                    self._scale(),
+                    message=('numeric issues in {}.scale'.
+                             format(self.__class__.__name__))
+                )
         return self._cached_scale
 
     def inv_scale(self):
         """Compute `1. / f(pre_scale)`."""
         if self._cached_inv_scale is None:
             with tf.name_scope('inv_scale', values=[self._pre_scale]):
-                self._cached_inv_scale = self._inv_scale()
+                self._cached_inv_scale = maybe_check_numerics(
+                    self._inv_scale(),
+                    message=('numeric issues in {}.inv_scale'.
+                             format(self.__class__.__name__))
+                )
         return self._cached_inv_scale
 
     def log_scale(self):
         """Compute `log(f(pre_scale))`."""
         if self._cached_log_scale is None:
             with tf.name_scope('log_scale', values=[self._pre_scale]):
-                self._cached_log_scale = self._log_scale()
+                self._cached_log_scale = maybe_check_numerics(
+                    self._log_scale(),
+                    message=('numeric issues in {}.log_scale'.
+                             format(self.__class__.__name__))
+                )
         return self._cached_log_scale
 
     def neg_log_scale(self):
         """Compute `-log(f(pre_scale))`."""
         if self._cached_neg_log_scale is None:
             with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
-                self._cached_neg_log_scale = self._neg_log_scale()
+                self._cached_neg_log_scale = maybe_check_numerics(
+                    self._neg_log_scale(),
+                    message=('numeric issues in {}.neg_log_scale'.
+                             format(self.__class__.__name__))
+                )
         return self._cached_neg_log_scale
 
     def _mult(self, x):
@@ -285,4 +301,5 @@ class LinearScale(Scale):
 
     def _div(self, x):
         # TODO: use epsilon to prevent dividing by zero
-        return x / self.scale()
+        return maybe_check_numerics(
+            x / self.scale(), message='numeric issues in LinearScale._div')

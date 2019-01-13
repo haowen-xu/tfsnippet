@@ -369,7 +369,7 @@ def act_norm(input,
              trainable=True,
              epsilon=1e-6,
              name=None,
-             scope=None):  # pragma: no cover
+             scope=None):
     """
     ActNorm proposed by (Kingma & Dhariwal, 2018).
 

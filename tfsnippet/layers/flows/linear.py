@@ -17,15 +17,14 @@ def apply_log_det_factor(log_det, input, axis, value_ndims):
     assert(len(shape) >= value_ndims)
     assert(value_ndims > 0)
     if axis < 0:
-        assert(len(shape) + axis >= 0)
         axis = axis + len(shape)
-    reduced_axis = [a - len(shape) for a in range(-value_ndims, 0)
-                    if a != axis]
+        assert(axis >= 0)
+    reduced_axis = [a for a in range(-value_ndims, 0) if a + len(shape) != axis]
 
     if reduced_axis:
         shape = get_dimensions_size(input, reduced_axis)
         if is_tensor_object(shape):
-            log_det *= tf.reduce_prod(shape)
+            log_det *= tf.cast(tf.reduce_prod(shape), log_det.dtype)
         else:
             log_det *= np.prod(shape)
 
@@ -77,9 +76,10 @@ class InvertibleDense(FeatureMappingFlow):
     def _build(self, input=None):
         super(InvertibleDense, self)._build(input)
         dtype = input.dtype.base_dtype
+        n_features = get_static_shape(input)[self.axis]
 
         self._kernel_matrix = InvertibleMatrix(
-            size=self.n_features, strict=self._strict_invertible, dtype=dtype,
+            size=n_features, strict=self._strict_invertible, dtype=dtype,
             trainable=self._trainable, random_state=self._random_state,
             scope='kernel'
         )
@@ -88,16 +88,19 @@ class InvertibleDense(FeatureMappingFlow):
         # compute y
         y = None
         if compute_y:
-            y = dense(x, self.n_features,
-                      kernel=self._kernel_matrix.matrix, use_bias=False)
+            n_features = get_static_shape(x)[self.axis]
+            y = dense(x, n_features, kernel=self._kernel_matrix.matrix,
+                      use_bias=False)
 
         # compute log_det
         log_det = None
         if compute_log_det:
             log_det = apply_log_det_factor(
-                self._kernel_matrix.log_det, x, self.value_ndims, self.axis)
+                self._kernel_matrix.log_det, x, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
-                log_det, value_ndims=self.value_ndims - 1)
+                log_det, x, value_ndims=self.value_ndims)
+            if previous_log_det is not None:
+                log_det = previous_log_det + log_det
 
         return y, log_det
 
@@ -106,16 +109,19 @@ class InvertibleDense(FeatureMappingFlow):
         # compute x
         x = None
         if compute_x:
-            x = dense(y, self.n_features,
-                      kernel=self._kernel_matrix.inv_matrix, use_bias=False)
+            n_features = get_static_shape(y)[self.axis]
+            x = dense(y, n_features, kernel=self._kernel_matrix.inv_matrix,
+                      use_bias=False)
 
         # compute log_det
         log_det = None
         if compute_log_det:
             log_det = apply_log_det_factor(
-                -self._kernel_matrix.log_det, y, self.value_ndims, self.axis)
+                -self._kernel_matrix.log_det, y, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
-                log_det, value_ndims=self.value_ndims - 1)
+                log_det, y, value_ndims=self.value_ndims)
+            if previous_log_det is not None:
+                log_det = previous_log_det + log_det
 
         return x, log_det
 
@@ -168,24 +174,25 @@ class InvertibleConv2d(FeatureMappingFlow):
     def _build(self, input=None):
         super(InvertibleConv2d, self)._build(input)
         dtype = input.dtype.base_dtype
+        n_features = get_static_shape(input)[self.axis]
 
         self._kernel_matrix = InvertibleMatrix(
-            size=self.n_features, strict=self._strict_invertible, dtype=dtype,
+            size=n_features, strict=self._strict_invertible, dtype=dtype,
             trainable=self._trainable, random_state=self._random_state,
             scope='kernel'
         )
 
     def _transform(self, x, compute_y, compute_log_det, previous_log_det):
-
         # compute y
         y = None
         if compute_y:
+            n_features = get_static_shape(x)[self.axis]
             kernel = tf.reshape(
                 self._kernel_matrix.matrix,
                 [1, 1] + list(self._kernel_matrix.shape)
             )
             y = conv2d(
-                x, self.n_features, (1, 1), channels_last=self._channels_last,
+                x, n_features, (1, 1), channels_last=self._channels_last,
                 kernel=kernel, use_bias=False
             )
 
@@ -193,9 +200,11 @@ class InvertibleConv2d(FeatureMappingFlow):
         log_det = None
         if compute_log_det:
             log_det = apply_log_det_factor(
-                self._kernel_matrix.log_det, x, self.value_ndims, self.axis)
+                self._kernel_matrix.log_det, x, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
-                log_det, value_ndims=self.value_ndims - 1)
+                log_det, x, value_ndims=self.value_ndims)
+            if previous_log_det is not None:
+                log_det = previous_log_det + log_det
 
         return y, log_det
 
@@ -204,12 +213,13 @@ class InvertibleConv2d(FeatureMappingFlow):
         # compute x
         x = None
         if compute_x:
+            n_features = get_static_shape(y)[self.axis]
             kernel = tf.reshape(
                 self._kernel_matrix.inv_matrix,
                 [1, 1] + list(self._kernel_matrix.shape)
             )
-            y = conv2d(
-                x, self.n_features, (1, 1), channels_last=self._channels_last,
+            x = conv2d(
+                y, n_features, (1, 1), channels_last=self._channels_last,
                 kernel=kernel, use_bias=False
             )
 
@@ -217,8 +227,10 @@ class InvertibleConv2d(FeatureMappingFlow):
         log_det = None
         if compute_log_det:
             log_det = apply_log_det_factor(
-                -self._kernel_matrix.log_det, y, self.value_ndims, self.axis)
+                -self._kernel_matrix.log_det, y, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
-                log_det, value_ndims=self.value_ndims - 1)
+                log_det, y, value_ndims=self.value_ndims)
+            if previous_log_det is not None:
+                log_det = previous_log_det + log_det
 
         return x, log_det

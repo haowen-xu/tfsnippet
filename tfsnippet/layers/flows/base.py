@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
                              get_default_scope_name, assert_deps,
-                             get_static_shape, InputSpec)
+                             get_static_shape, InputSpec, is_integer)
 from ..base import BaseLayer
 
 __all__ = ['BaseFlow', 'MultiLayerFlow', 'FeatureMappingFlow']
@@ -320,11 +320,14 @@ class FeatureMappingFlow(BaseFlow):
     """
     Base class for flows mapping input features to output features.
 
-    In the :class:`FeatureMappingFlow`, the specified `axis` of the input
-    tensors is considered to be the features axis.  The feature axis must be
-    covered by `value_ndims`.  Also, the `input` tensors are required to have
-    at least `value_ndims` dimensions.  If `require_batch_axis` is :obj:`True`,
-    the input tensors must have at least `value_ndims + 1` dimensions.
+    In the :class:`FeatureMappingFlow`, the specified `axis` (may be just a
+    single axis or a list of axes) of the input tensors is/are considered to
+    be the features axis/axes.  The feature axis/axes must be covered by
+    `value_ndims`.
+
+    Also, the `input` tensors are required to have at least `value_ndims`
+    dimensions.  If `require_batch_axis` is :obj:`True`, the input tensors must
+    have at least `value_ndims + 1` dimensions.
 
     This base class performs all the validation in `_build`, and constructs
     the corresponding `_input_spec`.  Derived classes should remember to call
@@ -350,7 +353,8 @@ class FeatureMappingFlow(BaseFlow):
         Construct a new :class:`FeatureMappingFlow`.
 
         Args:
-            axis (int): The feature axis, on which to apply the transformation.
+            axis (int or Iterable[int]): The feature axis/axes, on which to
+                apply the transformation.
             value_ndims (int): Number of dimensions to be considered as the
                 value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
             require_batch_dims (bool): If :obj:`True`, the `input` tensors
@@ -358,9 +362,15 @@ class FeatureMappingFlow(BaseFlow):
                 If :obj:`False`, the `input` tensors are required to have
                 at least `value_ndims` dimensions.
         """
+        if is_integer(axis):
+            axis = int(axis)
+        else:
+            axis = tuple(int(a) for a in axis)
+            if not axis:
+                raise ValueError('`axis` must not be empty.')
+
         value_ndims = int(value_ndims)
-        self._axis = int(axis)
-        self._n_features = None  # type: int
+        self._axis = axis
 
         super(FeatureMappingFlow, self).__init__(
             value_ndims=value_ndims,
@@ -370,22 +380,13 @@ class FeatureMappingFlow(BaseFlow):
         )
 
     @property
-    def n_features(self):
-        """
-        Get the size of the feature axis.
-
-        Returns:
-            int: The size of the feature axis.
-        """
-        return self._n_features
-
-    @property
     def axis(self):
         """
-        Get the feature axis.
+        Get the feature axis/axes.
 
         Returns:
-            int: The feature axis.
+            int or tuple[int]: The feature axis/axes, as is specified
+                in the constructor.
         """
         return self._axis
 
@@ -401,29 +402,50 @@ class FeatureMappingFlow(BaseFlow):
 
         # validate the feature axis, ensure it is covered by `value_ndims`.
         axis = self._axis
-        if axis < 0:
-            axis += len(shape)
-        if axis < 0 or axis < len(shape) - self.value_ndims:
-            raise ValueError('`axis` out of range, or not covered by '
-                             '`value_ndims`: axis {}, value_ndims {}, input {}'.
-                             format(self._axis, self.value_ndims, input))
-        if shape[axis] is None:
-            raise ValueError('The feature axis of `input` is not deterministic'
-                             ': input {}, axis {}'.format(input, self._axis))
+        axis_is_int = is_integer(axis)
+        if axis_is_int:
+            axis = [axis]
+        else:
+            axis = list(axis)
 
-        # store the negative axis, such that new inputs can have more dimensions
-        # than this input.
-        self._axis = axis - len(shape)
+        for i, a in enumerate(axis):
+            if a < 0:
+                a += len(shape)
+            if a < 0 or a < len(shape) - self.value_ndims:
+                raise ValueError('`axis` out of range, or not covered by '
+                                 '`value_ndims`: axis {}, value_ndims {}, '
+                                 'input {}'.
+                                 format(self._axis, self.value_ndims, input))
+            if shape[a] is None:
+                raise ValueError('The feature axis of `input` is not '
+                                 'deterministic: input {}, axis {}'.
+                                 format(input, self._axis))
 
-        # infer the feature numbers
-        self._n_features = shape[axis]
+            # Store the negative axis, such that when new inputs can have more
+            # dimensions than this `input`, the axis can still be correctly
+            # resolved.
+            axis[i] = a - len(shape)
+
+        if axis_is_int:
+            assert(len(axis) == 1)
+            self._axis = axis[0]
+        else:
+            axis_len = len(axis)
+            axis = tuple(sorted(set(axis)))
+            if len(axis) != axis_len:
+                raise ValueError('Duplicated elements after resolving negative '
+                                 '`axis` with respect to the `input`: '
+                                 'input {}, axis {}'.format(input, self._axis))
+            self._axis = tuple(axis)
 
         # build the input spec
         shape_spec = ['?'] * self.value_ndims
         if self._require_batch_dims:
             shape_spec = ['?'] + shape_spec
         shape_spec = ['...'] + shape_spec
-        shape_spec[self._axis] = self._n_features
+
+        for a in axis:
+            shape_spec[a] = shape[a]
 
         self._input_spec = InputSpec(shape=shape_spec, dtype=dtype)
         self._input_spec.validate('input', input)

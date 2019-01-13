@@ -49,12 +49,13 @@ class BaseCouplingLayer(FeatureMappingFlow):
             epsilon: Small float number to avoid dividing by zero or taking
                 logarithm of zero.
         """
-        self._axis = int(axis)
+        axis = int(axis)
         self._secondary = bool(secondary)
         self._scale_type = validate_enum_arg(
             'scale_type', scale_type, ['exp', 'sigmoid', 'linear', None])
         self._sigmoid_scale_bias = sigmoid_scale_bias
         self._epsilon = epsilon
+        self._n_features = None  # type: int
 
         super(BaseCouplingLayer, self).__init__(
             axis=axis, value_ndims=value_ndims, name=name, scope=scope)
@@ -65,17 +66,19 @@ class BaseCouplingLayer(FeatureMappingFlow):
 
     def _build(self, input=None):
         super(BaseCouplingLayer, self)._build(input)
-
-        if self._n_features < 2:
+        n_features = get_static_shape(input)[self.axis]
+        if n_features < 2:
             raise ValueError('The feature axis of `input` must be at least 2: '
                              'got {}, input {}, axis {}.'.
-                             format(self._n_features, input, self._axis))
+                             format(n_features, input, self.axis))
+        self._n_features = n_features
 
     def _split(self, x):
-        assert(get_static_shape(x)[self._axis] == self._n_features)
-        n1 = self._n_features // 2
-        n2 = self._n_features - n1
-        x1, x2 = tf.split(x, [n1, n2], self._axis)
+        n_features = get_static_shape(x)[self.axis]
+        assert(self._n_features == n_features)
+        n1 = n_features // 2
+        n2 = n_features - n1
+        x1, x2 = tf.split(x, [n1, n2], self.axis)
         if self._secondary:
             return x2, x1, n1
         else:
@@ -86,9 +89,9 @@ class BaseCouplingLayer(FeatureMappingFlow):
         n2 = self._n_features - n1
         if self._secondary:
             x1, x2 = x2, x1
-        assert(get_static_shape(x1)[self._axis] == n1)
-        assert(get_static_shape(x2)[self._axis] == n2)
-        return tf.concat([x1, x2], axis=self._axis)
+        assert(get_static_shape(x1)[self.axis] == n1)
+        assert(get_static_shape(x2)[self.axis] == n2)
+        return tf.concat([x1, x2], axis=self.axis)
 
     def _compute_shift_and_scale(self, x1, n2):
         raise NotImplementedError()

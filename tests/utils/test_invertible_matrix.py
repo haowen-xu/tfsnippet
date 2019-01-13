@@ -6,6 +6,7 @@ import pytest
 import tensorflow as tf
 
 from tfsnippet.utils import *
+from tests.helper import assert_variables
 
 
 class PermutationMatrixTestCase(tf.test.TestCase):
@@ -120,6 +121,13 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
         with self.test_session() as sess:
             shape = (5, 5)
             m = InvertibleMatrix(shape, strict=True)
+            self.assertTupleEqual(m.shape, (5, 5))
+            assert_variables(['matrix'], exist=False, scope='invertible_matrix')
+            assert_variables(['pre_L', 'pre_U', 'log_s'], trainable=True,
+                             scope='invertible_matrix')
+            assert_variables(['P', 'sign'], trainable=False,
+                             scope='invertible_matrix')
+
             ensure_variables_initialized()
 
             # check whether `P` is a permutation matrix
@@ -152,6 +160,12 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             # check whether or not `matrix` is orthogonal
             assert_allclose(np.transpose(matrix), inv_matrix)
 
+        with tf.Graph().as_default():
+            # test non-trainable
+            _ = InvertibleMatrix(shape, strict=True, trainable=False)
+            assert_variables(['pre_L', 'pre_U', 'log_s', 'P', 'sign'],
+                             trainable=False, scope='invertible_matrix')
+
     def test_non_strict_mode(self):
         assert_allclose = functools.partial(
             np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
@@ -161,6 +175,11 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
 
         with self.test_session() as sess:
             m = InvertibleMatrix(5, strict=False)
+            self.assertTupleEqual(m.shape, (5, 5))
+            assert_variables(['matrix'], trainable=True,
+                             scope='invertible_matrix')
+            assert_variables(['pre_L', 'pre_U', 'log_s', 'P', 'sign'],
+                             exist=False, scope='invertible_matrix')
             ensure_variables_initialized()
 
             # check `matrix`, `inv_matrix` and `log_det`
@@ -171,6 +190,12 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
 
             # check whether or not `matrix` is orthogonal
             assert_allclose(np.transpose(matrix), inv_matrix)
+
+        with tf.Graph().as_default():
+            # test non-trainable
+            _ = InvertibleMatrix(5, strict=False, trainable=False)
+            assert_variables(['matrix'],
+                             trainable=False, scope='invertible_matrix')
 
     def test_errors(self):
         def check_shape_error(shape):
