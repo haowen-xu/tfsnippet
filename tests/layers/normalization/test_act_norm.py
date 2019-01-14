@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 import pytest
 
@@ -38,11 +40,6 @@ def naive_act_norm_transform(x, var_shape_aligned, value_ndims, scale, bias):
     return y, log_det
 
 
-def assert_allclose(a, b, epsilon=5e-4):
-    assert(a.shape == b.shape)
-    assert(np.max(np.abs(a - b)) <= epsilon)
-
-
 class ActNormClassTestCase(tf.test.TestCase):
 
     def test_error(self):
@@ -61,6 +58,8 @@ class ActNormClassTestCase(tf.test.TestCase):
             _ = act_norm.apply(tf.zeros([2, 3, 4]))
 
     def test_act_norm(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
         np.random.seed(1234)
 
         x = np.random.normal(size=[3, 4, 5, 6, 7])
@@ -111,18 +110,25 @@ class ActNormClassTestCase(tf.test.TestCase):
             assert_allclose(y2_out, y2)
             assert_allclose(log_det2_out, log_det2)
 
+            # invertible flow standard checks
+            invertible_flow_standard_check(self, act_norm, sess, x)
+            invertible_flow_standard_check(
+                self, act_norm, sess, x2_ph, feed_dict={x2_ph: x2})
+            invertible_flow_standard_check(
+                self, act_norm, sess, x3_ph, feed_dict={x3_ph: x3})
+
             # -- dynamic input shape, scale_type = 'exp', value_ndims = 4
             value_ndims = 4
 
             # test initialize
             act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='linear')
+                               scale_type='exp')
             y_out, log_det_out = sess.run(
                 act_norm.transform(x_ph), feed_dict={x_ph: x})
             self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
 
             scale_out, bias_out = sess.run(
-                [act_norm._pre_scale, act_norm._bias])
+                [tf.exp(act_norm._pre_scale), act_norm._bias])
             assert_allclose(scale_out, scale)
             assert_allclose(bias_out, bias)
 
@@ -146,6 +152,10 @@ class ActNormClassTestCase(tf.test.TestCase):
 
             # invertible flow standard checks
             invertible_flow_standard_check(self, act_norm, sess, x)
+            invertible_flow_standard_check(
+                self, act_norm, sess, x2_ph, feed_dict={x2_ph: x2})
+            invertible_flow_standard_check(
+                self, act_norm, sess, x3_ph, feed_dict={x3_ph: x3})
 
     def test_channels_last(self):
         # test reuse variables in ActNorm with different channels_last

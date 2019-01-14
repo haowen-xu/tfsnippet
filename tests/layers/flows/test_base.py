@@ -209,6 +209,18 @@ class FeatureMappingFlowTestCase(tf.test.TestCase):
         with pytest.raises(ValueError, match='`axis` must not be empty'):
             _ = FeatureMappingFlow(axis=(), value_ndims=1)
 
+        with pytest.raises(ValueError, match='Specifying `x_value_ndims` or '
+                                             '`y_value_ndims` for a '
+                                             '`FeatureMappingFlow` is not '
+                                             'allowed'):
+            _ = FeatureMappingFlow(axis=-1, value_ndims=1, x_value_ndims=2)
+
+        with pytest.raises(ValueError, match='Specifying `x_value_ndims` or '
+                                             '`y_value_ndims` for a '
+                                             '`FeatureMappingFlow` is not '
+                                             'allowed'):
+            _ = FeatureMappingFlow(axis=-1, value_ndims=1, y_value_ndims=2)
+
         with pytest.raises(ValueError, match='`axis` out of range, or not '
                                              'covered by `value_ndims`'):
             layer = FeatureMappingFlow(axis=-2, value_ndims=1)

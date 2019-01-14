@@ -128,7 +128,7 @@ class CouplingLayer(FeatureMappingFlow):
             )
         )
         with assert_deps([assert_op]) as asserted:
-            if asserted:
+            if asserted:  # pragma: no cover
                 tensor = tf.identity(tensor)
         return tensor
 
