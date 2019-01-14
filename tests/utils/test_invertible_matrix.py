@@ -191,6 +191,9 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             # check whether or not `matrix` is orthogonal
             assert_allclose(np.transpose(matrix), inv_matrix)
 
+            # ensure m.log_det can compute grad
+            _ = tf.gradients(m.log_det, m.matrix)
+
         with tf.Graph().as_default():
             # test non-trainable
             _ = InvertibleMatrix(5, strict=False, trainable=False)
