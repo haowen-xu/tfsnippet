@@ -47,9 +47,7 @@ def q_net(x, posterior_flow, observed=None, n_z=None):
     # compute the hidden features
     with arg_scope([spt.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
-                   normalizer_fn=spt.layers.act_norm,
-                   weight_norm=True):
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
         h_x = spt.layers.dense(h_x, 500)
         h_x = spt.layers.dense(h_x, 500)
