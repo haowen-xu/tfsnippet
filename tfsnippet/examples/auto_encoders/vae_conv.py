@@ -5,7 +5,7 @@ import click
 import tensorflow as tf
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
-import tfsnippet as sn
+import tfsnippet as spt
 from tfsnippet.examples.utils import (MLConfig,
                                       MultiGPU,
                                       MLResults,
@@ -42,11 +42,11 @@ class ExpConfig(MLConfig):
     test_batch_size = 64
 
 
-@sn.global_reuse
+@spt.global_reuse
 @add_arg_scope
 def q_net(x, observed=None, n_z=None, is_training=True,
           channels_last=False):
-    net = sn.BayesianNet(observed=observed)
+    net = spt.BayesianNet(observed=observed)
 
     # compute the hidden features
     normalizer_fn = None if not config.batch_norm else functools.partial(
@@ -59,64 +59,64 @@ def q_net(x, observed=None, n_z=None, is_training=True,
         training=is_training
     )
 
-    with arg_scope([sn.layers.resnet_conv2d_block],
+    with arg_scope([spt.layers.resnet_conv2d_block],
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
                    dropout_fn=dropout_fn,
-                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg),
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
         h_x = tf.to_float(x)
         h_x = tf.reshape(
             h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
-        h_x = sn.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
-        h_x = sn.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
-        h_x = sn.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
-        h_x = sn.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
-        h_x = sn.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
+        h_x = spt.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
+        h_x = spt.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
+        h_x = spt.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
+        h_x = spt.layers.resnet_conv2d_block(h_x, 64, strides=2)  # output: (64, 7, 7)
+        h_x = spt.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
 
     # sample z ~ q(z|x)
-    h_x = sn.utils.reshape_tail(h_x, ndims=3, shape=[-1])
-    z_mean = sn.layers.dense(h_x, config.z_dim, name='z_mean')
-    z_logstd = sn.layers.dense(h_x, config.z_dim, name='z_logstd')
-    z = net.add('z', sn.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
+    h_x = spt.utils.reshape_tail(h_x, ndims=3, shape=[-1])
+    z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
+    z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
+    z = net.add('z', spt.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
                 group_ndims=1)
 
     return net
 
 
-@sn.global_reuse
+@spt.global_reuse
 @add_arg_scope
 def p_net(observed=None, n_z=None, is_training=True, channels_last=False):
-    net = sn.BayesianNet(observed=observed)
+    net = spt.BayesianNet(observed=observed)
 
     # sample z ~ p(z)
-    z = net.add('z', sn.Normal(mean=tf.zeros([1, config.z_dim]),
-                               logstd=tf.zeros([1, config.z_dim])),
+    z = net.add('z', spt.Normal(mean=tf.zeros([1, config.z_dim]),
+                                logstd=tf.zeros([1, config.z_dim])),
                 group_ndims=1, n_samples=n_z)
 
     # compute the hidden features
-    with arg_scope([sn.layers.resnet_deconv2d_block],
+    with arg_scope([spt.layers.resnet_deconv2d_block],
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=sn.layers.l2_regularizer(config.l2_reg),
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
                    channels_last=channels_last):
-        h_z = sn.layers.dense(z, 64 * 7 * 7)
-        h_z = sn.utils.reshape_tail(
+        h_z = spt.layers.dense(z, 64 * 7 * 7)
+        h_z = spt.utils.reshape_tail(
             h_z, ndims=1, shape=[7, 7, 64] if channels_last else [64, 7, 7])
-        h_z = sn.layers.resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
-        h_z = sn.layers.resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
-        h_z = sn.layers.resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
-        h_z = sn.layers.resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
+        h_z = spt.layers.resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
+        h_z = spt.layers.resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
+        h_z = spt.layers.resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
+        h_z = spt.layers.resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
 
     # sample x ~ p(x|z)
-    h_z = sn.layers.conv2d(
+    h_z = spt.layers.conv2d(
         h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
         channels_last=channels_last)  # output: (1, 28, 28)
-    x_logits = sn.utils.reshape_tail(h_z, 3, [config.x_dim])
-    x = net.add('x', sn.Bernoulli(logits=x_logits), group_ndims=1)
+    x_logits = spt.utils.reshape_tail(h_z, 3, [config.x_dim])
+    x = net.add('x', spt.Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
 
@@ -140,8 +140,8 @@ def main(result_dir):
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
     learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = sn.AnnealingDynamicValue(config.initial_lr,
-                                                 config.lr_anneal_factor)
+    learning_rate_var = spt.AnnealingDynamicValue(config.initial_lr,
+                                                  config.lr_anneal_factor)
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
@@ -149,7 +149,7 @@ def main(result_dir):
     losses = []
     test_nlls = []
     test_lbs = []
-    batch_size = sn.utils.get_batch_size(input_x)
+    batch_size = spt.utils.get_batch_size(input_x)
     params = None
     optimizer = tf.train.AdamOptimizer(learning_rate)
 
@@ -224,24 +224,24 @@ def main(result_dir):
             )
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = sn.datasets.load_mnist()
+    (x_train, y_train), (x_test, y_test) = spt.datasets.load_mnist()
     train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
     test_flow = bernoulli_flow(
         x_test, config.test_batch_size, sample_now=True)
 
-    with sn.utils.create_session().as_default() as session, \
+    with spt.utils.create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
         # train the network
-        with sn.TrainLoop(params,
-                          var_groups=['q_net', 'p_net'],
-                          max_epoch=config.max_epoch,
-                          max_step=config.max_step,
-                          summary_dir=(results.system_path('train_summary')
-                                       if config.write_summary else None),
-                          summary_graph=tf.get_default_graph(),
-                          early_stopping=False) as loop:
-            trainer = sn.Trainer(
+        with spt.TrainLoop(params,
+                           var_groups=['q_net', 'p_net'],
+                           max_epoch=config.max_epoch,
+                           max_step=config.max_step,
+                           summary_dir=(results.system_path('train_summary')
+                                        if config.write_summary else None),
+                           summary_graph=tf.get_default_graph(),
+                           early_stopping=False) as loop:
+            trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
                 feed_dict={learning_rate: learning_rate_var, is_training: True},
                 metrics={'loss': loss}
@@ -251,7 +251,7 @@ def main(result_dir):
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = sn.Evaluator(
+            evaluator = spt.Evaluator(
                 loop,
                 metrics={'test_nll': test_nll, 'test_lb': test_lb},
                 inputs=[input_x],

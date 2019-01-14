@@ -3,7 +3,9 @@ import tensorflow as tf
 from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              assert_deps, broadcast_to_shape_strict,
-                             maybe_check_numerics, DocInherit)
+                             maybe_check_numerics, DocInherit, is_tensor_object,
+                             TensorWrapper, broadcast_to_shape,
+                             register_tensor_wrapper_class)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -31,12 +33,13 @@ def is_log_det_shape_matches_input(log_det, input, value_ndims, name=None):
         bool or tf.Tensor: A boolean or a tensor, indicating whether or not
             the shape of `log_det` matches the shape of `input`.
     """
-    log_det = tf.convert_to_tensor(log_det)
-    input = tf.convert_to_tensor(input)
+    if not is_tensor_object(log_det):
+        log_det = tf.convert_to_tensor(log_det)
+    if not is_tensor_object(input):
+        input = tf.convert_to_tensor(input)
     value_ndims = int(value_ndims)
 
-    with tf.name_scope(name or 'is_log_det_shape_matches_input',
-                       values=[log_det, input]):
+    with tf.name_scope(name or 'is_log_det_shape_matches_input'):
         log_det_shape = get_static_shape(log_det)
         input_shape = get_static_shape(input)
 
@@ -99,12 +102,13 @@ def assert_log_det_shape_matches_input(log_det, input, value_ndims, name=None):
         tf.Operation or None: The assertion operation, or None if the
             assertion can be made statically.
     """
-    log_det = tf.convert_to_tensor(log_det)
-    input = tf.convert_to_tensor(input)
+    if not is_tensor_object(log_det):
+        log_det = tf.convert_to_tensor(log_det)
+    if not is_tensor_object(input):
+        input = tf.convert_to_tensor(input)
     value_ndims = int(value_ndims)
 
-    with tf.name_scope(name or 'assert_log_det_shape_matches_input',
-                       values=[log_det, input]):
+    with tf.name_scope(name or 'assert_log_det_shape_matches_input'):
         cmp_result = is_log_det_shape_matches_input(log_det, input, value_ndims)
         error_message = (
             'The shape of `log_det` does not match the shape of '
@@ -303,3 +307,57 @@ class LinearScale(Scale):
         # TODO: use epsilon to prevent dividing by zero
         return maybe_check_numerics(
             x / self.scale(), message='numeric issues in LinearScale._div')
+
+
+class ZeroLogDet(TensorWrapper):
+    """
+    A special object to represent a zero log-determinant.
+
+    Using this class instead of constructing a `tf.Tensor` via `tf.zeros`
+    may help to reduce the introduced operations and the execution time cost.
+    """
+
+    def __init__(self, shape, dtype):
+        """
+        Construct a new :class:`ZeroLogDet`.
+
+        Args:
+            shape (tuple[int] or Tensor): The shape of the log-det.
+            dtype (tf.DType): The data type.
+        """
+        if not is_tensor_object(shape):
+            shape = tuple(int(v) for v in shape)
+        self._self_shape = shape
+        self._self_dtype = tf.as_dtype(dtype)
+        self._self_tensor = None
+
+    def __repr__(self):
+        return 'ZeroLogDet({},{})'.format(self._self_shape, self.dtype.name)
+
+    @property
+    def dtype(self):
+        """Get the data type of the log-det."""
+        return self._self_dtype
+
+    @property
+    def log_det_shape(self):
+        """Get the shape of the log-det."""
+        return self._self_shape
+
+    @property
+    def tensor(self):
+        if self._self_tensor is None:
+            self._self_tensor = tf.zeros(self.log_det_shape, dtype=self.dtype)
+        return self._self_tensor
+
+    def __neg__(self):
+        return self
+
+    def __add__(self, other):
+        return broadcast_to_shape(other, self.log_det_shape)
+
+    def __sub__(self, other):
+        return -broadcast_to_shape(other, self.log_det_shape)
+
+
+register_tensor_wrapper_class(ZeroLogDet)

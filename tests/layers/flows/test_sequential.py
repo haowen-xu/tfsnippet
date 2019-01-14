@@ -19,15 +19,15 @@ class SequentialFlowTestCase(tf.test.TestCase):
 
         with pytest.raises(
                 TypeError, match='The 0-th flow in `flows` is not an instance '
-                                 'of `Flow`: 123'):
+                                 'of `BaseFlow`: 123'):
             _ = SequentialFlow([123])
 
         with pytest.raises(
-                TypeError, match='`value_ndims` of the 1-th flow in `flows` '
-                                 'does not agree with the first flow: 2 vs 1'):
+                TypeError, match='`x_value_ndims` of the 1-th flow != '
+                                 '`y_value_ndims` of the 0-th flow: 2 vs 3'):
             _ = SequentialFlow([
-                _Flow(value_ndims=1),
-                _Flow(value_ndims=2),
+                _Flow(x_value_ndims=1, y_value_ndims=3),
+                _Flow(x_value_ndims=2),
             ])
 
     def test_sequential_with_quadratic_flows(self):
@@ -44,36 +44,19 @@ class SequentialFlowTestCase(tf.test.TestCase):
             self.assertEqual(flow2.flows[i].b, i * 2. + 1.)
 
         x = tf.range(12, dtype=tf.float32) + 1.
-        previous_log_det = 10. * np.random.normal(size=x.shape)
 
         with self.test_session() as sess:
             invertible_flow_standard_check(self, flow2, sess, x)
 
-            # transform, without previous_log_det
+            # transform
             y1, log_det_y1 = flow1.transform(x)
             y2, log_det_y2 = flow2.transform(x)
             np.testing.assert_allclose(*sess.run([y1, y2]))
             np.testing.assert_allclose(*sess.run([log_det_y1, log_det_y2]))
 
-            # transform, with previous_log_det
-            y1, log_det_y1 = flow1.transform(
-                x, previous_log_det=previous_log_det)
-            y2, log_det_y2 = flow2.transform(
-                x, previous_log_det=previous_log_det)
-            np.testing.assert_allclose(*sess.run([y1, y2]))
-            np.testing.assert_allclose(*sess.run([log_det_y1, log_det_y2]))
-
-            # inverse transform, without previous_log_det
+            # inverse transform
             x1, log_det_x1 = flow1.inverse_transform(y1)
             x2, log_det_x2 = flow1.inverse_transform(y2)
-            np.testing.assert_allclose(*sess.run([x1, x2]))
-            np.testing.assert_allclose(*sess.run([log_det_x1, log_det_x2]))
-
-            # inverse transform, with previous_log_det
-            x1, log_det_x1 = flow1.inverse_transform(
-                y1, previous_log_det=previous_log_det)
-            x2, log_det_x2 = flow1.inverse_transform(
-                y2, previous_log_det=previous_log_det)
             np.testing.assert_allclose(*sess.run([x1, x2]))
             np.testing.assert_allclose(*sess.run([log_det_x1, log_det_x2]))
 
@@ -84,7 +67,15 @@ class SequentialFlowTestCase(tf.test.TestCase):
                 return False
 
         flow = SequentialFlow([
+            _Flow(x_value_ndims=1, y_value_ndims=2),
+            _Flow(x_value_ndims=2, y_value_ndims=3),
+        ])
+        self.assertFalse(flow.explicitly_invertible)
+        self.assertEqual(flow.x_value_ndims, 1)
+        self.assertEqual(flow.y_value_ndims, 3)
+
+        flow = SequentialFlow([
             QuadraticFlow(2., 3.),
-            _Flow(),
+            _Flow(x_value_ndims=0),
         ])
         self.assertFalse(flow.explicitly_invertible)

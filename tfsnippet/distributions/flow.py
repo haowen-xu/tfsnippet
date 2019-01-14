@@ -11,7 +11,8 @@ __all__ = ['FlowDistribution']
 
 class FlowDistribution(Distribution):
     """
-    Transform a :class:`Distribution` by a :class:`Flow`, as a new distribution.
+    Transform a :class:`Distribution` by a :class:`BaseFlow`, as a new
+    distribution.
     """
 
     def __init__(self, distribution, flow):
@@ -24,7 +25,7 @@ class FlowDistribution(Distribution):
             flow (BaseFlow): A normalizing flow to transform the `distribution`.
         """
         if not isinstance(flow, BaseFlow):
-            raise TypeError('`flow` is not an instance of `Flow`: {!r}'.
+            raise TypeError('`flow` is not an instance of `BaseFlow`: {!r}'.
                             format(flow))
         distribution = as_distribution(distribution)
         if not distribution.is_continuous:

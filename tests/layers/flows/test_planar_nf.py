@@ -70,14 +70,6 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
             np.testing.assert_allclose(y2, y, rtol=1e-5)
             np.testing.assert_allclose(log_det2, log_det, rtol=1e-5)
 
-            # check `previous_log_det` is not None
-            previous_log_det = 10. * np.random.normal(size=log_det.shape)
-            _, log_det3 = sess.run(
-                flow.transform(tf.constant(x, dtype=tf.float64),
-                               previous_log_det=previous_log_det))
-            np.testing.assert_allclose(
-                log_det3, log_det + previous_log_det, rtol=1e-5)
-
     def test_planar_nf_vars(self):
         # test trainable
         with tf.Graph().as_default():

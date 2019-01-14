@@ -1,5 +1,7 @@
 from .base import DataFlow
 
+__all__ = ['GatherFlow']
+
 
 class GatherFlow(DataFlow):
     """

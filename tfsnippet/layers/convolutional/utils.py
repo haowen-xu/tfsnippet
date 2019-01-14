@@ -93,4 +93,3 @@ def get_deconv_output_length(input_length, kernel_size, strides, padding):
     if padding == 'VALID':
         output_length += max(kernel_size - strides, 0)
     return output_length
-

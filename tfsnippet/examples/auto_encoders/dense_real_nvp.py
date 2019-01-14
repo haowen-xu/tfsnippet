@@ -20,7 +20,8 @@ class ExpConfig(MLConfig):
     # model parameters
     z_dim = 40
     x_dim = 784
-    nf_layers = 20
+    n_flows = 10
+    n_flow_hidden_layers = 1
 
     # training parameters
     write_summary = False
@@ -85,6 +86,23 @@ def p_net(observed=None, n_z=None):
     return net
 
 
+def coupling_layer_shift_and_scale(x1, n2):
+    # compute the hidden features
+    with arg_scope([spt.layers.dense],
+                   activation_fn=tf.nn.leaky_relu,
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
+        h = x1
+        for _ in range(config.n_flow_hidden_layers):
+            h = spt.layers.dense(h, 500)
+
+    # compute shift and scale
+    shift = spt.layers.dense(h, n2, kernel_initializer=tf.zeros_initializer(),
+                             name='shift',)
+    scale = spt.layers.dense(h, n2, kernel_initializer=tf.zeros_initializer(),
+                             name='scale')
+    return shift, scale
+
+
 @click.command()
 @click.option('--result-dir', help='The result directory.', metavar='PATH',
               required=False, type=str)
@@ -106,8 +124,28 @@ def main(result_dir):
                                                   config.lr_anneal_factor)
 
     # build the posterior flow
-    posterior_flow = spt.layers.planar_normalizing_flows(
-        config.nf_layers, name='posterior_flow')
+    with tf.variable_scope('posterior_flow'):
+        flows = []
+        for i in range(config.n_flows):
+            flows.append(spt.layers.ActNorm())
+            flows.append(spt.layers.CouplingLayer(
+                tf.make_template(
+                    'coupling',
+                    coupling_layer_shift_and_scale,
+                    create_scope_now_=True
+                ),
+                scale_type='exp'
+            ))
+            flows.append(spt.layers.InvertibleDense())
+        posterior_flow = spt.layers.SequentialFlow(flows=flows)
+
+    # derive the initialization op
+    with tf.name_scope('initialization'), \
+            arg_scope([spt.layers.act_norm], initializing=True):
+        init_q_net = q_net(input_x, posterior_flow)
+        init_chain = init_q_net.chain(
+            p_net, latent_axis=0, observed={'x': input_x})
+        init_loss = tf.reduce_mean(init_chain.vi.training.sgvb())
 
     # derive the loss and lower-bound for training
     with tf.name_scope('training'):
@@ -159,6 +197,14 @@ def main(result_dir):
 
     with spt.utils.create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
+        # initialize the network
+        spt.utils.ensure_variables_initialized()
+        for [batch_x] in train_flow:
+            print('Network initialization loss: {:.6g}'.
+                  format(session.run(init_loss, {input_x: batch_x})))
+            print('')
+            break
+
         # train the network
         with spt.TrainLoop(params,
                            var_groups=['p_net', 'q_net', 'posterior_flow'],

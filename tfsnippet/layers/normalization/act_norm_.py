@@ -6,15 +6,14 @@ from tfsnippet.layers.flows.utils import (broadcast_log_det_against_input,
                                           ExpScale, LinearScale)
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              get_static_shape, maybe_check_numerics,
-                             validate_int_tuple_arg, resolve_negative_axis,
-                             get_dimensions_size, validate_enum_arg)
-from ..flows import BaseFlow
-
+                             validate_int_tuple_arg, get_dimensions_size,
+                             validate_enum_arg)
+from ..flows import FeatureMappingFlow
 
 __all__ = ['ActNorm', 'act_norm']
 
 
-class ActNorm(BaseFlow):
+class ActNorm(FeatureMappingFlow):
     """
     ActNorm proposed by (Kingma & Dhariwal, 2018).
 
@@ -53,8 +52,9 @@ class ActNorm(BaseFlow):
                 Dimensions not in `axis` will be averaged out when computing
                 the mean of activations. Default `-1`, the last dimension.
                 All items of the `axis` should be covered by `value_ndims`.
-            value_ndims (int): Number of dimensions to be considered as the
-                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
+            value_ndims (int): Number of value dimensions in both `x` and `y`.
+                `x.ndims - value_ndims == log_det.ndims` and
+                `y.ndims - value_ndims == log_det.ndims`.
             initialized (bool): Whether or not the variables have been
                 initialized?  If :obj:`False`, the first input `x` in the
                 forward pass will be used to initialize the variables.
@@ -76,10 +76,7 @@ class ActNorm(BaseFlow):
             epsilon: Small float to avoid dividing by zero or taking
                 logarithm of zero.
         """
-        self._axis = validate_int_tuple_arg('axis', axis)
-        if not self._axis:
-            raise ValueError('`axis` must not be empty: got {!r}'.
-                             format(self._axis))
+        axis = validate_int_tuple_arg('axis', axis)
         self._scale_type = validate_enum_arg(
             'scale_type', scale_type, ['exp', 'linear'])
         self._initialized = bool(initialized)
@@ -92,8 +89,8 @@ class ActNorm(BaseFlow):
         self._trainable = bool(trainable)
         self._epsilon = epsilon
 
-        super(ActNorm, self).__init__(
-            value_ndims=value_ndims, name=name, scope=scope)
+        super(ActNorm, self).__init__(axis=axis, value_ndims=value_ndims,
+                                      name=name, scope=scope)
 
     def _build(self, input=None):
         # check the input.
@@ -105,24 +102,18 @@ class ActNorm(BaseFlow):
         assert(shape is not None)
         assert(len(shape) >= self.value_ndims)
 
-        # compute the negative indices of `axis`, and store it in `self._axis`.
-        # this allows new inputs to have more dimensions than this `input`.
-        axis = resolve_negative_axis(len(shape), self._axis)
-        axis = tuple(sorted(set(axis)))
-        min_axis = axis[0]
-        assert(not not axis)  # already checked in constructor
-        self._axis = tuple(a - len(shape) for a in axis)
-
         # compute var spec and input spec
+        min_axis = min(self.axis)
         shape_spec = [None] * len(shape)
-        for a in axis:
+        for a in self.axis:
             shape_spec[a] = shape[a]
         shape_spec = shape_spec[min_axis:]
         assert(not not shape_spec)
+        assert(self.value_ndims >= len(shape_spec))
 
-        self._input_spec = InputSpec(
+        self._y_input_spec = self._x_input_spec = InputSpec(
             shape=(('...',) +
-                   ('?',) * max(0, self._value_ndims - len(shape_spec)) +
+                   ('?',) * (self.value_ndims - len(shape_spec)) +
                    tuple(shape_spec)),
             dtype=dtype
         )
@@ -138,7 +129,7 @@ class ActNorm(BaseFlow):
         self._var_spec = ParamSpec(self._var_shape)
 
         # validate the input
-        self._input_spec.validate('input', input)
+        self._x_input_spec.validate('input', input)
 
         # build the variables
         self._bias = tf.get_variable(
@@ -172,14 +163,13 @@ class ActNorm(BaseFlow):
     def explicitly_invertible(self):
         return True
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         # check the argument
         dtype = x.dtype.base_dtype
         shape = get_static_shape(x)
-        assert(len(shape) >= self.value_ndims)  # checked in `BaseFlow`
-        assert(-len(shape) <= min(self._axis))
+        assert(-len(shape) <= -self.value_ndims <= min(self.axis))
         reduce_axis = tuple(sorted(
-            set(range(-len(shape), 0)).difference(self._axis)))
+            set(range(-len(shape), 0)).difference(self.axis)))
 
         # prepare for the parameters
         if not self._initialized:
@@ -193,7 +183,10 @@ class ActNorm(BaseFlow):
             with tf.name_scope('initialization'):
                 x_mean, x_var = tf.nn.moments(x, reduce_axis)
                 x_mean = tf.reshape(x_mean, self._var_shape)
-                x_var = tf.reshape(x_var, self._var_shape)
+                x_var = maybe_check_numerics(
+                    tf.reshape(x_var, self._var_shape),
+                    'numeric issues in computed x_var'
+                )
 
                 bias = self._bias.assign(-x_mean)
                 if self._scale_type == 'exp':
@@ -271,14 +264,9 @@ class ActNorm(BaseFlow):
                     log_det = tf.reduce_sum(
                         log_det, axis=list(range(-reduce_ndims2, 0)))
 
-                # merge with previous log det if specified
-                if previous_log_det is not None:
-                    log_det = previous_log_det + log_det
-
         return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         # `BaseFlow` ensures `build` is called before `inverse_transform`.
         # In `ActNorm`, `build` can only be called by `apply` or `transform`.
         # Thus it should always have been initialized.
@@ -286,10 +274,9 @@ class ActNorm(BaseFlow):
 
         # check the argument
         shape = get_static_shape(y)
-        assert(len(shape) >= self.value_ndims)  # checked in `BaseFlow`
-        assert(-len(shape) <= min(self._axis))
+        assert (-len(shape) <= -self.value_ndims <= min(self.axis))
         reduce_axis = tuple(sorted(
-            set(range(-len(shape), 0)).difference(self._axis)))
+            set(range(-len(shape), 0)).difference(self.axis)))
 
         # align the shape of variables, and create the scale object
         bias = tf.reshape(self._bias, self._var_shape_aligned)
@@ -346,10 +333,6 @@ class ActNorm(BaseFlow):
                     log_det = tf.reduce_sum(
                         log_det, axis=list(range(-reduce_ndims2, 0)))
 
-                # merge with previous log det if specified
-                if previous_log_det is not None:
-                    log_det = previous_log_det + log_det
-
         return x, log_det
 
 
@@ -375,23 +358,23 @@ def act_norm(input,
 
     Examples::
 
-        import tfsnippet as sn
+        import tfsnippet as spt
 
         # apply act_norm on a dense layer
-        x = sn.layers.dense(x, units, activation_fn=tf.nn.relu,
-                            normalizer_fn=functools.partial(
-                                act_norm, initializing=initializing))
+        x = spt.layers.dense(x, units, activation_fn=tf.nn.relu,
+                             normalizer_fn=functools.partial(
+                                 act_norm, initializing=initializing))
 
         # apply act_norm on a conv2d layer
-        x = sn.layers.conv2d(x, out_channels, (3, 3),
-                            channels_last=channels_last,
-                            activation_fn=tf.nn.relu,
-                            normalizer_fn=functools.partial(
-                                act_norm,
-                                axis=-1 if channels_last else -3,
-                                value_ndims=3,
-                                initializing=initializing,
-                            ))
+        x = spt.layers.conv2d(x, out_channels, (3, 3),
+                              channels_last=channels_last,
+                              activation_fn=tf.nn.relu,
+                              normalizer_fn=functools.partial(
+                                  act_norm,
+                                  axis=-1 if channels_last else -3,
+                                  value_ndims=3,
+                                  initializing=initializing,
+                              ))
 
     Args:
         input (tf.Tensor): The input tensor.

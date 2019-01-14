@@ -43,7 +43,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
                  name=None,
                  scope=None):
         """
-        Construct a new :class:`PlanarNF`.
+        Construct a new :class:`PlanarNormalizingFlow`.
 
         Args:
             w_initializer: The initializer for parameter `w`.
@@ -69,7 +69,6 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
         )
 
     def _build(self, input=None):
-        super(PlanarNormalizingFlow, self)._build(input)
         dtype = input.dtype.base_dtype
         n_units = get_static_shape(input)[self.axis]
 
@@ -107,7 +106,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
     def explicitly_invertible(self):
         return False
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         w, b, u, u_hat = self._w, self._b, self._u, self._u_hat
 
         # flatten x for better performance
@@ -131,25 +130,11 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
             log_det = tf.log(tf.abs(det_jac))  # shape == [?, 1]
             log_det = unflatten_from_ndims(tf.squeeze(log_det, -1), s1, s2)
 
-            with assert_deps([
-                        assert_log_det_shape_matches_input(
-                            log_det=log_det,
-                            input=x,
-                            value_ndims=self.value_ndims
-                        )
-                    ]) as asserted:
-                if asserted:  # pragma: no cover
-                    log_det = tf.identity(log_det)
-
-            if previous_log_det is not None:
-                log_det = previous_log_det + log_det
-
         # now returns the transformed sample and log-determinant
         return y, log_det
 
     # provide this method to avoid abstract class warning
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         raise RuntimeError('Should never be called.')  # pragma: no cover
 
 
@@ -166,12 +151,10 @@ def planar_normalizing_flows(
         name=None,
         scope=None):
     """
-    Construct multi-layer Planar Normalizing Flow (Danilo 2016) with `tanh`
-    activation function, as well as the invertible trick.  The `x` and `y`
-    are assumed to be 1-D random variable (i.e., ``value_ndims == 1``)
+    Construct a sequential of :class`PlanarNormalizingFlow`.
 
     Args:
-        n_layers (int): The number of normalizing flow layers. (default 1)
+        n_layers (int): The number of :class`PlanarNormalizingFlow`.
         w_initializer: The initializer for parameter `w`.
         w_regularizer: The regularizer for parameter `w`.
         b_regularizer: The regularizer for parameter `b`.
@@ -182,10 +165,12 @@ def planar_normalizing_flows(
             (default :obj:`True`)
 
     Returns:
-        BaseFlow: The constructed flow.
+        SequentialFlow or PlanarNormalizingFlow: A :class:`SequentialFlow`
+            if `n_layers > 1`, or a :class:`PlanarNormalizingFlow` if
+            `n_layers == 1`.
 
     See Also:
-        :class:`tfsnippet.layers.PlanarNF`.
+        :class:`tfsnippet.layers.PlanarNormalizingFlow`
     """
     n_layers = validate_positive_int_arg('n_layers', n_layers)
     flow_kwargs = {

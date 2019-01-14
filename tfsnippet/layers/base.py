@@ -24,7 +24,11 @@ class BaseLayer(VarScopeObject):
     _build_require_input = False  #: whether or not `build` requires input
 
     @add_name_and_scope_arg_doc
-    def __init__(self, name=None, scope=None):
+    def __init__(self,
+                 name=None,
+                 scope=None,
+                 **_kwargs  # just to support multi-inheritance
+                 ):
         """
         Construct a new :class:`BaseLayer`.
         """

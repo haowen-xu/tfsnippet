@@ -12,8 +12,8 @@ class FlowDistributionTestCase(tf.test.TestCase):
 
     def test_errors(self):
         normal = Normal(mean=0., std=1.)
-        with pytest.raises(TypeError,
-                           match='`flow` is not an instance of `Flow`: 123'):
+        with pytest.raises(TypeError, match='`flow` is not an instance of '
+                                            '`BaseFlow`: 123'):
             _ = FlowDistribution(normal, 123)
 
         flow = QuadraticFlow(2., 5.)
@@ -89,7 +89,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
         mean = tf.constant([0., 1., 2.], dtype=tf.float64)
         normal = Normal(mean=mean, std=tf.constant(1., dtype=tf.float64))
         flow = QuadraticFlow(2., 5.)
-        flow.build(tf.constant(0.))
+        flow.build(tf.constant(0., dtype=tf.float64))
         distrib = FlowDistribution(normal, flow)
 
         y = tf.constant([1., -1., 2.], dtype=tf.float64)

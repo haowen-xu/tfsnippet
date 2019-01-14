@@ -2,11 +2,13 @@ import numpy as np
 import tensorflow as tf
 from scipy import linalg as la
 
+from .debugging import maybe_check_numerics
 from .doc_utils import add_name_arg_doc, add_name_and_scope_arg_doc
 from .random import VarScopeRandomState
 from .reuse import VarScopeObject
 from .scope import reopen_variable_scope
 from .tensor_spec import InputSpec
+from .tfver import is_tensorflow_version_higher_or_equal
 from .type_utils import is_integer
 
 __all__ = ['PermutationMatrix', 'InvertibleMatrix']
@@ -291,8 +293,25 @@ class InvertibleMatrix(VarScopeObject):
                 self._inv_matrix = tf.matrix_inverse(
                     self._matrix, name='inv_matrix')
 
-                self._log_det = tf.linalg.slogdet(
-                    self._matrix, name='log_det')[1]
+                if is_tensorflow_version_higher_or_equal('1.10.0'):
+                    self._log_det = tf.linalg.slogdet(
+                        self._matrix, name='log_det')[1]
+                else:
+                    # low versions of TensorFlow does not have a gradient op
+                    # for `slogdet`, thus we have to derive it as follows:
+                    with tf.name_scope('log_det', values=[self._matrix]):
+                        m = self._matrix
+                        if dtype != tf.float64:
+                            m = tf.cast(m, dtype=tf.float64)
+                        self._log_det = tf.log(
+                            tf.maximum(tf.abs(tf.matrix_determinant(m)),
+                                       epsilon)
+                        )
+                        if self._log_det.dtype != dtype:
+                            self._log_det = tf.cast(self._log_det, dtype=dtype)
+
+                self._log_det = maybe_check_numerics(
+                    self._log_det, message='numeric issues in log_det')
 
             else:
                 initial_P, initial_L, initial_U = la.lu(initial_matrix)
