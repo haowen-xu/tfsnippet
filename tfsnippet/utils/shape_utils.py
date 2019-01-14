@@ -205,7 +205,6 @@ def get_rank(tensor, name=None):
     Returns:
         int or tf.Tensor: The rank.
     """
-    tensor = tf.convert_to_tensor(tensor)
     tensor_shape = get_static_shape(tensor)
     if tensor_shape is not None:
         return len(tensor_shape)

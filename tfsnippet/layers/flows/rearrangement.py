@@ -2,8 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.utils import (add_name_and_scope_arg_doc, VarScopeRandomState,
-                             get_static_shape, get_shape, broadcast_to_shape)
+                             get_static_shape, get_shape)
 from .base import FeatureMappingFlow
+from .utils import ZeroLogDet
 
 __all__ = ['FeatureShufflingFlow']
 
@@ -50,8 +51,6 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         return True
 
     def _build(self, input=None):
-        super(FeatureShufflingFlow, self)._build(input)
-
         n_features = self._n_features = get_static_shape(input)[self.axis]
         permutation = np.arange(n_features, dtype=np.int32)
         self._random_state.shuffle(permutation)
@@ -63,7 +62,7 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         self._inv_permutation = tf.invert_permutation(self._permutation)
 
     def _transform_or_inverse_transform(self, x, compute_y, compute_log_det,
-                                        previous_log_det, permutation):
+                                        permutation):
         assert (0 > self.axis >= -self.value_ndims >= -len(get_static_shape(x)))
         assert (get_static_shape(x)[self.axis] == self._n_features)
 
@@ -75,21 +74,15 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         # compute log_det
         log_det = None
         if compute_log_det:
-            dst_shape = get_shape(x)[:-self.value_ndims]
-            if previous_log_det is not None:
-                log_det = broadcast_to_shape(previous_log_det, dst_shape)
-            else:
-                log_det = tf.zeros(dst_shape, dtype=x.dtype.base_dtype)
+            log_det = ZeroLogDet(get_shape(x)[:-self.value_ndims],
+                                 x.dtype.base_dtype)
 
         return y, log_det
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         return self._transform_or_inverse_transform(
-            x, compute_y, compute_log_det, previous_log_det, self._permutation)
+            x, compute_y, compute_log_det, self._permutation)
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         return self._transform_or_inverse_transform(
-            y, compute_x, compute_log_det, previous_log_det,
-            self._inv_permutation
-        )
+            y, compute_x, compute_log_det, self._inv_permutation)

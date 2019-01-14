@@ -7,9 +7,8 @@ import tensorflow as tf
 from tfsnippet.layers.flows.utils import (is_log_det_shape_matches_input,
                                           assert_log_det_shape_matches_input,
                                           broadcast_log_det_against_input,
-                                          SigmoidScale,
-                                          ExpScale,
-                                          LinearScale)
+                                          SigmoidScale, ExpScale, LinearScale,
+                                          ZeroLogDet)
 
 
 class IsLogDetShapeMatchesInputTestCase(tf.test.TestCase):
@@ -226,3 +225,60 @@ class ScaleTestCase(tf.test.TestCase):
                   x, pre_scale)
             check(np.exp, ExpScale, x, pre_scale)
             check((lambda x: x), LinearScale, x, pre_scale)
+
+
+class ZeroLogDetTestCase(tf.test.TestCase):
+
+    def test_zero_tensor(self):
+        with self.test_session() as sess:
+            # test static shape
+            shape = [2, 3, 4]
+            t = ZeroLogDet(shape, tf.float64)
+            x = tf.random_normal(shape=shape[-2:], dtype=tf.float64)
+            z = tf.zeros(shape, dtype=tf.float64)
+
+            self.assertEqual(repr(t), 'ZeroLogDet((2, 3, 4),float64)')
+            self.assertEqual(t.dtype, tf.float64)
+            self.assertEqual(t.log_det_shape, tuple(shape))
+
+            self.assertIs(-t, t)
+            np.testing.assert_equal(*sess.run([t + x, z + x]))
+            np.testing.assert_equal(*sess.run([t - x, z - x]))
+
+            self.assertIsNone(t._self_tensor)
+
+            np.testing.assert_equal(*sess.run([t, z]))
+            np.testing.assert_equal(*sess.run([x + t, x + z]))
+            np.testing.assert_equal(*sess.run([x - t, x - z]))
+            self.assertIsNotNone(t.tensor)
+            self.assertIs(t.tensor, t.tensor)
+
+            # test dynamic shape
+            shape_ph = tf.placeholder(dtype=tf.int32, shape=None)
+            t = ZeroLogDet(shape_ph, tf.float64)
+            x = tf.random_normal(shape=shape[-2:], dtype=tf.float64)
+            z = tf.zeros(shape, dtype=tf.float64)
+
+            self.assertEqual(t.dtype, tf.float64)
+            self.assertIsInstance(t.log_det_shape, tf.Tensor)
+            np.testing.assert_equal(
+                sess.run(t.log_det_shape, feed_dict={shape_ph: shape}),
+                shape
+            )
+
+            self.assertIs(-t, t)
+            np.testing.assert_equal(
+                *sess.run([t + x, z + x], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([t - x, z - x], feed_dict={shape_ph: shape}))
+
+            self.assertIsNone(t._self_tensor)
+
+            np.testing.assert_equal(
+                *sess.run([t, z], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([x + t, x + z], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([x - t, x - z], feed_dict={shape_ph: shape}))
+            self.assertIsNotNone(t.tensor)
+            self.assertIs(t.tensor, t.tensor)

@@ -11,7 +11,7 @@ from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims,
                              transpose_conv2d_channels_x_to_last)
 
 
-def naive_coupling_layer(shift_and_scale_fn, x, previous_log_det=None,
+def naive_coupling_layer(shift_and_scale_fn, x,
                          axis=-1, value_ndims=1, secondary=False,
                          scale_type='linear', sigmoid_scale_bias=2.,
                          reverse=False):
@@ -74,8 +74,6 @@ def naive_coupling_layer(shift_and_scale_fn, x, previous_log_det=None,
 
     y = np.concatenate([y1, y2], axis=axis)
     log_det = np.sum(log_det, axis=tuple(range(-value_ndims, 0)))
-    if previous_log_det is not None:
-        log_det = previous_log_det + log_det
 
     return y, log_det
 
@@ -113,14 +111,14 @@ class CouplingLayerTestCase(tf.test.TestCase):
             return a, b
 
         with self.test_session() as sess:
-            # test linear scale, primary, without previous_log_det
+            # test linear scale, primary
             x = np.random.normal(size=[3, 4, 5]).astype(np.float32)
             x_ph = tf.placeholder(dtype=tf.float32, shape=[None, None, 5])
 
             axis = -1
             value_ndims = 1
             y_ans, log_det_ans = naive_coupling_layer(
-                shift_and_scale_numpy_fn, x, None, axis=axis,
+                shift_and_scale_numpy_fn, x, axis=axis,
                 value_ndims=value_ndims, secondary=False, scale_type='linear',
                 reverse=False
             )
@@ -138,15 +136,11 @@ class CouplingLayerTestCase(tf.test.TestCase):
             invertible_flow_standard_check(
                 self, layer, sess, x_ph, feed_dict={x_ph: x})
 
-            # test exp scale, primary, with previous_log_det
-            previous_log_det = np.random.normal(size=[2, 3])
-            previous_log_det_ph = tf.placeholder(
-                dtype=tf.float32, shape=[None, None])
-
+            # test exp scale, primary
             axis = -1
             value_ndims = 2
             y_ans, log_det_ans = naive_coupling_layer(
-                shift_and_scale_numpy_fn, x, previous_log_det, axis=axis,
+                shift_and_scale_numpy_fn, x, axis=axis,
                 value_ndims=value_ndims, secondary=False, scale_type='exp',
                 reverse=False
             )
@@ -155,11 +149,8 @@ class CouplingLayerTestCase(tf.test.TestCase):
                 shift_and_scale_fn, axis=axis, value_ndims=value_ndims,
                 secondary=False, scale_type='exp'
             )
-            y, log_det = layer.transform(
-                x_ph, previous_log_det=previous_log_det_ph)
-            y_out, log_det_out = sess.run(
-                [y, log_det], feed_dict={
-                    x_ph: x, previous_log_det_ph: previous_log_det})
+            y, log_det = layer.transform(x_ph)
+            y_out, log_det_out = sess.run([y, log_det], feed_dict={x_ph: x})
 
             assert_allclose(y_out, y_ans)
             assert_allclose(log_det_out, log_det_ans)
@@ -167,15 +158,13 @@ class CouplingLayerTestCase(tf.test.TestCase):
             invertible_flow_standard_check(
                 self, layer, sess, x_ph, feed_dict={x_ph: x})
 
-            # test sigmoid scale, secondary, with previous_log_det
+            # test sigmoid scale, secondary
             sigmoid_scale_bias = np.exp(1)
-            previous_log_det = np.random.normal(size=[4])
-            previous_log_det_ph = tf.placeholder(dtype=tf.float32, shape=[None])
 
             axis = -1
             value_ndims = 1
             y_ans, log_det_ans = naive_coupling_layer(
-                shift_and_scale_numpy_fn, x, previous_log_det, axis=axis,
+                shift_and_scale_numpy_fn, x, axis=axis,
                 value_ndims=value_ndims, secondary=False, scale_type='sigmoid',
                 sigmoid_scale_bias=sigmoid_scale_bias, reverse=False
             )
@@ -185,11 +174,8 @@ class CouplingLayerTestCase(tf.test.TestCase):
                 secondary=False, scale_type='sigmoid',
                 sigmoid_scale_bias=sigmoid_scale_bias
             )
-            y, log_det = layer.transform(
-                x_ph, previous_log_det=previous_log_det_ph)
-            y_out, log_det_out = sess.run(
-                [y, log_det], feed_dict={
-                    x_ph: x, previous_log_det_ph: previous_log_det})
+            y, log_det = layer.transform(x_ph)
+            y_out, log_det_out = sess.run([y, log_det], feed_dict={x_ph: x})
 
             assert_allclose(y_out, y_ans)
             assert_allclose(log_det_out, log_det_ans)
@@ -197,12 +183,12 @@ class CouplingLayerTestCase(tf.test.TestCase):
             invertible_flow_standard_check(
                 self, layer, sess, x_ph, feed_dict={x_ph: x})
 
-            # test None scale, primary, without previous_log_det
+            # test None scale, primary
             axis = -1
             value_ndims = 1
             y_ans, log_det_ans = naive_coupling_layer(
                 functools.partial(shift_and_scale_numpy_fn, no_scale=True),
-                x, None, axis=axis,
+                x, axis=axis,
                 value_ndims=value_ndims, secondary=False, scale_type=None,
                 reverse=False
             )
@@ -221,15 +207,12 @@ class CouplingLayerTestCase(tf.test.TestCase):
             invertible_flow_standard_check(
                 self, layer, sess, x_ph, feed_dict={x_ph: x})
 
-            # test None scale, secondary, with previous_log_det
-            previous_log_det = np.random.normal(size=[2])
-            previous_log_det_ph = tf.placeholder(dtype=tf.float32, shape=[None])
-
+            # test None scale, secondary
             axis = -1
             value_ndims = 3
             y_ans, log_det_ans = naive_coupling_layer(
                 functools.partial(shift_and_scale_numpy_fn, no_scale=True),
-                x, previous_log_det, axis=axis,
+                x, axis=axis,
                 value_ndims=value_ndims, secondary=True, scale_type=None,
                 reverse=False
             )
@@ -239,11 +222,8 @@ class CouplingLayerTestCase(tf.test.TestCase):
                 axis=axis, value_ndims=value_ndims,
                 secondary=True, scale_type=None
             )
-            y, log_det = layer.transform(
-                x_ph, previous_log_det=previous_log_det_ph)
-            y_out, log_det_out = sess.run(
-                [y, log_det], feed_dict={
-                    x_ph: x, previous_log_det_ph: previous_log_det})
+            y, log_det = layer.transform(x_ph)
+            y_out, log_det_out = sess.run([y, log_det], feed_dict={x_ph: x})
 
             assert_allclose(y_out, y_ans)
             assert_allclose(log_det_out, log_det_ans)
@@ -290,7 +270,7 @@ class CouplingLayerTestCase(tf.test.TestCase):
             return a, b
 
         with self.test_session() as sess:
-            # test exp scale, primary, without previous_log_det, NHWC
+            # test exp scale, primary, NHWC
             x = np.random.normal(size=[11, 13, 32, 31, 11]).astype(np.float32)
             x_ph = tf.placeholder(dtype=tf.float32,
                                   shape=[None, None, None, None, 11])
@@ -298,7 +278,7 @@ class CouplingLayerTestCase(tf.test.TestCase):
             axis = -1
             value_ndims = 3
             y_ans, log_det_ans = naive_coupling_layer(
-                shift_and_scale_numpy_fn, x, None, axis=axis,
+                shift_and_scale_numpy_fn, x, axis=axis,
                 value_ndims=value_ndims, secondary=False, scale_type='exp',
                 reverse=False
             )
@@ -318,7 +298,7 @@ class CouplingLayerTestCase(tf.test.TestCase):
                 atol=1e-5
             )
 
-            # test sigmoid scale, secondary, with previous_log_det, NCHW
+            # test sigmoid scale, secondary, NCHW
             x = np.transpose(x, [0, 1, 4, 2, 3])
             x_ph = tf.placeholder(dtype=tf.float32,
                                   shape=[None, None, 11, None, None])
@@ -328,7 +308,7 @@ class CouplingLayerTestCase(tf.test.TestCase):
             y_ans, log_det_ans = naive_coupling_layer(
                 functools.partial(shift_and_scale_numpy_fn,
                                   channels_last=False),
-                x, None, axis=axis,
+                x, axis=axis,
                 value_ndims=value_ndims, secondary=True, scale_type='sigmoid',
                 reverse=False
             )

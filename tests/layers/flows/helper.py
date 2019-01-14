@@ -35,7 +35,7 @@ def quadratic_inverse_transform(ops, y, a, b):
 class QuadraticFlow(BaseFlow):
 
     def __init__(self, a, b):
-        super(QuadraticFlow, self).__init__()
+        super(QuadraticFlow, self).__init__(x_value_ndims=0)
         self.a = a
         self.b = b
 
@@ -46,25 +46,20 @@ class QuadraticFlow(BaseFlow):
     def explicitly_invertible(self):
         return True
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         y, log_det = quadratic_transform(tfops, x, self.a, self.b)
         if not compute_y:
             y = None
         if not compute_log_det:
             log_det = None
-        elif previous_log_det is not None:
-            log_det = previous_log_det + log_det
         return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         x, log_det = quadratic_inverse_transform(tfops, y, self.a, self.b)
         if not compute_x:
             x = None
         if not compute_log_det:
             log_det = None
-        elif previous_log_det is not None:
-            log_det = previous_log_det + log_det
         return x, log_det
 
 
@@ -82,34 +77,14 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
     np.testing.assert_allclose(x2_out, x_out, atol=atol, rtol=rtol)
     np.testing.assert_allclose(
         -log_det_x_out, log_det_y_out, atol=atol, rtol=rtol)
+    self.assertEqual(np.size(x_out), np.size(y_out))
 
-    if flow.value_ndims > 0:
-        log_det_shape = x_out.shape[:-flow.value_ndims]
-    else:
-        log_det_shape = x_out.shape
-    self.assertTupleEqual(log_det_y_out.shape, log_det_shape)
-    self.assertTupleEqual(log_det_x_out.shape, log_det_shape)
-
-    # test with previous_log_det
-    previous_log_det_y = 10. * np.random.normal(
-        size=log_det_y_out.shape).astype(log_det_y_out.dtype)
-    previous_log_det_x = 10. * np.random.normal(
-        size=log_det_x_out.shape).astype(log_det_x_out.dtype)
-
-    np.testing.assert_allclose(
-        session.run(
-            flow.transform(x, previous_log_det=previous_log_det_y)[1],
-            feed_dict=feed_dict
-        ),
-        log_det_y_out + previous_log_det_y,
-        atol=atol, rtol=rtol
-    )
-
-    np.testing.assert_allclose(
-        session.run(
-            flow.inverse_transform(y, previous_log_det=previous_log_det_x)[1],
-            feed_dict=feed_dict
-        ),
-        log_det_x_out + previous_log_det_x,
-        atol=atol, rtol=rtol
-    )
+    x_batch_shape = x_out.shape
+    y_batch_shape = y_out.shape
+    if flow.x_value_ndims > 0:
+        x_batch_shape = x_batch_shape[:-flow.x_value_ndims]
+    if flow.y_value_ndims > 0:
+        y_batch_shape = y_batch_shape[:-flow.y_value_ndims]
+    self.assertTupleEqual(log_det_y_out.shape, x_batch_shape)
+    self.assertTupleEqual(log_det_x_out.shape, y_batch_shape)
+    self.assertTupleEqual(log_det_y_out.shape, log_det_x_out.shape)

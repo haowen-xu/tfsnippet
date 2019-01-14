@@ -107,7 +107,7 @@ class BayesianNetTestCase(tf.test.TestCase):
         with pytest.raises(TypeError,
                            match='The observed variable \'x\' expects `flow` '
                                  'to be explicitly invertible, but it is not'):
-            _ = net.add('x', normal, flow=_Flow())
+            _ = net.add('x', normal, flow=_Flow(x_value_ndims=0))
 
         # test add observed with flow
         x = net.add('x', normal, flow=flow)

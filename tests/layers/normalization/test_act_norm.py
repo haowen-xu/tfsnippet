@@ -57,7 +57,7 @@ class ActNormClassTestCase(tf.test.TestCase):
                            match='Initializing ActNorm requires multiple '
                                  '`x` samples, thus `x` must have at least '
                                  'one more dimension than the variable shape'):
-            act_norm = ActNorm([-3, -1])
+            act_norm = ActNorm(axis=[-3, -1], value_ndims=3)
             _ = act_norm.apply(tf.zeros([2, 3, 4]))
 
     def test_act_norm(self):
@@ -72,9 +72,9 @@ class ActNormClassTestCase(tf.test.TestCase):
         x3_ph = tf.placeholder(dtype=tf.float64, shape=[None, 5, None, 7])
 
         with self.test_session() as sess:
-            # -- static input shape, scale_type = 'linear', value_ndims = 0
+            # -- static input shape, scale_type = 'linear', value_ndims = 3
             axis = [-1, -3]
-            value_ndims = 0
+            value_ndims = 3
             var_shape = (5, 7)
 
             scale, bias, var_shape_aligned = naive_act_norm_initialize(x, axis)
@@ -97,39 +97,6 @@ class ActNormClassTestCase(tf.test.TestCase):
             y, log_det = naive_act_norm_transform(
                 x, var_shape_aligned, value_ndims, scale, bias)
             self.assertEqual(y.shape, x.shape)
-            self.assertEqual(log_det.shape, x.shape)
-            assert_allclose(y_out, y)
-            assert_allclose(log_det_out, log_det)
-
-            # test use an initialized act_norm
-            y2, log_det2 = naive_act_norm_transform(
-                x2, var_shape_aligned, value_ndims, scale, bias)
-            self.assertEqual(y2.shape, x2.shape)
-            self.assertEqual(log_det2.shape, x2.shape)
-            y2_out, log_det2_out = sess.run(
-                act_norm.transform(tf.constant(x2, dtype=tf.float64)))
-            assert_allclose(y2_out, y2)
-            assert_allclose(log_det2_out, log_det2)
-
-            # -- dynamic input shape, scale_type = 'exp', value_ndims = 2
-            value_ndims = 2
-
-            # test initialize
-            act_norm = ActNorm(axis=axis, value_ndims=value_ndims,
-                               scale_type='exp')
-            y_out, log_det_out = sess.run(
-                act_norm.transform(x_ph), feed_dict={x_ph: x})
-            self.assertEqual(act_norm._bias.dtype.base_dtype, tf.float64)
-
-            scale_out, bias_out = sess.run(
-                [tf.exp(act_norm._pre_scale), act_norm._bias])
-            assert_allclose(scale_out, scale)
-            assert_allclose(bias_out, bias)
-
-            # test the transform output from the initializing procedure
-            y, log_det = naive_act_norm_transform(
-                x, var_shape_aligned, value_ndims, scale, bias)
-            self.assertEqual(y.shape, x.shape)
             self.assertEqual(log_det.shape, x.shape[:-value_ndims])
             assert_allclose(y_out, y)
             assert_allclose(log_det_out, log_det)
@@ -144,11 +111,7 @@ class ActNormClassTestCase(tf.test.TestCase):
             assert_allclose(y2_out, y2)
             assert_allclose(log_det2_out, log_det2)
 
-            # invertible flow standard checks
-            invertible_flow_standard_check(
-                self, act_norm, sess, x_ph, feed_dict={x_ph: x})
-
-            # -- dynamic input shape, scale_type = 'linear', value_ndims = 4
+            # -- dynamic input shape, scale_type = 'exp', value_ndims = 4
             value_ndims = 4
 
             # test initialize

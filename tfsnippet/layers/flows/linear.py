@@ -74,7 +74,6 @@ class InvertibleDense(FeatureMappingFlow):
         return True
 
     def _build(self, input=None):
-        super(InvertibleDense, self)._build(input)
         dtype = input.dtype.base_dtype
         n_features = get_static_shape(input)[self.axis]
 
@@ -84,7 +83,7 @@ class InvertibleDense(FeatureMappingFlow):
             scope='kernel'
         )
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         # compute y
         y = None
         if compute_y:
@@ -99,13 +98,10 @@ class InvertibleDense(FeatureMappingFlow):
                 self._kernel_matrix.log_det, x, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
                 log_det, x, value_ndims=self.value_ndims)
-            if previous_log_det is not None:
-                log_det = previous_log_det + log_det
 
         return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         # compute x
         x = None
         if compute_x:
@@ -120,8 +116,6 @@ class InvertibleDense(FeatureMappingFlow):
                 -self._kernel_matrix.log_det, y, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
                 log_det, y, value_ndims=self.value_ndims)
-            if previous_log_det is not None:
-                log_det = previous_log_det + log_det
 
         return x, log_det
 
@@ -172,7 +166,6 @@ class InvertibleConv2d(FeatureMappingFlow):
         return True
 
     def _build(self, input=None):
-        super(InvertibleConv2d, self)._build(input)
         dtype = input.dtype.base_dtype
         n_features = get_static_shape(input)[self.axis]
 
@@ -182,7 +175,7 @@ class InvertibleConv2d(FeatureMappingFlow):
             scope='kernel'
         )
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         # compute y
         y = None
         if compute_y:
@@ -203,13 +196,10 @@ class InvertibleConv2d(FeatureMappingFlow):
                 self._kernel_matrix.log_det, x, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
                 log_det, x, value_ndims=self.value_ndims)
-            if previous_log_det is not None:
-                log_det = previous_log_det + log_det
 
         return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         # compute x
         x = None
         if compute_x:
@@ -230,7 +220,5 @@ class InvertibleConv2d(FeatureMappingFlow):
                 -self._kernel_matrix.log_det, y, self.axis, self.value_ndims)
             log_det = broadcast_log_det_against_input(
                 log_det, y, value_ndims=self.value_ndims)
-            if previous_log_det is not None:
-                log_det = previous_log_det + log_det
 
         return x, log_det

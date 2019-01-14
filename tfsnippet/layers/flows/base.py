@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from tfsnippet.ops import assert_rank_at_least
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
-                             get_default_scope_name, assert_deps,
-                             get_static_shape, InputSpec, is_integer)
+                             get_default_scope_name, get_static_shape,
+                             InputSpec, is_integer, assert_deps)
 from ..base import BaseLayer
+from .utils import assert_log_det_shape_matches_input, ZeroLogDet
 
 __all__ = ['BaseFlow', 'MultiLayerFlow', 'FeatureMappingFlow']
 
@@ -22,7 +22,8 @@ class BaseFlow(BaseLayer):
 
     @add_name_and_scope_arg_doc
     def __init__(self,
-                 value_ndims=0,
+                 x_value_ndims,
+                 y_value_ndims=None,
                  require_batch_dims=False,
                  name=None,
                  scope=None,
@@ -32,28 +33,57 @@ class BaseFlow(BaseLayer):
         Construct a new :class:`BaseFlow`.
 
         Args:
-            value_ndims (int): Number of dimensions to be considered as the
-                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
-            require_batch_dims (bool): If :obj:`True`, the `input` tensors
-                are required to have at least `value_ndims + 1` dimensions.
-                If :obj:`False`, the `input` tensors are required to have
-                at least `value_ndims` dimensions.
+            x_value_ndims (int): Number of value dimensions in `x`.
+                `x.ndims - x_value_ndims == log_det.ndims`.
+            y_value_ndims (int): Number of value dimensions in `y`.
+                `y.ndims - y_value_ndims == log_det.ndims`.
+                If not specified, use `x_value_ndims`.
+            require_batch_dims (bool): If :obj:`True`, `x` are required
+                to have at least `x_value_ndims + 1` dimensions, and `y`
+                are required to have at least `y_value_ndims + 1` dimensions.
+
+                If :obj:`False`, `x` are required to have at least
+                `x_value_ndims` dimensions, and `y` are required to have
+                at least `y_value_ndims` dimensions.
         """
+        x_value_ndims = int(x_value_ndims)
+        if y_value_ndims is None:
+            y_value_ndims = x_value_ndims
+        else:
+            y_value_ndims = int(y_value_ndims)
+
         super(BaseFlow, self).__init__(name=name, scope=scope, **_kwargs)
-        self._value_ndims = int(value_ndims)
+        self._x_value_ndims = x_value_ndims
+        self._y_value_ndims = y_value_ndims
         self._require_batch_dims = bool(require_batch_dims)
 
-        # derived classes may set this attribute to let BaseFlow validate
-        # the input tensors in `transform` and `inverse_transform`.
-        self._input_spec = None  # type: InputSpec
+        self._x_input_spec = None  # type: InputSpec
+        self._y_input_spec = None  # type: InputSpec
 
     @property
-    def value_ndims(self):
+    def x_value_ndims(self):
         """
-        Get the number of dimensions to be considered as the value of each
-        sample of `x`.
+        Get the number of value dimensions in `x`.
+
+        Returns:
+            int: The number of value dimensions in `x`.
         """
-        return self._value_ndims
+        return self._x_value_ndims
+
+    @property
+    def y_value_ndims(self):
+        """
+        Get the number of value dimensions in `y`.
+
+        Returns:
+            int: The number of value dimensions in `y`.
+        """
+        return self._y_value_ndims
+
+    @property
+    def require_batch_dims(self):
+        """Whether or not this flow requires batch dimensions."""
+        return self._require_batch_dims
 
     @property
     def explicitly_invertible(self):
@@ -71,31 +101,43 @@ class BaseFlow(BaseLayer):
         """
         raise NotImplementedError()
 
-    def _transform(self, x, compute_y, compute_log_det, previous_log_det):
-        raise NotImplementedError()
+    def _build_input_spec(self, input):
+        batch_ndims = int(self.require_batch_dims)
+        dtype = input.dtype.base_dtype
+
+        x_input_shape = ['...'] + ['?'] * (self.x_value_ndims + batch_ndims)
+        y_input_shape = ['...'] + ['?'] * (self.y_value_ndims + batch_ndims)
+
+        self._x_input_spec = InputSpec(shape=x_input_shape, dtype=dtype)
+        self._y_input_spec = InputSpec(shape=y_input_shape, dtype=dtype)
 
     def build(self, input=None):
+        # check the input.
         if input is None:
             raise ValueError('`input` is required to build {}.'.
                              format(self.__class__.__name__))
 
         input = tf.convert_to_tensor(input)
         shape = get_static_shape(input)
-        required_ndims = self._value_ndims
-        required_ndims_text = 'value_ndims'
-        if self._require_batch_dims:
-            required_ndims += 1
-            required_ndims_text += ' + 1'
+        require_ndims = self.x_value_ndims + int(self.require_batch_dims)
+        require_ndims_text = ('x_value_ndims + 1'
+                              if self.require_batch_dims else 'x_value_ndims')
 
-        if shape is None or len(shape) < required_ndims:
-            raise ValueError('`input.ndims` must be known and >= '
-                             '`{}`: input {} vs value_ndims {}.'.
-                             format(required_ndims_text, input, required_ndims))
+        if shape is None or len(shape) < require_ndims:
+            raise ValueError('`x.ndims` must be known and >= `{}`: x '
+                             '{} vs ndims `{}`.'.
+                             format(require_ndims_text, input, require_ndims))
 
+        # build the input spec
+        self._build_input_spec(input)
+
+        # build the layer
         return super(BaseFlow, self).build(input)
 
-    def transform(self, x, compute_y=True, compute_log_det=True,
-                  previous_log_det=None, name=None):
+    def _transform(self, x, compute_y, compute_log_det):
+        raise NotImplementedError()
+
+    def transform(self, x, compute_y=True, compute_log_det=True, name=None):
         """
         Transform `x` into `y`, and compute the log-determinant of `f` at `x`
         (i.e., :math:`\\log \\det \\frac{\\partial f(x)}{\\partial x}`).
@@ -106,12 +148,8 @@ class BaseFlow(BaseLayer):
                 Default :obj:`True`.
             compute_log_det (bool): Whether or not to compute the
                 log-determinant?  Default :obj:`True`.
-            previous_log_det (Tensor): If specified, add the log-determinant
-                of this flow to the log-determinants computed from previous
-                flows, and return the summed log-determinant.
             name (str): If specified, will use this name as the TensorFlow
                 operational name scope.
-            \\**kwargs: Other named arguments.
 
         Returns:
             (tf.Tensor, tf.Tensor): `y` and the (maybe summed) log-determinant.
@@ -125,50 +163,37 @@ class BaseFlow(BaseLayer):
         if not compute_y and not compute_log_det:
             raise ValueError('At least one of `compute_y` and '
                              '`compute_log_det` should be True.')
-        if previous_log_det is not None and not compute_log_det:
-            raise ValueError('`previous_log_det` is specified but '
-                             '`compute_log_det` is False.')
 
         x = tf.convert_to_tensor(x)
-
-        # validate x.ndims
-        required_ndims = self._value_ndims
-        required_ndims_text = 'value_ndims'
-        if self._require_batch_dims:
-            required_ndims += 1
-            required_ndims_text += ' + 1'
-        with assert_deps([
-                    assert_rank_at_least(
-                        x, required_ndims,
-                        message='`x.ndims` must be known and >= `{}`'.
-                                format(required_ndims_text)
-                    )
-                ]) as flag:
-            if flag:  # pragma: no cover
-                x = tf.identity(x)
-
-        # validate via InputSpec
-        if self._input_spec is not None:
-            x = self._input_spec.validate('x', x)
-
         if not self._has_built:
             self.build(x)
+
+        x = self._x_input_spec.validate('x', x)
 
         with tf.name_scope(
                 name,
                 default_name=get_default_scope_name('transform', self),
                 values=[x]):
-            y, log_det = self._transform(
-                x, compute_y, compute_log_det, previous_log_det)
+            y, log_det = self._transform(x, compute_y, compute_log_det)
+
+            if compute_log_det:
+                with assert_deps([
+                            assert_log_det_shape_matches_input(
+                                log_det=log_det,
+                                input=x,
+                                value_ndims=self.x_value_ndims
+                            )
+                        ]) as asserted:
+                    if asserted:  # pragma: no cover
+                        log_det = tf.identity(log_det)
 
             return y, log_det
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         raise NotImplementedError()
 
     def inverse_transform(self, y, compute_x=True, compute_log_det=True,
-                          previous_log_det=None, name=None):
+                          name=None):
         """
         Transform `y` into `x`, and compute the log-determinant of `f^{-1}` at
         `y` (i.e.,
@@ -180,9 +205,6 @@ class BaseFlow(BaseLayer):
                 Default :obj:`True`.
             compute_log_det (bool): Whether or not to compute the
                 log-determinant?  Default :obj:`True`.
-            previous_log_det (Tensor): If specified, add the log-determinant
-                of this flow to the log-determinants computed from previous
-                flows, and return the summed log-determinant.
             name (str): If specified, will use this name as the TensorFlow
                 operational name scope.
 
@@ -202,9 +224,6 @@ class BaseFlow(BaseLayer):
         if not compute_x and not compute_log_det:
             raise ValueError('At least one of `compute_x` and '
                              '`compute_log_det` should be True.')
-        if previous_log_det is not None and not compute_log_det:
-            raise ValueError('`previous_log_det` is specified but '
-                             '`compute_log_det` is False.')
         if not self._has_built:
             raise RuntimeError('`inverse_transform` cannot be called before '
                                'the flow has been built; it can be built by '
@@ -212,33 +231,24 @@ class BaseFlow(BaseLayer):
                                '{!r}'.format(self))
 
         y = tf.convert_to_tensor(y)
-
-        # validate y.ndims
-        required_ndims = self._value_ndims
-        required_ndims_text = 'value_ndims'
-        if self._require_batch_dims:
-            required_ndims += 1
-            required_ndims_text += ' + 1'
-        with assert_deps([
-                    assert_rank_at_least(
-                        y, required_ndims,
-                        message='`y.ndims` must be known and >= `{}`'.
-                                format(required_ndims_text)
-                    )
-                ]) as flag:
-            if flag:  # pragma: no cover
-                y = tf.identity(y)
-
-        # validate via InputSpec
-        if self._input_spec is not None:
-            y = self._input_spec.validate('y', y)
+        y = self._y_input_spec.validate('y', y)
 
         with tf.name_scope(
                 name,
                 default_name=get_default_scope_name('inverse_transform', self),
                 values=[y]):
-            x, log_det = self._inverse_transform(
-                y, compute_x, compute_log_det, previous_log_det)
+            x, log_det = self._inverse_transform(y, compute_x, compute_log_det)
+
+            if compute_log_det:
+                with assert_deps([
+                            assert_log_det_shape_matches_input(
+                                log_det=log_det,
+                                input=y,
+                                value_ndims=self.y_value_ndims
+                            )
+                        ]) as asserted:
+                    if asserted:  # pragma: no cover
+                        log_det = tf.identity(log_det)
 
             return x, log_det
 
@@ -247,24 +257,34 @@ class BaseFlow(BaseLayer):
         return y
 
 
+def sum_log_det(log_det_list, name='sum_log_det'):
+    """
+    Carefully sum up `log_det_list`, to allow :class:`ZeroLogDet` to opt-out
+    some unnecessary zero tensors.
+    """
+    assert(not not log_det_list)
+    with tf.name_scope(name):
+        log_det = log_det_list[0]
+        for t in log_det_list[1:]:
+            # adjust the summation order, to allow `ZeroLogDet` to opt-out
+            if isinstance(log_det, ZeroLogDet):
+                log_det = log_det + t
+            else:
+                log_det = t + log_det
+        return log_det
+
+
 class MultiLayerFlow(BaseFlow):
     """Base class for multi-layer normalizing flows."""
 
     @add_name_and_scope_arg_doc
-    def __init__(self,
-                 n_layers,
-                 value_ndims=0,
-                 name=None,
-                 scope=None,
-                 **_kwargs  # just to support multi-inheritance
-                 ):
+    def __init__(self, n_layers, **kwargs):
         """
         Construct a new :class:`MultiLayerFlow`.
 
         Args:
-            value_ndims (int): Number of dimensions to be considered as the
-                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
             n_layers (int): Number of flow layers.
+            \\**kwargs: Other named arguments passed to :class:`BaseFlow`.
         """
         n_layers = int(n_layers)
         if n_layers < 1:
@@ -272,8 +292,7 @@ class MultiLayerFlow(BaseFlow):
         self._n_layers = n_layers
         self._layer_params = []
 
-        super(MultiLayerFlow, self).__init__(
-            value_ndims=value_ndims, name=name, scope=scope, **_kwargs)
+        super(MultiLayerFlow, self).__init__(**kwargs)
 
     @property
     def n_layers(self):
@@ -285,112 +304,90 @@ class MultiLayerFlow(BaseFlow):
         """
         return self._n_layers
 
-    def _transform_layer(self, layer_id, x, compute_y, compute_log_det,
-                         previous_log_det):
+    def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
         raise NotImplementedError()
 
-    def _transform(self, x, compute_y, compute_log_det,
-                   previous_log_det):
+    def _transform(self, x, compute_y, compute_log_det):
         # apply transformation of each layer
-        log_det = previous_log_det
+        log_det_list = []
         for i in range(self._n_layers):
             with tf.name_scope('_{}'.format(i)):
                 x, log_det = self._transform_layer(
                     layer_id=i,
                     x=x,
                     compute_y=True if i < self._n_layers - 1 else compute_y,
-                    compute_log_det=compute_log_det,
-                    previous_log_det=log_det
+                    compute_log_det=compute_log_det
                 )
+                log_det_list.append(log_det)
 
+        # compose the return values
         y = x if compute_y else None
-        return y, log_det
+        return y, sum_log_det(log_det_list)
 
-    def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det,
-                                 previous_log_det):
+    def _inverse_transform_layer(self, layer_id, y, compute_x, compute_log_det):
         raise NotImplementedError()
 
-    def _inverse_transform(self, y, compute_x, compute_log_det,
-                           previous_log_det):
+    def _inverse_transform(self, y, compute_x, compute_log_det):
         # apply transformation of each layer
-        log_det = previous_log_det
+        log_det_list = []
         for i in range(self._n_layers - 1, -1, -1):
             with tf.name_scope('_{}'.format(i)):
                 y, log_det = self._inverse_transform_layer(
                     layer_id=i,
                     y=y,
                     compute_x=True if i > 0 else compute_x,
-                    compute_log_det=compute_log_det,
-                    previous_log_det=log_det
+                    compute_log_det=compute_log_det
                 )
+                log_det_list.append(log_det)
 
+        # compose the return values
         x = y if compute_x else None
-        return x, log_det
+        return x, sum_log_det(log_det_list)
 
 
 class FeatureMappingFlow(BaseFlow):
     """
     Base class for flows mapping input features to output features.
 
-    In the :class:`FeatureMappingFlow`, the specified `axis` (may be just a
-    single axis or a list of axes) of the input tensors is/are considered to
-    be the features axis/axes.  The feature axis/axes must be covered by
-    `value_ndims`.
+    A :class:`FeatureMappingFlow` must not change the value dimensions,
+    i.e., `x_value_ndims == y_value_ndims`.  Thus, one single argument
+    `value_ndims` replaces the `x_value_ndims` and `y_value_ndims` arguments.
 
-    Also, the `input` tensors are required to have at least `value_ndims`
-    dimensions.  If `require_batch_axis` is :obj:`True`, the input tensors must
-    have at least `value_ndims + 1` dimensions.
-
-    This base class performs all the validation in `_build`, and constructs
-    the corresponding `_input_spec`.  Derived classes should remember to call
-    `FeatureMappingFlow._build` in their overrided `_build`, for example::
-
-        class YourFlow(FeatureMappingFlow):
-
-            def _build(input=None):
-                super(FeatureMappingFlow, self)._build(input)
-
-                # your build code begins here
-                ...
+    The :class:`FeatureMappingFlow` transforms a specified axis or a list
+    of specified axes.  The axis/axes is/are specified via the argument
+    `axis`.  All the `axis` must be covered by `value_ndims`.
     """
 
     @add_name_and_scope_arg_doc
-    def __init__(self,
-                 axis=-1,
-                 value_ndims=1,
-                 require_batch_dims=False,
-                 name=None,
-                 scope=None,
-                 **_kwargs  # just to support multi-inheritance
-                 ):
+    def __init__(self, axis, value_ndims, **kwargs):
         """
         Construct a new :class:`FeatureMappingFlow`.
 
         Args:
             axis (int or Iterable[int]): The feature axis/axes, on which to
                 apply the transformation.
-            value_ndims (int): Number of dimensions to be considered as the
-                value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
-            require_batch_dims (bool): If :obj:`True`, the `input` tensors
-                are required to have at least `value_ndims + 1` dimensions.
-                If :obj:`False`, the `input` tensors are required to have
-                at least `value_ndims` dimensions.
+            value_ndims (int): Number of value dimensions in both `x` and `y`.
+                `x.ndims - value_ndims == log_det.ndims` and
+                `y.ndims - value_ndims == log_det.ndims`.
+            \\**kwargs: Other named arguments passed to :class:`BaseFlow`.
         """
+        # check the arguments
         if is_integer(axis):
             axis = int(axis)
         else:
             axis = tuple(int(a) for a in axis)
             if not axis:
                 raise ValueError('`axis` must not be empty.')
-        self._axis = axis
 
+        if 'x_value_ndims' in kwargs or 'y_value_ndims' in kwargs:
+            raise ValueError('Specifying `x_value_ndims` or `y_value_ndims` '
+                             'for a `FeatureMappingFlow` is not allowed.')
+        value_ndims = int(value_ndims)
+
+        # construct the layer
         super(FeatureMappingFlow, self).__init__(
-            value_ndims=value_ndims,
-            require_batch_dims=require_batch_dims,
-            name=name,
-            scope=scope,
-            **_kwargs
-        )
+            x_value_ndims=value_ndims, y_value_ndims=value_ndims, **kwargs)
+        self._axis = axis
 
     @property
     def axis(self):
@@ -403,9 +400,20 @@ class FeatureMappingFlow(BaseFlow):
         """
         return self._axis
 
-    def _build(self, input=None):
-        # check the input.
-        input = tf.convert_to_tensor(input)
+    @property
+    def value_ndims(self):
+        """
+        Get the number of value dimensions in both `x` and `y`.
+
+        Returns:
+            int: The number of value dimensions in both `x` and `y`.
+        """
+        assert(self.x_value_ndims == self.y_value_ndims)
+        return self.x_value_ndims
+
+    def _build_input_spec(self, input):
+        super(FeatureMappingFlow, self)._build_input_spec(input)
+
         dtype = input.dtype.base_dtype
         shape = get_static_shape(input)
 
@@ -451,14 +459,11 @@ class FeatureMappingFlow(BaseFlow):
                                  'input {}, axis {}'.format(input, self._axis))
             self._axis = tuple(axis)
 
-        # build the input spec
-        shape_spec = ['?'] * self.value_ndims
-        if self._require_batch_dims:
-            shape_spec = ['?'] + shape_spec
-        shape_spec = ['...'] + shape_spec
-
+        # re-build the input spec
+        batch_ndims = int(self.require_batch_dims)
+        shape_spec = ['...'] + ['?'] * (self.value_ndims + batch_ndims)
         for a in axis:
             shape_spec[a] = shape[a]
-
-        self._input_spec = InputSpec(shape=shape_spec, dtype=dtype)
-        self._input_spec.validate('input', input)
+        self._y_input_spec = self._x_input_spec = InputSpec(shape=shape_spec,
+                                                            dtype=dtype)
+        self._x_input_spec.validate('input', input)
