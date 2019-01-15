@@ -58,9 +58,8 @@ def main(result_dir):
         dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
     input_y = tf.placeholder(
         dtype=tf.int32, shape=[None], name='input_y')
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = spt.AnnealingDynamicValue(config.initial_lr,
-                                                 config.lr_anneal_factor)
+    learning_rate = spt.AnnealingVariable(
+        'learning_rate', config.initial_lr, config.lr_anneal_factor)
 
     # derive the loss, output and accuracy
     logits = model(input_x)
@@ -96,11 +95,10 @@ def main(result_dir):
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
-                feed_dict={learning_rate: learning_rate_var},
                 metrics={'loss': loss, 'acc': acc}
             )
             trainer.anneal_after(
-                learning_rate_var,
+                learning_rate,
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )

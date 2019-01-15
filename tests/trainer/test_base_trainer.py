@@ -31,8 +31,8 @@ class BaseTrainerTestCase(tf.test.TestCase):
         df = Mock()
         eval1 = Evaluator(loop, 1., [], df)
         eval2 = Evaluator(loop, 2., [], df)
-        anneal1 = AnnealingDynamicValue(1., .5)
-        anneal2 = AnnealingDynamicValue(2., .5)
+        anneal1 = AnnealingVariable('anneal1', 1., .5)
+        anneal2 = AnnealingVariable('anneal2', 2., .5)
 
         # test add
         t = BaseTrainer(loop)

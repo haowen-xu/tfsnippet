@@ -139,9 +139,8 @@ def main(result_dir):
         dtype=tf.int32, shape=(None, config.x_dim), name='input_x')
     is_training = tf.placeholder(
         dtype=tf.bool, shape=(), name='is_training')
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = spt.AnnealingDynamicValue(config.initial_lr,
-                                                  config.lr_anneal_factor)
+    learning_rate = spt.AnnealingVariable(
+        'learning_rate', config.initial_lr, config.lr_anneal_factor)
     multi_gpu = MultiGPU(disable_prebuild=False)
 
     # build the model
@@ -243,11 +242,11 @@ def main(result_dir):
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True},
+                feed_dict={is_training: True},
                 metrics={'loss': loss}
             )
             trainer.anneal_after(
-                learning_rate_var,
+                learning_rate,
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )

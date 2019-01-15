@@ -149,8 +149,7 @@ quickly run a training-loop by using utilities from TFSnippet:
 
     # We shall adopt learning-rate annealing, the initial learning rate is
     # 0.001, and we would anneal it by a factor of 0.99995 after every step.
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = spt.AnnealingDynamicValue(0.001, 0.99995)
+    learning_rate = spt.AnnealingVariable('learning_rate', 0.001, 0.99995)
 
     # Build the training operation by AdamOptimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -166,7 +165,7 @@ quickly run a training-loop by using utilities from TFSnippet:
         trainer = spt.Trainer(loop, train_op, [input_x, input_y], train_flow,
                               metrics={'loss': loss})
         # Anneal the learning-rate after every step by 0.99995.
-        trainer.anneal_after_steps(learning_rate_var, freq=1)
+        trainer.anneal_after_steps(learning_rate, freq=1)
         # Do validation and apply early-stopping after every epoch.
         trainer.evaluate_after_epochs(
             spt.Evaluator(loop, loss, [input_x, input_y], valid_flow),
@@ -175,11 +174,11 @@ quickly run a training-loop by using utilities from TFSnippet:
         # You may log the learning-rate after every epoch by adding a callback
         # hook.  Surely you may also add any other callbacks.
         trainer.after_epochs.add_hook(
-            lambda: trainer.loop.collect_metrics(lr=learning_rate_var),
+            lambda: trainer.loop.collect_metrics(lr=learning_rate),
             freq=1
         )
         # Print training metrics after every epoch.
         trainer.log_after_epochs(freq=1)
         # Run all the training epochs and steps.
-        trainer.run(feed_dict={learning_rate: learning_rate_var})
+        trainer.run()
 
