@@ -18,7 +18,6 @@ class InvertFlow(BaseFlow):
 
         Args:
             flow (BaseFlow): The underlying flow.
-
         """
         if not isinstance(flow, BaseFlow) or not flow.explicitly_invertible:
             raise ValueError('`flow` must be an explicitly invertible flow: '

@@ -26,9 +26,7 @@ class BaseFlow(BaseLayer):
                  y_value_ndims=None,
                  require_batch_dims=False,
                  name=None,
-                 scope=None,
-                 **_kwargs  # just to support multi-inheritance
-                 ):
+                 scope=None):
         """
         Construct a new :class:`BaseFlow`.
 
@@ -52,7 +50,7 @@ class BaseFlow(BaseLayer):
         else:
             y_value_ndims = int(y_value_ndims)
 
-        super(BaseFlow, self).__init__(name=name, scope=scope, **_kwargs)
+        super(BaseFlow, self).__init__(name=name, scope=scope)
         self._x_value_ndims = x_value_ndims
         self._y_value_ndims = y_value_ndims
         self._require_batch_dims = bool(require_batch_dims)
