@@ -60,6 +60,23 @@ class BaseFlow(BaseLayer):
         self._x_input_spec = None  # type: InputSpec
         self._y_input_spec = None  # type: InputSpec
 
+    def invert(self):
+        """
+        Get the inverted flow from this flow.
+
+        The :meth:`transform()` will become the :meth:`inverse_transform()`
+        in the inverted flow, and the :meth:`inverse_transform()` will become
+        the :meth:`transform()` in the inverted flow.
+
+        If the current flow has not been initialized, it must be initialized
+        via :meth:`inverse_transform()` in the new flow.
+
+        Returns:
+            tfsnippet.layers.InvertFlow: The inverted flow.
+        """
+        from .invert import InvertFlow
+        return InvertFlow(self)
+
     @property
     def x_value_ndims(self):
         """
