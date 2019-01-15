@@ -7,8 +7,8 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.scaffold import summarize_variables, MetricLogger
-from tfsnippet.trainer import SimpleDynamicValue
-from tfsnippet.utils import TemporaryDirectory
+from tfsnippet.trainer import ScheduledVariable
+from tfsnippet.utils import TemporaryDirectory, ensure_variables_initialized
 
 
 class LoggingUtilsTestCase(tf.test.TestCase):
@@ -107,10 +107,14 @@ class LoggingUtilsTestCase(tf.test.TestCase):
 class MetricLoggerTestCase(tf.test.TestCase):
 
     def test_basic_logging(self):
+        v = ScheduledVariable('v', 1.)
+
         logger = MetricLogger()
         self.assertEqual(logger.format_logs(), '')
 
-        logger.collect_metrics(dict(loss=SimpleDynamicValue(1.)))
+        with self.test_session() as sess:
+            ensure_variables_initialized()
+            logger.collect_metrics(dict(loss=v))
         logger.collect_metrics(dict(loss=2., valid_loss=3., valid_timer=0.1))
         logger.collect_metrics(dict(loss=4., valid_acc=5., train_time=0.2))
         logger.collect_metrics(dict(loss=6., valid_acc=7., train_time=0.3))

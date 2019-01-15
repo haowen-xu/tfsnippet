@@ -3,7 +3,6 @@ from tfsnippet.utils import (ensure_variables_initialized,
                              get_default_session_or_error,
                              DocInherit)
 
-from .dynamic_values import AnnealingDynamicValue
 from .hooks import HookPriority, HookList
 from .evaluator import Evaluator
 
@@ -304,8 +303,8 @@ class BaseTrainer(object):
         Add an annealing hook to run after every few steps.
 
         Args:
-            value (AnnealingDynamicValue or () -> any): An annealing dynamic
-                value (which has ``.anneal()``), or any callable object.
+            value (AnnealingVariable or () -> any): An annealing variable
+                (which has ``.anneal()``), or any callable object.
             freq (int): The frequency for this annealing hook to run.
         """
         callback = value if callable(value) else value.anneal
@@ -317,8 +316,8 @@ class BaseTrainer(object):
         Add an annealing hook to run after every few epochs.
 
         Args:
-            value (AnnealingDynamicValue or () -> any): An annealing dynamic
-                value (which has ``.anneal()``), or any callable object.
+            value (AnnealingVariable or () -> any): An annealing variable
+                (which has ``.anneal()``), or any callable object.
             freq (int): The frequency for this annealing hook to run.
         """
         callback = value if callable(value) else value.anneal
@@ -330,8 +329,8 @@ class BaseTrainer(object):
         Add an annealing hook to run after every few epochs or steps.
 
         Args:
-            value (AnnealingDynamicValue or () -> any): An annealing dynamic
-                value (which has ``.anneal()``), or any callable object.
+            value (AnnealingVariable or () -> any): An annealing variable
+                (which has ``.anneal()``), or any callable object.
             epochs (None or int): Run validation after every this few `epochs`.
             steps (None or int): Run validation after every this few `steps`.
 
