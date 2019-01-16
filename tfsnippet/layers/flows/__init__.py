@@ -1,4 +1,5 @@
 from .base import *
+from .branch import *
 from .coupling import *
 from .invert import *
 from .linear import *
@@ -12,6 +13,6 @@ __all__ = [
     'BaseFlow', 'CouplingLayer', 'FeatureMappingFlow', 'FeatureShufflingFlow',
     'InvertFlow', 'InvertibleConv2d', 'InvertibleDense', 'MultiLayerFlow',
     'PlanarNormalizingFlow', 'ReshapeFlow', 'SequentialFlow',
-    'SpaceToDepthFlow', 'broadcast_log_det_against_input',
+    'SpaceToDepthFlow', 'SplitFlow', 'broadcast_log_det_against_input',
     'planar_normalizing_flows',
 ]

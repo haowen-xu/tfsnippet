@@ -94,7 +94,7 @@ class ReshapeFlow(BaseFlow):
         neg_one_count = 0
         for i, s in enumerate(x_value_shape):
             if s is None:
-                if neg_one_count >= 1:
+                if neg_one_count > 0:
                     x_value_shape = get_shape(input)
                     if self.x_value_ndims > 0:
                         x_value_shape = x_value_shape[-self.x_value_ndims:]
