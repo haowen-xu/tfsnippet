@@ -96,10 +96,14 @@ def coupling_layer_shift_and_scale(x1, n2):
             h = spt.layers.dense(h, 500)
 
     # compute shift and scale
-    shift = spt.layers.dense(h, n2, kernel_initializer=tf.zeros_initializer(),
-                             name='shift',)
-    scale = spt.layers.dense(h, n2, kernel_initializer=tf.zeros_initializer(),
-                             name='scale')
+    shift = spt.layers.dense(
+        h, n2, kernel_initializer=tf.zeros_initializer(),
+        bias_initializer=tf.zeros_initializer(), name='shift'
+    )
+    scale = spt.layers.dense(
+        h, n2, kernel_initializer=tf.zeros_initializer(),
+        bias_initializer=tf.zeros_initializer(), name='scale'
+    )
     return shift, scale
 
 

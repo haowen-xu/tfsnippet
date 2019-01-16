@@ -107,7 +107,7 @@ def assert_deps(assert_ops):
     `assert_ops` on exit.  Otherwise do nothing.
 
     Args:
-        assert_ops (Iterable[tf.Operation or NOne]): A list of assertion
+        assert_ops (Iterable[tf.Operation or None]): A list of assertion
             operations.  :obj:`None` items will be ignored.
 
     Yields:
@@ -119,4 +119,7 @@ def assert_deps(assert_ops):
         with tf.control_dependencies(assert_ops):
             yield True
     else:
+        for op in assert_ops:
+            # let TensorFlow not warn about not using this assertion operation
+            op.mark_used()
         yield False
