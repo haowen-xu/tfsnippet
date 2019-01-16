@@ -34,8 +34,9 @@ def quadratic_inverse_transform(ops, y, a, b):
 
 class QuadraticFlow(BaseFlow):
 
-    def __init__(self, a, b):
-        super(QuadraticFlow, self).__init__(x_value_ndims=0)
+    def __init__(self, a, b, value_ndims=0):
+        super(QuadraticFlow, self).__init__(x_value_ndims=value_ndims,
+                                            y_value_ndims=value_ndims)
         self.a = a
         self.b = b
 
@@ -48,6 +49,9 @@ class QuadraticFlow(BaseFlow):
 
     def _transform(self, x, compute_y, compute_log_det):
         y, log_det = quadratic_transform(tfops, x, self.a, self.b)
+        if self.x_value_ndims > 0:
+            log_det = tf.reduce_sum(
+                log_det, axis=tf.range(-self.x_value_ndims, 0, dtype=tf.int32))
         if not compute_y:
             y = None
         if not compute_log_det:
@@ -56,6 +60,9 @@ class QuadraticFlow(BaseFlow):
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
         x, log_det = quadratic_inverse_transform(tfops, y, self.a, self.b)
+        if self.y_value_ndims > 0:
+            log_det = tf.reduce_sum(
+                log_det, axis=tf.range(-self.y_value_ndims, 0, dtype=tf.int32))
         if not compute_x:
             x = None
         if not compute_log_det:
@@ -75,6 +82,7 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
     x_out, y_out, log_det_y_out, x2_out, log_det_x_out = \
         session.run([x, y, log_det_y, x2, log_det_x], feed_dict=feed_dict)
     np.testing.assert_allclose(x2_out, x_out, atol=atol, rtol=rtol)
+
     np.testing.assert_allclose(
         -log_det_x_out, log_det_y_out, atol=atol, rtol=rtol)
     self.assertEqual(np.size(x_out), np.size(y_out))

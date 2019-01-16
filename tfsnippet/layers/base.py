@@ -26,9 +26,7 @@ class BaseLayer(VarScopeObject):
     @add_name_and_scope_arg_doc
     def __init__(self,
                  name=None,
-                 scope=None,
-                 **_kwargs  # just to support multi-inheritance
-                 ):
+                 scope=None):
         """
         Construct a new :class:`BaseLayer`.
         """

@@ -26,9 +26,7 @@ class BaseFlow(BaseLayer):
                  y_value_ndims=None,
                  require_batch_dims=False,
                  name=None,
-                 scope=None,
-                 **_kwargs  # just to support multi-inheritance
-                 ):
+                 scope=None):
         """
         Construct a new :class:`BaseFlow`.
 
@@ -52,13 +50,30 @@ class BaseFlow(BaseLayer):
         else:
             y_value_ndims = int(y_value_ndims)
 
-        super(BaseFlow, self).__init__(name=name, scope=scope, **_kwargs)
+        super(BaseFlow, self).__init__(name=name, scope=scope)
         self._x_value_ndims = x_value_ndims
         self._y_value_ndims = y_value_ndims
         self._require_batch_dims = bool(require_batch_dims)
 
         self._x_input_spec = None  # type: InputSpec
         self._y_input_spec = None  # type: InputSpec
+
+    def invert(self):
+        """
+        Get the inverted flow from this flow.
+
+        The :meth:`transform()` will become the :meth:`inverse_transform()`
+        in the inverted flow, and the :meth:`inverse_transform()` will become
+        the :meth:`transform()` in the inverted flow.
+
+        If the current flow has not been initialized, it must be initialized
+        via :meth:`inverse_transform()` in the new flow.
+
+        Returns:
+            tfsnippet.layers.InvertFlow: The inverted flow.
+        """
+        from .invert import InvertFlow
+        return InvertFlow(self)
 
     @property
     def x_value_ndims(self):

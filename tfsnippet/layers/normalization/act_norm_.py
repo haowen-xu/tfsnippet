@@ -22,8 +22,8 @@ class ActNorm(FeatureMappingFlow):
     `bias` and `scale` are initialized such that `y` will have zero mean and
     unit variance for the initial mini-batch of `x`.
     It can be initialized only through the forward pass.  You may need to use
-    :meth:`invert()` to get a inverted flow if you need to initialize the
-    parameters via the opposite direction.
+    :meth:`BaseFlow.invert()` to get a inverted flow if you need to initialize
+    the parameters via the opposite direction.
     """
 
     _build_require_input = True
