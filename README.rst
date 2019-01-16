@@ -54,8 +54,7 @@ Examples
     `VAE <tfsnippet/examples/auto_encoders/vae.py>`_,
     `Convolutional VAE <tfsnippet/examples/auto_encoders/vae_conv.py>`_,
     `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_,
-    `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_.
-* Normalizing Flows:
+    `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_,
     `Planar Normalizing Flow <tfsnippet/examples/auto_encoders/planar_nf.py>`_,
     `Dense Real NVP <tfsnippet/examples/auto_encoders/dense_real_nvp.py>`_.
 
