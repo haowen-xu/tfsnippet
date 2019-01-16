@@ -45,7 +45,7 @@ class ExpConfig(MLConfig):
 @spt.global_reuse
 @add_arg_scope
 def q_net(x, observed=None, n_z=None, is_training=True,
-          channels_last=False):
+          channels_last=True):
     net = spt.BayesianNet(observed=observed)
 
     # compute the hidden features
@@ -88,7 +88,7 @@ def q_net(x, observed=None, n_z=None, is_training=True,
 
 @spt.global_reuse
 @add_arg_scope
-def p_net(observed=None, n_z=None, is_training=True, channels_last=False):
+def p_net(observed=None, n_z=None, is_training=True, channels_last=True):
     net = spt.BayesianNet(observed=observed)
 
     # sample z ~ p(z)

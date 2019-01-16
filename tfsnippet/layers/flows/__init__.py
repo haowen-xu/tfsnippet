@@ -12,5 +12,6 @@ __all__ = [
     'BaseFlow', 'CouplingLayer', 'FeatureMappingFlow', 'FeatureShufflingFlow',
     'InvertFlow', 'InvertibleConv2d', 'InvertibleDense', 'MultiLayerFlow',
     'PlanarNormalizingFlow', 'ReshapeFlow', 'SequentialFlow',
-    'broadcast_log_det_against_input', 'planar_normalizing_flows',
+    'SpaceToDepthFlow', 'broadcast_log_det_against_input',
+    'planar_normalizing_flows',
 ]
