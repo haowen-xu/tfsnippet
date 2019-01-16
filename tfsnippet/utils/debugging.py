@@ -121,5 +121,6 @@ def assert_deps(assert_ops):
     else:
         for op in assert_ops:
             # let TensorFlow not warn about not using this assertion operation
-            op.mark_used()
+            if hasattr(op, 'mark_used'):
+                op.mark_used()
         yield False

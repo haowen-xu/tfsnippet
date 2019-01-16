@@ -14,9 +14,8 @@ class AssertionTestCase(tf.test.TestCase):
         self.assertTrue(is_assertion_enabled())
 
     def test_assert_deps(self):
-        var = tf.get_variable('var', dtype=tf.float32, shape=(),
-                              initializer=tf.zeros_initializer())
-        op = tf.assign(var, 1.)
+        ph = tf.placeholder(dtype=tf.bool, shape=())
+        op = tf.assert_equal(ph, True, message='abcdefg')
 
         # test ops are empty
         with assert_deps([None]) as asserted:
@@ -25,20 +24,19 @@ class AssertionTestCase(tf.test.TestCase):
         # test assertion enabled, and ops are not empty
         with self.test_session() as sess, \
                 scoped_set_assertion_enabled(True):
-            sess.run(var.initializer)
             with assert_deps([op, None]) as asserted:
                 self.assertTrue(asserted)
-                out = tf.identity(var)
-            self.assertEqual(sess.run(out), 1.)
+                out = tf.constant(1.)
+            with pytest.raises(Exception, match='abcdefg'):
+                self.assertEqual(sess.run(out, feed_dict={ph: False}), 1.)
 
         # test assertion disabled
         with self.test_session() as sess, \
                 scoped_set_assertion_enabled(False):
-            sess.run(var.initializer)
             with assert_deps([op, None]) as asserted:
                 self.assertFalse(asserted)
-                out = tf.identity(var)
-            self.assertEqual(sess.run(out), 0.)
+                out = tf.constant(1.)
+            self.assertEqual(sess.run(out, feed_dict={ph: False}), 1.)
 
 
 class CheckNumericsTestCase(tf.test.TestCase):
