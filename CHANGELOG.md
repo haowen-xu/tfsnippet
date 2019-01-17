@@ -19,6 +19,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
   can be directly found under `tfsnippet.layers` namespace.  The interface of flows has been re-designed.
 - Some utilities in `tfsnippet.utils` have been migrated to `tfsnippet.ops`.
+- `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` has been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.
