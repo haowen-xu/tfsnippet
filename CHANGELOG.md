@@ -11,6 +11,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - Utilities have been exported to the root package, and now it's recommended to use TFSnippet by ``import tfsnippet as spt``.
 - `tfsnippet.layers` package, including dense layer, convolutional layers, normalization layers, and flow layers.
 - `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
+- Added `tfsnippet.Config`.
 
 ### Changed
 - `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
@@ -18,7 +19,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `tfsnippet.flows` now moved to `tfsnippet.layers.flows`, and all its contents
   can be directly found under `tfsnippet.layers` namespace.  The interface of flows has been re-designed.
 - Some utilities in `tfsnippet.utils` have been migrated to `tfsnippet.ops`.
-- `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` has been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
+- `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` have been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.
