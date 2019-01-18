@@ -1,40 +1,43 @@
 # -*- coding: utf-8 -*-
 import functools
+import sys
+from argparse import ArgumentParser
 
-import click
 import tensorflow as tf
+from pprint import pformat
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 import tfsnippet as spt
-from tfsnippet.examples.utils import (MLConfig,
-                                      MLResults,
+from tfsnippet.examples.utils import (MLResults,
                                       save_images_collection,
-                                      global_config as config,
-                                      config_options,
                                       bernoulli_as_pixel,
                                       print_with_title,
                                       bernoulli_flow)
 
 
-class ExpConfig(MLConfig):
+class ExpConfig(spt.Config):
     # model parameters
     z_dim = 80
     x_dim = 784
 
     # training parameters
+    result_dir = None
     write_summary = False
     max_epoch = 3000
-    max_step = None
+    max_step = spt.ConfigField(int, nullable=True)
     batch_size = 128
     l2_reg = 0.0001
     initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
-    lr_anneal_step_freq = None
+    lr_anneal_step_freq = spt.ConfigField(int, nullable=True)
 
     # evaluation parameters
     test_n_z = 500
     test_batch_size = 128
+
+
+config = ExpConfig()
 
 
 @spt.global_reuse
@@ -92,16 +95,18 @@ def baseline_net(x):
     return tf.squeeze(spt.layers.dense(h_x, 1), -1)
 
 
-@click.command()
-@click.option('--result-dir', help='The result directory.', metavar='PATH',
-              required=False, type=str)
-@config_options(ExpConfig)
-def main(result_dir):
+def main():
+    # parse the arguments
+    arg_parser = ArgumentParser()
+    spt.register_config_arguments(config, arg_parser)
+    arg_parser.parse_args(sys.argv[1:])
+
     # print the config
-    print_with_title('Configurations', config.format_config(), after='\n')
+    print_with_title('Configurations', pformat(config.to_dict()), after='\n')
 
     # open the result object and prepare for result directories
-    results = MLResults(result_dir)
+    results = MLResults(config.result_dir)
+    results.save_config(config)  # save experiment settings for review
     results.make_dirs('plotting', exist_ok=True)
     results.make_dirs('train_summary', exist_ok=True)
 

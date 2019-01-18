@@ -1,51 +1,59 @@
 # -*- coding: utf-8 -*-
 import codecs
 import functools
+import sys
 import warnings
+from argparse import ArgumentParser
 
-import click
 import tensorflow as tf
+from pprint import pformat
 from sklearn.metrics import accuracy_score
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 import tfsnippet as spt
-from tfsnippet.examples.utils import (MLConfig,
-                                      MLResults,
+from tfsnippet.examples.utils import (MLResults,
                                       save_images_collection,
                                       collect_outputs,
                                       ClusteringClassifier,
-                                      global_config as config,
-                                      config_options,
                                       bernoulli_as_pixel,
                                       bernoulli_flow,
                                       print_with_title)
 
 
-class ExpConfig(MLConfig):
+class ExpConfig(spt.Config):
     # model parameters
     x_dim = 784
     z_dim = 16
     n_clusters = 16
     l2_reg = 0.0001
-    p_z_given_y_std = 'unbound_logstd'
-    # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
+    p_z_given_y_std = spt.ConfigField(
+        str, default='unbound_logstd', choices=[
+            'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'
+        ]
+    )
     mean_field_assumption_for_q = False
 
     # training parameters
+    result_dir = None
     write_summary = False
     max_epoch = 3000
-    max_step = None
+    max_step = spt.ConfigField(int, nullable=True)
     batch_size = 128
-    train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
+    vi_algorithm = spt.ConfigField(
+        str, default='vimco', choices=['reinforce', 'vimco'])
+    train_n_samples = 25
 
     initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
-    lr_anneal_step_freq = None
+    lr_anneal_step_freq = spt.ConfigField(int, nullable=True)
 
     # evaluation parameters
     test_n_samples = 500
     test_batch_size = 128
+
+
+config = ExpConfig()
 
 
 @spt.global_reuse
@@ -74,13 +82,9 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
             z_std = 1. + tf.nn.softplus(z_std_or_logstd)
         elif config.p_z_given_y_std == 'softplus_logstd':
             z_logstd = tf.nn.softplus(z_std_or_logstd)
-        elif config.p_z_given_y_std == 'unbound_logstd':
-            z_logstd = z_std_or_logstd
         else:
-            raise ValueError(
-                'Unexpected value for config `p_z_given_y_std`: {}'.
-                format(config.p_z_given_y_std)
-            )
+            assert(config.p_z_given_y_std == 'unbound_logstd')
+            z_logstd = z_std_or_logstd
 
     return spt.Normal(mean=z_mean, std=z_std, logstd=z_logstd)
 
@@ -183,16 +187,18 @@ def reinforce_baseline_net(x):
     return h_x
 
 
-@click.command()
-@click.option('--result-dir', help='The result directory.', metavar='PATH',
-              required=False, type=str)
-@config_options(ExpConfig)
-def main(result_dir):
+def main():
+    # parse the arguments
+    arg_parser = ArgumentParser()
+    spt.register_config_arguments(config, arg_parser)
+    arg_parser.parse_args(sys.argv[1:])
+
     # print the config
-    print_with_title('Configurations', config.format_config(), after='\n')
+    print_with_title('Configurations', pformat(config.to_dict()), after='\n')
 
     # open the result object and prepare for result directories
-    results = MLResults(result_dir)
+    results = MLResults(config.result_dir)
+    results.save_config(config)  # save experiment settings for review
     results.make_dirs('plotting', exist_ok=True)
     results.make_dirs('train_summary', exist_ok=True)
 
@@ -210,11 +216,12 @@ def main(result_dir):
         train_chain = train_q_net.chain(
             p_net, latent_axis=0, observed={'x': input_x})
 
-        if config.train_n_samples is None:
+        if config.vi_algorithm == 'reinforce':
             baseline = reinforce_baseline_net(input_x)
             vae_loss = tf.reduce_mean(
                 train_chain.vi.training.reinforce(baseline=baseline))
         else:
+            assert(config.vi_algorithm == 'vimco')
             vae_loss = tf.reduce_mean(train_chain.vi.training.vimco())
         loss = vae_loss + tf.losses.get_regularization_loss()
 
