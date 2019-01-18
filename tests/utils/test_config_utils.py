@@ -267,6 +267,10 @@ class ConfigTestCase(unittest.TestCase):
         # test set reserved key
         with pytest.raises(KeyError, match='`_xyz` is reserved'):
             config['_xyz'] = 1234
+
+        with pytest.raises(KeyError, match='`to_dict` is reserved'):
+            config['to_dict'] = 1234
+
         config._xyz = 5678  # set attr can work, but will not be a config key
         self.assertEqual(config._xyz, 5678)
 

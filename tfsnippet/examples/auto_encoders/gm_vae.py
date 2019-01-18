@@ -26,8 +26,11 @@ class ExpConfig(spt.Config):
     z_dim = 16
     n_clusters = 16
     l2_reg = 0.0001
-    p_z_given_y_std = 'unbound_logstd'
-    # {'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'}
+    p_z_given_y_std = spt.ConfigField(
+        str, default='unbound_logstd', choices=[
+            'one', 'one_plus_softplus_std', 'softplus_logstd', 'unbound_logstd'
+        ]
+    )
     mean_field_assumption_for_q = False
 
     # training parameters
@@ -36,7 +39,9 @@ class ExpConfig(spt.Config):
     max_epoch = 3000
     max_step = spt.ConfigField(int, nullable=True)
     batch_size = 128
-    train_n_samples = 25  # use "reinforce" if None, otherwise "vimco"
+    vi_algorithm = spt.ConfigField(
+        str, default='vimco', choices=['reinforce', 'vimco'])
+    train_n_samples = 25
 
     initial_lr = 0.001
     lr_anneal_factor = 0.5
@@ -77,13 +82,9 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
             z_std = 1. + tf.nn.softplus(z_std_or_logstd)
         elif config.p_z_given_y_std == 'softplus_logstd':
             z_logstd = tf.nn.softplus(z_std_or_logstd)
-        elif config.p_z_given_y_std == 'unbound_logstd':
-            z_logstd = z_std_or_logstd
         else:
-            raise ValueError(
-                'Unexpected value for config `p_z_given_y_std`: {}'.
-                format(config.p_z_given_y_std)
-            )
+            assert(config.p_z_given_y_std == 'unbound_logstd')
+            z_logstd = z_std_or_logstd
 
     return spt.Normal(mean=z_mean, std=z_std, logstd=z_logstd)
 
@@ -197,6 +198,7 @@ def main():
 
     # open the result object and prepare for result directories
     results = MLResults(config.result_dir)
+    results.save_config(config)  # save experiment settings for review
     results.make_dirs('plotting', exist_ok=True)
     results.make_dirs('train_summary', exist_ok=True)
 
@@ -214,11 +216,12 @@ def main():
         train_chain = train_q_net.chain(
             p_net, latent_axis=0, observed={'x': input_x})
 
-        if config.train_n_samples is None:
+        if config.vi_algorithm == 'reinforce':
             baseline = reinforce_baseline_net(input_x)
             vae_loss = tf.reduce_mean(
                 train_chain.vi.training.reinforce(baseline=baseline))
         else:
+            assert(config.vi_algorithm == 'vimco')
             vae_loss = tf.reduce_mean(train_chain.vi.training.vimco())
         loss = vae_loss + tf.losses.get_regularization_loss()
 

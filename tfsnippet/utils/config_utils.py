@@ -261,7 +261,7 @@ class Config(object):
         config.l2_regularization = 'xxx'  # raise an error
         config.activation = 'sigmoid'  # okay
         config.activation = 'tanh'  # raise an error
-        config.new_attribute = 'yyy  # okay
+        config.new_attribute = 'yyy'  # okay
 
     The config object also implements dict-like interface::
 
@@ -481,3 +481,7 @@ def register_config_arguments(config, parser, prefix=None, title=None,
             action=_ConfigAction,  default=default_value,
             config_obj=config, config_key=key,
         )
+
+
+def load_config():
+    pass

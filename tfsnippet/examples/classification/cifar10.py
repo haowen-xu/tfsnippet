@@ -56,6 +56,7 @@ def main():
 
     # open the result object and prepare for result directories
     results = MLResults(config.result_dir)
+    results.save_config(config)  # save experiment settings for review
     results.make_dirs('train_summary', exist_ok=True)
 
     # input placeholders
