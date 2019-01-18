@@ -534,16 +534,35 @@ def broadcast_to_shape_strict(x, shape, name=None):
             if len(x_shape) > len(shape):
                 raise ValueError(cannot_broadcast_msg)
         elif isinstance(shape, tuple):
-            with assert_deps([tf.assert_less_equal(
-                    tf.rank(x), len(shape), message=cannot_broadcast_msg)]):
-                x = tf.identity(x)
+            with assert_deps([
+                        tf.assert_less_equal(
+                            tf.rank(x),
+                            len(shape),
+                            message=cannot_broadcast_msg
+                        )
+                    ]) as asserted:
+                if asserted:  # pragma: no cover
+                    x = tf.identity(x)
         else:
-            with assert_deps([assert_rank(
-                    shape, 1, message=cannot_broadcast_msg)]):
-                shape = tf.identity(shape)
-            with assert_deps([tf.assert_less_equal(
-                    tf.rank(x), tf.size(shape), message=cannot_broadcast_msg)]):
-                x = tf.identity(x)
+            with assert_deps([
+                        assert_rank(
+                            shape,
+                            1,
+                            message=cannot_broadcast_msg
+                        )
+                    ]) as asserted:
+                if asserted:  # pragma: no cover
+                    shape = tf.identity(shape)
+
+            with assert_deps([
+                        tf.assert_less_equal(
+                            tf.rank(x),
+                            tf.size(shape),
+                            message=cannot_broadcast_msg
+                        )
+                    ]) as asserted:
+                if asserted:  # pragma: no cover
+                    x = tf.identity(x)
 
         # do broadcast
         return broadcast_to_shape(x, shape)
@@ -674,7 +693,7 @@ def reshape_tail(input, ndims, shape, name=None):
                         input, ndims,
                         message='rank(input) must be at least ndims')
                 ]) as asserted:
-            if asserted:
+            if asserted:  # pragma: no cover
                 input = tf.identity(input)
 
         # compute the static shape
