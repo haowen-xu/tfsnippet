@@ -481,7 +481,3 @@ def register_config_arguments(config, parser, prefix=None, title=None,
             action=_ConfigAction,  default=default_value,
             config_obj=config, config_key=key,
         )
-
-
-def load_config():
-    pass
