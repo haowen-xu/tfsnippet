@@ -10,7 +10,7 @@ from tfsnippet.layers.flows.utils import (is_log_det_shape_matches_input,
                                           broadcast_log_det_against_input,
                                           SigmoidScale, ExpScale, LinearScale,
                                           ZeroLogDet)
-from tfsnippet.utils import scoped_set_assertion_enabled
+from tfsnippet.utils import scoped_set_config, settings
 
 
 class IsLogDetShapeMatchesInputTestCase(tf.test.TestCase):
@@ -308,7 +308,8 @@ class ZeroLogDetTestCase(tf.test.TestCase):
                 return y, self._log_det_list[layer_id]
 
         np.random.seed(1234)
-        with self.test_session() as sess, scoped_set_assertion_enabled(False):
+        with self.test_session() as sess, \
+                scoped_set_config(settings, enable_assertions=False):
             x = np.random.normal(size=[2, 3, 4]).astype(np.float32)
             log_det = np.zeros_like(x, dtype=np.float32)
             log_det_2 = np.random.normal(size=log_det.shape).astype(np.float32)

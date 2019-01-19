@@ -6,7 +6,6 @@ fs >= 2.1.2
 imageio >= 2.3.0
 mock >= 2.0.0
 pytest >= 3.0
-PyYAML >= 3.13
 rarfile >= 3.0
 
 # dependencies for documentation

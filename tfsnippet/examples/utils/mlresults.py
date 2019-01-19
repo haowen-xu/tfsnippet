@@ -10,7 +10,7 @@ from fs import open_fs
 from fs.base import FS
 from fs.errors import NoSysPath
 
-from tfsnippet.utils import makedirs, config_defaults
+from tfsnippet.utils import makedirs, get_config_defaults
 from .jsonutils import JsonEncoder
 
 __all__ = ['MLResults']
@@ -219,7 +219,7 @@ class MLResults(object):
                 s = s.encode('utf-8')
             return s
 
-        defaults_dict = config_defaults(config)
+        defaults_dict = get_config_defaults(config)
         config_dict = {k: v for k, v in six.iteritems(config.to_dict())
                        if k not in defaults_dict or defaults_dict[k] != v}
 

@@ -7,11 +7,11 @@ from tfsnippet.utils import *
 
 class AssertionTestCase(tf.test.TestCase):
 
-    def test_set_assertion_enabled(self):
-        self.assertTrue(is_assertion_enabled())
-        with scoped_set_assertion_enabled(False):
-            self.assertFalse(is_assertion_enabled())
-        self.assertTrue(is_assertion_enabled())
+    def test_set_enable_assertions(self):
+        self.assertTrue(settings.enable_assertions)
+        with scoped_set_config(settings, enable_assertions=False):
+            self.assertFalse(settings.enable_assertions)
+        self.assertTrue(settings.enable_assertions)
 
     def test_assert_deps(self):
         ph = tf.placeholder(dtype=tf.bool, shape=())
@@ -23,7 +23,7 @@ class AssertionTestCase(tf.test.TestCase):
 
         # test assertion enabled, and ops are not empty
         with self.test_session() as sess, \
-                scoped_set_assertion_enabled(True):
+                scoped_set_config(settings, enable_assertions=True):
             with assert_deps([op, None]) as asserted:
                 self.assertTrue(asserted)
                 out = tf.constant(1.)
@@ -32,7 +32,7 @@ class AssertionTestCase(tf.test.TestCase):
 
         # test assertion disabled
         with self.test_session() as sess, \
-                scoped_set_assertion_enabled(False):
+                scoped_set_config(settings, enable_assertions=False):
             with assert_deps([op, None]) as asserted:
                 self.assertFalse(asserted)
                 out = tf.constant(1.)
@@ -42,21 +42,21 @@ class AssertionTestCase(tf.test.TestCase):
 class CheckNumericsTestCase(tf.test.TestCase):
 
     def test_set_check_numerics(self):
-        self.assertFalse(should_check_numerics())
-        with scoped_set_check_numerics(True):
-            self.assertTrue(should_check_numerics())
-        self.assertFalse(should_check_numerics())
+        self.assertFalse(settings.check_numerics)
+        with scoped_set_config(settings, check_numerics=True):
+            self.assertTrue(settings.check_numerics)
+        self.assertFalse(settings.check_numerics)
 
     def test_check_numerics(self):
         ph = tf.placeholder(dtype=tf.float32, shape=())
-        with scoped_set_check_numerics(True):
+        with scoped_set_config(settings, check_numerics=True):
             x = maybe_check_numerics(ph, message='numerical issues')
         with pytest.raises(Exception, match='numerical issues'):
             with self.test_session() as sess:
                 _ = sess.run(x, feed_dict={ph: np.nan})
 
     def test_not_check_numerics(self):
-        with scoped_set_check_numerics(False):
+        with scoped_set_config(settings, check_numerics=False):
             x = maybe_check_numerics(
                 tf.constant(np.nan), message='numerical issues')
         with self.test_session() as sess:

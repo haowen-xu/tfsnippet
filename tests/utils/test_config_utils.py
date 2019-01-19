@@ -169,7 +169,7 @@ class ConfigTestCase(unittest.TestCase):
 
         # test get defaults from class
         defaults = {'x': 123, 'y': None, 'z': 1000, 'w': ['w']}
-        self.assertDictEqual(config_defaults(MyConfig), defaults)
+        self.assertDictEqual(get_config_defaults(MyConfig), defaults)
 
         # test populate the default values
         config = MyConfig()
@@ -186,7 +186,7 @@ class ConfigTestCase(unittest.TestCase):
         self.assertNotIn('xyz', config)
 
         # test default values to_dict
-        self.assertDictEqual(config_defaults(config), defaults)
+        self.assertDictEqual(get_config_defaults(config), defaults)
         self.assertDictEqual(config.to_dict(), defaults)
 
         # test set attr on recognized simple value
@@ -286,7 +286,7 @@ class ConfigTestCase(unittest.TestCase):
             config.to_dict(),
             {'x': 789, 'y': 'def', 'z': 3000, 'w': {'ww': 'www'}, 't': 'ttt'}
         )
-        self.assertDictEqual(config_defaults(config), defaults)
+        self.assertDictEqual(get_config_defaults(config), defaults)
 
         # test update
         config = MyConfig()
@@ -304,12 +304,12 @@ class ConfigTestCase(unittest.TestCase):
         with pytest.raises(TypeError,
                            match='`config` must be an instance of `Config`, '
                                  'or a subclass of `Config`'):
-            _ = config_defaults(NotAConfig)
+            _ = get_config_defaults(NotAConfig)
 
         with pytest.raises(TypeError,
                            match='`config` must be an instance of `Config`, '
                                  'or a subclass of `Config`'):
-            _ = config_defaults(NotAConfig())
+            _ = get_config_defaults(NotAConfig())
 
     def test_register_config_arguments(self):
         class ModelConfig(Config):
@@ -406,11 +406,12 @@ class ConfigTestCase(unittest.TestCase):
             '--normalizer=789'
         ])
         self.assertIsNone(model_config.activation)
-        self.assertEqual(model_config.normalizer, '789')
+        # note the value is parsed as yaml, thus should be 789 rather than '789'
+        self.assertEqual(model_config.normalizer, 789)
         self.assertEqual(train_config.max_epoch, 123)
         self.assertEqual(train_config.max_step, 1000)
         self.assertIsNone(args.activation)
-        self.assertEqual(args.normalizer, '789')
+        self.assertEqual(args.normalizer, 789)
         self.assertEqual(getattr(args, 'train.max_epoch'), 123)
         self.assertEqual(getattr(args, 'train.max_step'), 1000)
 
@@ -424,3 +425,22 @@ class ConfigTestCase(unittest.TestCase):
                                             r"is not one of \['relu', "
                                             r"'leaky_relu'\]\."):
             _ = parser.parse_args(['--model.activation=sigmoid'])
+
+    def test_scoped_set_config(self):
+        class MyConfig(Config):
+            a = 123
+            b = None
+
+        config = MyConfig()
+        self.assertDictEqual(config.to_dict(), {'a': 123, 'b': None})
+        with scoped_set_config(config, a=456, c='hello'):
+            self.assertDictEqual(config.to_dict(),
+                                 {'a': 456, 'b': None, 'c': 'hello'})
+
+            with scoped_set_config(config, b=789.):
+                self.assertDictEqual(config.to_dict(),
+                                     {'a': 456, 'b': 789., 'c': 'hello'})
+
+            self.assertDictEqual(config.to_dict(),
+                                 {'a': 456, 'b': None, 'c': 'hello'})
+        self.assertDictEqual(config.to_dict(), {'a': 123, 'b': None})

@@ -1,47 +1,28 @@
-import os
 from contextlib import contextmanager
 
 import tensorflow as tf
 
+from .deprecation import deprecated
 from .doc_utils import add_name_arg_doc
 
 __all__ = [
     'is_assertion_enabled',
     'set_assertion_enabled',
-    'scoped_set_assertion_enabled',
     'should_check_numerics',
     'set_check_numerics',
-    'scoped_set_check_numerics',
     'maybe_check_numerics',
     'assert_deps',
 ]
 
 
-_enable_assertion = (
-    os.environ.get('TFSNIPPET_DISABLE_ASSERTION', '').lower()
-    not in ('1', 'yes', 'on', 'true')
-)
-_check_numerics = (
-    os.environ.get('TFSNIPPET_CHECK_NUMERICS', '').lower()
-    in ('1', 'yes', 'on', 'true')
-)
-
-
-@contextmanager
-def _scoped_set(value, getter, setter):
-    old_value = getter()
-    try:
-        setter(value)
-        yield
-    finally:
-        setter(old_value)
-
-
+@deprecated('check `tfsnippet.settings.enable_assertions` instead')
 def is_assertion_enabled():
     """Whether or not to enable assertions?"""
-    return _enable_assertion
+    from .config_ import settings
+    return settings.enable_assertions
 
 
+@deprecated('set `tfsnippet.settings.enable_assertions = True/False` instead')
 def set_assertion_enabled(enabled):
     """
     Set whether or not to enable assertions?
@@ -49,20 +30,18 @@ def set_assertion_enabled(enabled):
     If the assertions are disabled, then :func:`assert_deps` will not execute
     any given operations.
     """
-    global _enable_assertion
-    _enable_assertion = bool(enabled)
+    from .config_ import settings
+    settings.enable_assertions = bool(enabled)
 
 
-def scoped_set_assertion_enabled(enabled):
-    """Set whether or not to enable assertions in a scoped context."""
-    return _scoped_set(enabled, is_assertion_enabled, set_assertion_enabled)
-
-
+@deprecated('check `tfsnippet.settings.check_numerics` instead')
 def should_check_numerics():
     """Whether or not to check numerics?"""
-    return _check_numerics
+    from .config_ import settings
+    return settings.check_numerics
 
 
+@deprecated('set `tfsnippet.settings.check_numerics = True/False` instead')
 def set_check_numerics(enabled):
     """
     Set whether or not to check numerics?
@@ -72,13 +51,8 @@ def set_check_numerics(enabled):
     and the default behavior of :class:`tfsnippet.distributions.Distribution`
     sub-classes.
     """
-    global _check_numerics
-    _check_numerics = bool(enabled)
-
-
-def scoped_set_check_numerics(enabled):
-    """Set whether or not to check numerics in a scoped context."""
-    return _scoped_set(enabled, should_check_numerics, set_check_numerics)
+    from .config_ import settings
+    settings.check_numerics = bool(enabled)
 
 
 @add_name_arg_doc
@@ -93,8 +67,9 @@ def maybe_check_numerics(tensor, message, name=None):
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.
     """
+    from .config_ import settings
     tensor = tf.convert_to_tensor(tensor)
-    if should_check_numerics():
+    if settings.check_numerics:
         return tf.check_numerics(tensor, message, name=name)
     else:
         return tensor
@@ -114,8 +89,9 @@ def assert_deps(assert_ops):
         bool: A boolean indicate whether or not the assertion operations
             are not empty, and are executed.
     """
+    from .config_ import settings
     assert_ops = [o for o in assert_ops if o is not None]
-    if assert_ops and is_assertion_enabled():
+    if assert_ops and settings.enable_assertions:
         with tf.control_dependencies(assert_ops):
             yield True
     else:

@@ -10,8 +10,8 @@ This version introduces breaking changes. Existing code might better stick to [v
 ### Added
 - Utilities have been exported to the root package, and now it's recommended to use TFSnippet by ``import tfsnippet as spt``.
 - `tfsnippet.layers` package, including dense layer, convolutional layers, normalization layers, and flow layers.
-- `tfsnippet.utils.debugging` module, including several utilities to write debugging code with a global switch to enable/disable.
-- Added `tfsnippet.Config`.
+- Added a class `tfsnippet.Config` to define user configs.
+- Added the global config object `tfsnippet.settings`. 
 
 ### Changed
 - `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.

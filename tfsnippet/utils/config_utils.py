@@ -1,8 +1,10 @@
 from argparse import ArgumentParser, Action
 from collections import OrderedDict
+from contextlib import contextmanager
 
 import six
 import numpy as np
+import yaml
 
 from .doc_utils import DocInherit
 from .type_utils import is_integer, is_float
@@ -12,7 +14,7 @@ __all__ = [
     'BoolConfigValidator', 'StrConfigValidator',
     'register_config_validator', 'get_config_validator',
     'Config', 'ConfigField',
-    'config_defaults', 'register_config_arguments',
+    'get_config_defaults', 'register_config_arguments', 'scoped_set_config',
 ]
 
 
@@ -288,10 +290,10 @@ class Config(object):
     def __init__(self):
         """Construct a new :class:`Config`."""
         for key in self:
-            value = getattr(self, key)
+            value = self[key]
             if isinstance(value, ConfigField):
                 value = value.default_value
-            setattr(self, key, value)
+            self[key] = value
 
     def __setattr__(self, key, value):
         cls = self.__class__
@@ -353,7 +355,7 @@ class Config(object):
         return {key: self[key] for key in self}
 
 
-def config_defaults(config):
+def get_config_defaults(config):
     """
     Get the default config values of `config`.
 
@@ -389,7 +391,8 @@ class _ConfigAction(Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         try:
-            self._config_obj[self._config_key] = values
+            value = yaml.load(values)
+            self._config_obj[self._config_key] = value
         except Exception as ex:
             message = 'Invalid value for argument `{}`'.format(option_string)
             if str(ex):
@@ -481,3 +484,43 @@ def register_config_arguments(config, parser, prefix=None, title=None,
             action=_ConfigAction,  default=default_value,
             config_obj=config, config_key=key,
         )
+
+
+@contextmanager
+def scoped_set_config(config, **kwargs):
+    """
+    Set config values within a context scope.
+
+    Args:
+        config (Config): The config object to set.
+        \\**kwargs: The key-value pairs.
+    """
+    keys_to_restore = {}
+    keys_to_delete = set()
+
+    try:
+        for key, value in six.iteritems(kwargs):
+            to_delete = False
+            old_value = None
+
+            if key in config:
+                old_value = config[key]
+            else:
+                to_delete = True
+
+            # the following stmt will also validate the `key`.
+            config[key] = value
+
+            if to_delete:
+                keys_to_delete.add(key)
+            else:
+                keys_to_restore[key] = old_value
+
+        yield
+
+    finally:
+        for key in keys_to_delete:
+            delattr(config, key)
+        for key, value in six.iteritems(keys_to_restore):
+            config[key] = value
+
