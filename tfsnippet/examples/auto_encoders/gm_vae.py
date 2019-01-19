@@ -37,7 +37,7 @@ class ExpConfig(spt.Config):
     result_dir = None
     write_summary = False
     max_epoch = 3000
-    max_step = spt.ConfigField(int, nullable=True)
+    max_step = None
     batch_size = 128
     vi_algorithm = spt.ConfigField(
         str, default='vimco', choices=['reinforce', 'vimco'])
@@ -46,7 +46,7 @@ class ExpConfig(spt.Config):
     initial_lr = 0.001
     lr_anneal_factor = 0.5
     lr_anneal_epoch_freq = 300
-    lr_anneal_step_freq = spt.ConfigField(int, nullable=True)
+    lr_anneal_step_freq = None
 
     # evaluation parameters
     test_n_samples = 500
