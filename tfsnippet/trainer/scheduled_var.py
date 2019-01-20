@@ -15,7 +15,8 @@ class ScheduledVariable(TensorWrapper):
     as training goes by.
     """
 
-    def __init__(self, name, initial_value, dtype=tf.float32, **kwargs):
+    def __init__(self, name, initial_value, dtype=tf.float32, model_var=False,
+                 collections=None, **kwargs):
         """
         Construct a new :class:`ScheduledVariable`.
 
@@ -23,16 +24,29 @@ class ScheduledVariable(TensorWrapper):
             name (str): Name of the variable.
             initial_value: Initial value of the variable.
             dtype (tf.DType): Data type of the variable.
+            model_var (bool): If :obj:`True`, will add the variable to
+                the `MODEL_VARIABLES` collection.
+            collections (Iterable[str]): Add the variable to these graph
+                collections, in addition to the `MODEL_VARIABLES` and
+                `GLOBAL_VARIABLES` collections.
             \\**kwargs: Additional named arguments passed to :meth:`_init()`.
         """
         with tf.name_scope('ScheduledVariable.init'):
             dtype = tf.as_dtype(dtype)
+
             initial_value = tf.convert_to_tensor(initial_value)
             if initial_value.dtype != dtype:
                 initial_value = tf.cast(initial_value, dtype=dtype)
-            self._init(name, initial_value, dtype, **kwargs)
 
-    def _init(self, name, initial_value, dtype, **kwargs):
+            collections = list(collections or ())
+            collections += [tf.GraphKeys.GLOBAL_VARIABLES]
+            if model_var:
+                collections += [tf.GraphKeys.MODEL_VARIABLES]
+            collections = list(set(collections))
+
+            self._init(name, initial_value, dtype, collections, **kwargs)
+
+    def _init(self, name, initial_value, dtype, collections, **kwargs):
         """
         Actually construct the :class:`ScheduledVariable`.
 
@@ -43,9 +57,12 @@ class ScheduledVariable(TensorWrapper):
             initial_value (tf.Tensor): The initial value, casted into
                 :class:`tf.Tensor` with appropriate dtype.
             dtype (tf.DType): Data type of the variable.
+            collections (list[str]): The variable collections to add.
         """
         self._self_var = tf.get_variable(
-            name, dtype=dtype, initializer=initial_value, trainable=False)
+            name, dtype=dtype, initializer=initial_value, trainable=False,
+            collections=collections
+        )
         self._self_read_op = tf.convert_to_tensor(self._self_var)
         self._self_assign_ph = tf.placeholder(
             dtype=dtype, shape=self._self_var.get_shape())
@@ -104,7 +121,7 @@ class AnnealingVariable(ScheduledVariable):
             ratio=ratio, min_value=min_value
         )
 
-    def _init(self, name, initial_value, dtype, ratio, min_value):
+    def _init(self, name, initial_value, dtype, collections, ratio, min_value):
         ratio = tf.convert_to_tensor(ratio)
         if ratio.dtype != dtype:
             ratio = tf.cast(ratio, dtype=dtype)
@@ -115,9 +132,10 @@ class AnnealingVariable(ScheduledVariable):
                 min_value = tf.cast(min_value, dtype=dtype)
             initial_value = tf.maximum(initial_value, min_value)
 
-        super(AnnealingVariable, self)._init(name, initial_value, dtype)
+        super(AnnealingVariable, self)._init(
+            name, initial_value, dtype, collections)
 
-        with tf.name_scope('anneal'):
+        with tf.name_scope('anneal_op'):
             if min_value is not None:
                 self._self_anneal_op = tf.assign(
                     self._self_var,

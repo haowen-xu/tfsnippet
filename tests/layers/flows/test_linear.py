@@ -69,14 +69,16 @@ class InvertibleDenseTestCase(tf.test.TestCase):
             )
 
             assert_variables(['matrix'], trainable=True,
-                             scope='invertible_dense/kernel')
+                             scope='invertible_dense/kernel',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test non-trainable
         with tf.Graph().as_default():
             layer = InvertibleDense(strict_invertible=False, trainable=False)
             layer.apply(tf.zeros([2, 3, 4, 5]))
             assert_variables(['matrix'], trainable=False,
-                             scope='invertible_dense/kernel')
+                             scope='invertible_dense/kernel',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
 
 class InvertibleConv2dTestCase(tf.test.TestCase):
@@ -109,7 +111,8 @@ class InvertibleConv2dTestCase(tf.test.TestCase):
                 self, layer, sess, x, rtol=1e-4, atol=1e-5)
 
             assert_variables(['matrix'], trainable=True,
-                             scope='invertible_conv2d/kernel')
+                             scope='invertible_conv2d/kernel',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             # test channels_last = False, dynamic input
             x = np.random.normal(size=[3, 4, 5, 6, 7]).astype(np.float32)
@@ -137,11 +140,13 @@ class InvertibleConv2dTestCase(tf.test.TestCase):
             )
 
             assert_variables(['matrix'], trainable=True,
-                             scope='invertible_conv2d/kernel')
+                             scope='invertible_conv2d/kernel',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test non-trainable
         with tf.Graph().as_default():
             layer = InvertibleConv2d(strict_invertible=False, trainable=False)
             layer.apply(tf.zeros([3, 4, 5, 6, 7]))
             assert_variables(['matrix'], trainable=False,
-                             scope='invertible_conv2d/kernel')
+                             scope='invertible_conv2d/kernel',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])

@@ -6,7 +6,7 @@ from tfsnippet.utils import (ParamSpec,
                              add_name_and_scope_arg_doc,
                              validate_int_tuple_arg,
                              resolve_negative_axis,
-                             maybe_check_numerics)
+                             maybe_check_numerics, model_variable)
 
 __all__ = ['weight_norm']
 
@@ -81,7 +81,7 @@ def weight_norm(kernel,
         # create the scaling variable
         if use_scale:
             if scale is None:
-                scale = tf.get_variable(
+                scale = model_variable(
                     'scale',
                     shape=kernel_shape,
                     dtype=dtype,

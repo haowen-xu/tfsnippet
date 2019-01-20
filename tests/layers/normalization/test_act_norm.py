@@ -181,12 +181,14 @@ class ActNormClassTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             _ = act_norm(tf.zeros([2, 3]), trainable=True, scale_type='linear')
             assert_variables(['scale', 'bias'], trainable=True,
-                             scope='act_norm')
+                             scope='act_norm',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['log_scale'], exist=False,  scope='act_norm')
 
         # test non-trainable
         with tf.Graph().as_default():
             _ = act_norm(tf.zeros([2, 3]), trainable=False, scale_type='exp')
             assert_variables(['log_scale', 'bias'], trainable=False,
-                             scope='act_norm')
+                             scope='act_norm',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['scale'], exist=False,  scope='act_norm')

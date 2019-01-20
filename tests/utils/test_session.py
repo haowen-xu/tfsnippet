@@ -195,10 +195,27 @@ class EnsureVariablesInitializedTestCase(tf.test.TestCase):
 class GetVariableDDITestCase(tf.test.TestCase):
 
     def test_get_variable_ddi(self):
+        # test collections
+        def g(name, initial_value, initializing=False, collections=None):
+            v = get_variable_ddi(
+                name, initial_value, shape=(), initializing=initializing,
+                collections=collections
+            )
+            # ensure `get_variable_ddi` will add the variable to collections
+            for coll in (collections or [tf.GraphKeys.GLOBAL_VARIABLES]):
+                self.assertEqual(
+                    tf.get_collection(coll)[-1].name.rsplit('/', 1)[-1],
+                    name + ':0'
+                )
+            return v
+
+        _ = g('var', 0., initializing=True,
+              collections=[tf.GraphKeys.MODEL_VARIABLES])
+
+        # test reuse
         @global_reuse
         def f(initial_value, initializing=False):
-            return get_variable_ddi(
-                'x', initial_value, shape=(), initializing=initializing)
+            return g('x', initial_value, initializing=initializing)
 
         with self.test_session() as sess:
             x_in = tf.placeholder(dtype=tf.float32, shape=())

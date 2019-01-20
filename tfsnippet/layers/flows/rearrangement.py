@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.utils import (add_name_and_scope_arg_doc, VarScopeRandomState,
-                             get_static_shape, get_shape)
+                             get_static_shape, get_shape, model_variable)
 from .base import FeatureMappingFlow
 from .utils import ZeroLogDet
 
@@ -55,7 +55,7 @@ class FeatureShufflingFlow(FeatureMappingFlow):
         permutation = np.arange(n_features, dtype=np.int32)
         self._random_state.shuffle(permutation)
 
-        self._permutation = tf.get_variable(
+        self._permutation = model_variable(
             'permutation', dtype=tf.int32, initializer=permutation,
             trainable=False
         )

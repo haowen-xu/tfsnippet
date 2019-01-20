@@ -59,7 +59,7 @@ config = ExpConfig()
 @spt.global_reuse
 def gaussian_mixture_prior(y, z_dim, n_clusters):
     # derive the learnt z_mean
-    prior_mean = tf.get_variable(
+    prior_mean = spt.model_variable(
         'z_prior_mean', dtype=tf.float32, shape=[n_clusters, z_dim],
         initializer=tf.random_normal_initializer()
     )
@@ -70,7 +70,7 @@ def gaussian_mixture_prior(y, z_dim, n_clusters):
     if config.p_z_given_y_std == 'one':
         z_logstd = tf.zeros_like(z_mean)
     else:
-        prior_std_or_logstd = tf.get_variable(
+        prior_std_or_logstd = spt.model_variable(
             'z_prior_std_or_logstd',
             dtype=tf.float32,
             shape=[n_clusters, z_dim],

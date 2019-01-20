@@ -33,7 +33,8 @@ class FeatureShufflingFlowTestCase(tf.test.TestCase):
                 self, layer, sess, x_ph, feed_dict={x_ph: x})
 
             assert_variables(['permutation'], trainable=False,
-                             scope='feature_shuffling_flow')
+                             scope='feature_shuffling_flow',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             # axis = -2, value_ndims = 3
             x = np.random.normal(size=[3, 4, 5, 6]).astype(np.float32)

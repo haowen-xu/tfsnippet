@@ -124,9 +124,11 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             self.assertTupleEqual(m.shape, (5, 5))
             assert_variables(['matrix'], exist=False, scope='invertible_matrix')
             assert_variables(['pre_L', 'pre_U', 'log_s'], trainable=True,
-                             scope='invertible_matrix')
+                             scope='invertible_matrix',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['P', 'sign'], trainable=False,
-                             scope='invertible_matrix')
+                             scope='invertible_matrix',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             ensure_variables_initialized()
 
@@ -164,7 +166,8 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             # test non-trainable
             _ = InvertibleMatrix(shape, strict=True, trainable=False)
             assert_variables(['pre_L', 'pre_U', 'log_s', 'P', 'sign'],
-                             trainable=False, scope='invertible_matrix')
+                             trainable=False, scope='invertible_matrix',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
     def test_non_strict_mode(self):
         assert_allclose = functools.partial(
@@ -177,7 +180,8 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             m = InvertibleMatrix(5, strict=False)
             self.assertTupleEqual(m.shape, (5, 5))
             assert_variables(['matrix'], trainable=True,
-                             scope='invertible_matrix')
+                             scope='invertible_matrix',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['pre_L', 'pre_U', 'log_s', 'P', 'sign'],
                              exist=False, scope='invertible_matrix')
             ensure_variables_initialized()
@@ -198,7 +202,8 @@ class InvertibleMatrixTestCase(tf.test.TestCase):
             # test non-trainable
             _ = InvertibleMatrix(5, strict=False, trainable=False)
             assert_variables(['matrix'],
-                             trainable=False, scope='invertible_matrix')
+                             trainable=False, scope='invertible_matrix',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
     def test_errors(self):
         def check_shape_error(shape):

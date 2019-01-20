@@ -7,7 +7,7 @@ from tfsnippet.layers.flows.utils import (broadcast_log_det_against_input,
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              get_static_shape, maybe_check_numerics,
                              validate_int_tuple_arg, get_dimensions_size,
-                             validate_enum_arg)
+                             validate_enum_arg, model_variable)
 from ..flows import FeatureMappingFlow
 
 __all__ = ['ActNorm', 'act_norm']
@@ -132,7 +132,7 @@ class ActNorm(FeatureMappingFlow):
         self._x_input_spec.validate('input', input)
 
         # build the variables
-        self._bias = tf.get_variable(
+        self._bias = model_variable(
             'bias',
             dtype=dtype,
             shape=self._var_shape,
@@ -141,7 +141,7 @@ class ActNorm(FeatureMappingFlow):
             trainable=self._trainable
         )
         if self._scale_type == 'exp':
-            self._pre_scale = tf.get_variable(
+            self._pre_scale = model_variable(
                 'log_scale',
                 dtype=dtype,
                 shape=self._var_shape,
@@ -150,7 +150,7 @@ class ActNorm(FeatureMappingFlow):
                 trainable=self._trainable
             )
         else:
-            self._pre_scale = tf.get_variable(
+            self._pre_scale = model_variable(
                 'scale',
                 dtype=dtype,
                 shape=self._var_shape,

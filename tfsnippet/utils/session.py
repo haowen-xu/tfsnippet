@@ -158,6 +158,7 @@ def get_variable_ddi(name,
                      regularizer=None,
                      constraint=None,
                      trainable=True,
+                     collections=None,
                      **kwargs):
     """
     Wraps :func:`tf.get_variable` to support data-dependent initialization.
@@ -172,6 +173,7 @@ def get_variable_ddi(name,
         regularizer: Regularizer of the variable.
         constraint: Constraint of the variable.
         trainable (bool): Whether or not to the variable is trainable?
+        collections (Iterable[str]): Add the variable to these collections.
         \\**kwargs: Other named parameters passed to :func:`tf.get_variable`.
 
     Returns:
@@ -180,7 +182,7 @@ def get_variable_ddi(name,
     # TODO: detect shape from `initial_value` if not specified
     v = tf.get_variable(
         name, shape=shape, dtype=dtype, regularizer=regularizer,
-        constraint=constraint, trainable=trainable,
+        constraint=constraint, trainable=trainable, collections=collections,
         **kwargs
     )
     if initializing:

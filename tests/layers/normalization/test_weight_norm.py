@@ -91,12 +91,14 @@ class WeightNormTestCase(tf.test.TestCase):
         # test trainable
         with tf.Graph().as_default():
             _ = weight_norm(tf.zeros([2, 3]), -1)
-            assert_variables(['scale'], trainable=True, scope='weight_norm')
+            assert_variables(['scale'], trainable=True, scope='weight_norm',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test non-trainable
         with tf.Graph().as_default():
             _ = weight_norm(tf.zeros([2, 3]), -1, trainable=False)
-            assert_variables(['scale'], trainable=False, scope='weight_norm')
+            assert_variables(['scale'], trainable=False, scope='weight_norm',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test no scale
         with tf.Graph().as_default():

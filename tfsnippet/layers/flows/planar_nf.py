@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims,
                              add_name_and_scope_arg_doc, assert_deps,
-                             validate_positive_int_arg, get_static_shape)
+                             validate_positive_int_arg, get_static_shape,
+                             model_variable)
 from .base import FeatureMappingFlow
 from .sequential import SequentialFlow
 from .utils import assert_log_det_shape_matches_input
@@ -72,7 +73,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
         dtype = input.dtype.base_dtype
         n_units = get_static_shape(input)[self.axis]
 
-        w = tf.get_variable(
+        w = model_variable(
             'w',
             shape=[1, n_units],
             dtype=dtype,
@@ -80,7 +81,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
             regularizer=self._w_regularizer,
             trainable=self._trainable
         )
-        b = tf.get_variable(
+        b = model_variable(
             'b',
             shape=[1],
             dtype=dtype,
@@ -88,7 +89,7 @@ class PlanarNormalizingFlow(FeatureMappingFlow):
             regularizer=self._b_regularizer,
             trainable=self._trainable
         )
-        u = tf.get_variable(
+        u = model_variable(
             'u',
             shape=[1, n_units],
             dtype=dtype,

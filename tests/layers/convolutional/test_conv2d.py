@@ -186,7 +186,8 @@ class Conv2dTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             # test NHWC
             _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True)
-            assert_variables(['kernel', 'bias'], trainable=True, scope='conv2d')
+            assert_variables(['kernel', 'bias'], trainable=True, scope='conv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
@@ -197,7 +198,8 @@ class Conv2dTestCase(tf.test.TestCase):
             _ = conv2d(np.transpose(x, [0, 1, -1, -3, -2]), 7, (3, 4),
                        padding='valid', channels_last=False)
             assert_variables(['kernel', 'bias'], trainable=True,
-                             scope='conv2d_1')
+                             scope='conv2d_1',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
@@ -210,13 +212,15 @@ class Conv2dTestCase(tf.test.TestCase):
             _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True,
                        trainable=False)
             assert_variables(['kernel', 'bias'], trainable=False,
-                             scope='conv2d')
+                             scope='conv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test create variables with use_bias = False
         with tf.Graph().as_default():
             _ = conv2d(x, 7, (3, 4), padding='same', channels_last=True,
                        use_bias=False)
-            assert_variables(['kernel'], trainable=True, scope='conv2d')
+            assert_variables(['kernel'], trainable=True, scope='conv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['bias'], exist=False, scope='conv2d')
 
     def test_normalization_and_activation(self):
@@ -487,7 +491,8 @@ class Deconv2dTestCase(tf.test.TestCase):
             # test NHWC
             _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True)
             assert_variables(['kernel', 'bias'], trainable=True,
-                             scope='deconv2d')
+                             scope='deconv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
@@ -498,7 +503,8 @@ class Deconv2dTestCase(tf.test.TestCase):
             _ = deconv2d(np.transpose(x, [0, 1, -1, -3, -2]), 5, (3, 4),
                          padding='valid', channels_last=False)
             assert_variables(['kernel', 'bias'], trainable=True,
-                             scope='deconv2d_1')
+                             scope='deconv2d_1',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
@@ -511,11 +517,13 @@ class Deconv2dTestCase(tf.test.TestCase):
             _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True,
                          trainable=False)
             assert_variables(['kernel', 'bias'], trainable=False,
-                             scope='deconv2d')
+                             scope='deconv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test create variables with use_bias = False
         with tf.Graph().as_default():
             _ = deconv2d(x, 5, (3, 4), padding='same', channels_last=True,
                          use_bias=False)
-            assert_variables(['kernel'], trainable=True, scope='deconv2d')
+            assert_variables(['kernel'], trainable=True, scope='deconv2d',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['bias'], exist=False, scope='deconv2d')

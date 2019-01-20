@@ -75,13 +75,15 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
         with tf.Graph().as_default():
             _ = PlanarNormalizingFlow().apply(tf.zeros([2, 3]))
             assert_variables(['w', 'b', 'u'], trainable=True,
-                             scope='planar_normalizing_flow')
+                             scope='planar_normalizing_flow',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test non-trainable
         with tf.Graph().as_default():
             _ = PlanarNormalizingFlow(trainable=False).apply(tf.zeros([2, 3]))
             assert_variables(['w', 'b', 'u'], trainable=False,
-                             scope='planar_normalizing_flow')
+                             scope='planar_normalizing_flow',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
     def test_planar_normalizing_flows(self):
         # test single-layer flow

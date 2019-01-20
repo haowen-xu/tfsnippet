@@ -9,8 +9,9 @@ from tfsnippet.utils import ensure_variables_initialized, TemporaryDirectory
 class ScheduledVariableTestCase(tf.test.TestCase):
 
     def test_ScheduledVariable(self):
-        v = ScheduledVariable('v', 123., dtype=tf.int32)
-        assert_variables(['v'], trainable=False)
+        v = ScheduledVariable('v', 123., dtype=tf.int32, model_var=True,
+                              collections=['my_variables'])
+        assert_variables(['v'], trainable=False, collections=['my_variables'])
 
         with TemporaryDirectory() as tmpdir:
             saver = tf.train.Saver(var_list=[v.variable])

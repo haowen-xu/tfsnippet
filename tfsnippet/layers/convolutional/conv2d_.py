@@ -3,9 +3,11 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.ops import assert_rank, assert_scalar_equal
-from tfsnippet.utils import (validate_positive_int_arg, ParamSpec, unflatten_from_ndims,
-                             flatten_to_ndims, is_tensor_object, assert_deps, get_shape,
-                             add_name_and_scope_arg_doc)
+from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
+                             unflatten_from_ndims,
+                             flatten_to_ndims, is_tensor_object, assert_deps,
+                             get_shape,
+                             add_name_and_scope_arg_doc, model_variable)
 from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
@@ -123,7 +125,7 @@ def conv2d(input,
     with tf.variable_scope(scope, default_name=name or 'conv2d'):
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -137,7 +139,7 @@ def conv2d(input,
             kernel = weight_norm_fn(kernel)
 
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 initializer=bias_initializer,
@@ -368,7 +370,7 @@ def deconv2d(input,
 
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -382,7 +384,7 @@ def deconv2d(input,
             kernel = weight_norm_fn(kernel)
 
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 initializer=bias_initializer,

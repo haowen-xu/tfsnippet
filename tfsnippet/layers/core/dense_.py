@@ -99,7 +99,7 @@ def dense(input, units,
     with tf.variable_scope(scope, default_name=name or 'dense'):
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -113,7 +113,7 @@ def dense(input, units,
             kernel = weight_norm_fn(kernel)
 
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 dtype=dtype,

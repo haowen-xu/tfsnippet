@@ -78,7 +78,8 @@ class DenseTestCase(tf.test.TestCase):
         # test create variables
         with tf.Graph().as_default():
             _ = dense(tf.constant(x, dtype=tf.float64), 3)
-            assert_variables(['kernel', 'bias'], trainable=True, scope='dense')
+            assert_variables(['kernel', 'bias'], trainable=True, scope='dense',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
             kernel_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-2]
             bias_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)[-1]
@@ -88,12 +89,14 @@ class DenseTestCase(tf.test.TestCase):
         # test create variables, non-trainable
         with tf.Graph().as_default():
             _ = dense(tf.constant(x, dtype=tf.float64), 3, trainable=False)
-            assert_variables(['kernel', 'bias'], trainable=False, scope='dense')
+            assert_variables(['kernel', 'bias'], trainable=False, scope='dense',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
         # test create variables, use_bias is False
         with tf.Graph().as_default():
             _ = dense(tf.constant(x, dtype=tf.float64), 3, use_bias=False)
-            assert_variables(['kernel'], trainable=True, scope='dense')
+            assert_variables(['kernel'], trainable=True, scope='dense',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['bias'], exist=False, scope='dense')
 
     def test_normalization_and_activation(self):

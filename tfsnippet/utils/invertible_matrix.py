@@ -4,6 +4,7 @@ from scipy import linalg as la
 
 from .debugging import maybe_check_numerics
 from .doc_utils import add_name_arg_doc, add_name_and_scope_arg_doc
+from .model_vars import model_variable
 from .random import VarScopeRandomState
 from .reuse import VarScopeObject
 from .scope import reopen_variable_scope
@@ -284,7 +285,7 @@ class InvertibleMatrix(VarScopeObject):
         # create the variables
         with reopen_variable_scope(self.variable_scope):
             if not strict:
-                self._matrix = tf.get_variable(
+                self._matrix = model_variable(
                     'matrix',
                     initializer=tf.constant(initial_matrix, dtype=dtype),
                     dtype=dtype,
@@ -329,31 +330,31 @@ class InvertibleMatrix(VarScopeObject):
                 #
                 # P = self._P = PermutationMatrix(initial_P)
 
-                P = self._P = tf.get_variable(
+                P = self._P = model_variable(
                     'P',
                     initializer=tf.constant(initial_P, dtype=dtype),
                     dtype=dtype,
                     trainable=False
                 )
-                pre_L = self._pre_L = tf.get_variable(
+                pre_L = self._pre_L = model_variable(
                     'pre_L',
                     initializer=tf.constant(initial_L, dtype=dtype),
                     dtype=dtype,
                     trainable=trainable
                 )
-                pre_U = self._pre_U = tf.get_variable(
+                pre_U = self._pre_U = model_variable(
                     'pre_U',
                     initializer=tf.constant(initial_U, dtype=dtype),
                     dtype=dtype,
                     trainable=trainable
                 )
-                sign = self._sign = tf.get_variable(
+                sign = self._sign = model_variable(
                     'sign',
                     initializer=tf.constant(initial_sign, dtype=dtype),
                     dtype=dtype,
                     trainable=False
                 )
-                log_s = self._log_s = tf.get_variable(
+                log_s = self._log_s = model_variable(
                     'log_s',
                     initializer=tf.constant(initial_log_s, dtype=dtype),
                     dtype=dtype,
