@@ -178,9 +178,8 @@ def main():
 
         # initialize the network
         for [x] in train_flow:
-            lb_out = session.run(init_lb, feed_dict={input_x: x})
-            print('Network initialized, first-batch loss is {:.2g}.\n'.
-                  format(lb_out))
+            print('Network initialized, first-batch loss is {:.6g}.\n'.
+                  format(session.run(init_lb, feed_dict={input_x: x})))
             break
 
         # train the network

@@ -8,8 +8,7 @@ from pprint import pformat
 from tensorflow.contrib.framework import arg_scope, add_arg_scope
 
 import tfsnippet as spt
-from tfsnippet.examples.utils import (MultiGPU,
-                                      MLResults,
+from tfsnippet.examples.utils import (MLResults,
                                       save_images_collection,
                                       bernoulli_as_pixel,
                                       bernoulli_flow,
@@ -17,11 +16,13 @@ from tfsnippet.examples.utils import (MultiGPU,
 
 
 class ExpConfig(spt.Config):
+    # data options
+    channels_last = False
+    x_shape = (1, 28, 28)
+
     # model parameters
     z_dim = 40
-    x_dim = 784
-    batch_norm = True
-    dropout = False
+    act_norm = True
     l2_reg = 0.0001
     kernel_size = 3
     shortcut_kernel_size = 1
@@ -47,32 +48,25 @@ config = ExpConfig()
 
 @spt.global_reuse
 @add_arg_scope
-def q_net(x, observed=None, n_z=None, is_training=True,
-          channels_last=True):
+def q_net(x, observed=None, n_z=None, is_training=False, is_initializing=False):
     net = spt.BayesianNet(observed=observed)
 
-    # compute the hidden features
-    normalizer_fn = None if not config.batch_norm else functools.partial(
-        tf.layers.batch_normalization,
-        axis=-1 if channels_last else -3,
-        training=is_training,
-    )
-    dropout_fn = None if not config.dropout else functools.partial(
-        tf.layers.dropout,
-        training=is_training
+    normalizer_fn = None if not config.act_norm else functools.partial(
+        spt.layers.act_norm,
+        axis=-1 if config.channels_last else -3,
+        initializing=is_initializing,
+        value_ndims=3,
     )
 
+    # compute the hidden features
     with arg_scope([spt.layers.resnet_conv2d_block],
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
                    normalizer_fn=normalizer_fn,
-                   dropout_fn=dropout_fn,
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
-                   channels_last=channels_last):
+                   channels_last=config.channels_last):
         h_x = tf.to_float(x)
-        h_x = tf.reshape(
-            h_x, [-1, 28, 28, 1] if channels_last else [-1, 1, 28, 28])
         h_x = spt.layers.resnet_conv2d_block(h_x, 16)  # output: (16, 28, 28)
         h_x = spt.layers.resnet_conv2d_block(h_x, 32, strides=2)  # output: (32, 14, 14)
         h_x = spt.layers.resnet_conv2d_block(h_x, 32)  # output: (32, 14, 14)
@@ -91,8 +85,15 @@ def q_net(x, observed=None, n_z=None, is_training=True,
 
 @spt.global_reuse
 @add_arg_scope
-def p_net(observed=None, n_z=None, is_training=True, channels_last=True):
+def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
     net = spt.BayesianNet(observed=observed)
+
+    normalizer_fn = None if not config.act_norm else functools.partial(
+        spt.layers.act_norm,
+        axis=-1 if config.channels_last else -3,
+        initializing=is_initializing,
+        value_ndims=3,
+    )
 
     # sample z ~ p(z)
     z = net.add('z', spt.Normal(mean=tf.zeros([1, config.z_dim]),
@@ -104,22 +105,26 @@ def p_net(observed=None, n_z=None, is_training=True, channels_last=True):
                    kernel_size=config.kernel_size,
                    shortcut_kernel_size=config.shortcut_kernel_size,
                    activation_fn=tf.nn.leaky_relu,
+                   normalizer_fn=normalizer_fn,
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
-                   channels_last=channels_last):
+                   channels_last=config.channels_last):
         h_z = spt.layers.dense(z, 64 * 7 * 7)
         h_z = spt.utils.reshape_tail(
-            h_z, ndims=1, shape=[7, 7, 64] if channels_last else [64, 7, 7])
+            h_z,
+            ndims=1,
+            shape=(7, 7, 64) if config.channels_last else (64, 7, 7)
+        )
         h_z = spt.layers.resnet_deconv2d_block(h_z, 64)  # output: (64, 7, 7)
         h_z = spt.layers.resnet_deconv2d_block(h_z, 32, strides=2)  # output: (32, 14, 14)
         h_z = spt.layers.resnet_deconv2d_block(h_z, 32)  # output: (32, 14, 14)
         h_z = spt.layers.resnet_deconv2d_block(h_z, 16, strides=2)  # output: (16, 28, 28)
 
     # sample x ~ p(x|z)
-    h_z = spt.layers.conv2d(
+    x_logits = spt.layers.conv2d(
         h_z, 1, (1, 1), padding='same', name='feature_map_to_pixel',
-        channels_last=channels_last)  # output: (1, 28, 28)
-    x_logits = spt.utils.reshape_tail(h_z, 3, [config.x_dim])
-    x = net.add('x', spt.Bernoulli(logits=x_logits), group_ndims=1)
+        channels_last=config.channels_last
+    )  # output: (1, 28, 28)
+    x = net.add('x', spt.Bernoulli(logits=x_logits), group_ndims=3)
 
     return net
 
@@ -127,7 +132,9 @@ def p_net(observed=None, n_z=None, is_training=True, channels_last=True):
 def main():
     # parse the arguments
     arg_parser = ArgumentParser()
-    spt.register_config_arguments(config, arg_parser)
+    spt.register_config_arguments(config, arg_parser, title='Model options')
+    spt.register_config_arguments(spt.settings, arg_parser, prefix='tfsnippet',
+                                  title='TFSnippet options')
     arg_parser.parse_args(sys.argv[1:])
 
     # print the config
@@ -141,94 +148,65 @@ def main():
 
     # input placeholders
     input_x = tf.placeholder(
-        dtype=tf.int32, shape=(None, config.x_dim), name='input_x')
-    is_training = tf.placeholder(
-        dtype=tf.bool, shape=(), name='is_training')
+        dtype=tf.int32, shape=(None,) + config.x_shape, name='input_x')
     learning_rate = spt.AnnealingVariable(
         'learning_rate', config.initial_lr, config.lr_anneal_factor)
-    multi_gpu = MultiGPU(disable_prebuild=False)
 
-    # build the model
-    grads = []
-    losses = []
-    test_nlls = []
-    test_lbs = []
-    batch_size = spt.utils.get_batch_size(input_x)
-    params = None
-    optimizer = tf.train.AdamOptimizer(learning_rate)
+    # derive the loss for initializing
+    with tf.name_scope('initialization'), \
+            arg_scope([p_net, q_net], is_initializing=True):
+        init_q_net = q_net(input_x)
+        init_chain = init_q_net.chain(
+            p_net, latent_axis=0, observed={'x': input_x})
+        init_loss = tf.reduce_mean(init_chain.vi.training.sgvb())
 
-    for dev, pre_build, [dev_input_x] in multi_gpu.data_parallel(
-            batch_size, [input_x]):
-        with tf.device(dev), multi_gpu.maybe_name_scope(dev):
-            if pre_build:
-                with arg_scope([p_net, q_net], is_training=is_training,
-                               channels_last=True):
-                    _ = q_net(dev_input_x).chain(
-                        p_net, observed={'x': dev_input_x})
-
-            else:
-                with arg_scope([p_net, q_net], is_training=is_training,
-                               channels_last=multi_gpu.channels_last(dev)):
-                    # derive the loss and lower-bound for training
-                    with tf.name_scope('training'):
-                        train_q_net = q_net(dev_input_x)
-                        train_chain = train_q_net.chain(
-                            p_net, latent_axis=0, observed={'x': dev_input_x})
-
-                        dev_vae_loss = tf.reduce_mean(
-                            train_chain.vi.training.sgvb())
-                        dev_loss = dev_vae_loss + \
-                            tf.losses.get_regularization_loss()
-                        losses.append(dev_loss)
-
-                    # derive the nll and logits output for testing
-                    with tf.name_scope('testing'):
-                        test_q_net = q_net(dev_input_x, n_z=config.test_n_z)
-                        test_chain = test_q_net.chain(
-                            p_net, latent_axis=0, observed={'x': dev_input_x})
-                        dev_test_nll = -tf.reduce_mean(
-                            test_chain.vi.evaluation.is_loglikelihood())
-                        dev_test_lb = tf.reduce_mean(
-                            test_chain.vi.lower_bound.elbo())
-                        test_nlls.append(dev_test_nll)
-                        test_lbs.append(dev_test_lb)
-
-                    # derive the optimizer
-                    with tf.name_scope('optimizing'):
-                        params = tf.trainable_variables()
-                        grads.append(optimizer.compute_gradients(
-                            dev_loss, var_list=params
-                        ))
-
-    # merge multi-gpu outputs and operations
-    with tf.name_scope('optimizing'):
-        [loss, test_lb, test_nll] = \
-            multi_gpu.average([losses, test_lbs, test_nlls], batch_size)
-        train_op = multi_gpu.apply_grads(
-            grads=multi_gpu.average_grads(grads),
-            optimizer=optimizer,
-            control_inputs=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    # derive the loss and lower-bound for training
+    with tf.name_scope('training'), \
+            arg_scope([p_net, q_net], is_training=True):
+        train_q_net = q_net(input_x)
+        train_chain = train_q_net.chain(
+            p_net, latent_axis=0, observed={'x': input_x})
+        train_loss = (
+            tf.reduce_mean(train_chain.vi.training.sgvb()) +
+            tf.losses.get_regularization_loss()
         )
 
+    # derive the nll and logits output for testing
+    with tf.name_scope('testing'):
+        test_q_net = q_net(input_x, n_z=config.test_n_z)
+        test_chain = test_q_net.chain(
+            p_net, latent_axis=0, observed={'x': input_x})
+        test_nll = -tf.reduce_mean(test_chain.vi.evaluation.is_loglikelihood())
+        test_lb = tf.reduce_mean(test_chain.vi.lower_bound.elbo())
+
+    # derive the optimizer
+    with tf.name_scope('optimizing'):
+        params = tf.trainable_variables()
+        optimizer = tf.train.AdamOptimizer(learning_rate)
+        grads = optimizer.compute_gradients(train_loss, params)
+        with tf.control_dependencies(
+                tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+            train_op = optimizer.apply_gradients(grads)
+
     # derive the plotting function
-    work_dev = multi_gpu.work_devices[0]
-    with tf.device(work_dev), tf.name_scope('plotting'):
-        plot_p_net = p_net(n_z=100, is_training=is_training,
-                           channels_last=multi_gpu.channels_last(work_dev))
-        x_plots = tf.reshape(bernoulli_as_pixel(plot_p_net['x']), (-1, 28, 28))
+    with tf.name_scope('plotting'):
+        x_plots = tf.reshape(
+            bernoulli_as_pixel(p_net(n_z=100)['x']), (-1,) + config.x_shape)
 
     def plot_samples(loop):
         with loop.timeit('plot_time'):
-            images = session.run(x_plots, feed_dict={is_training: False})
+            images = session.run(x_plots)
             save_images_collection(
                 images=images,
                 filename='plotting/{}.png'.format(loop.epoch),
                 grid_size=(10, 10),
-                results=results
+                results=results,
+                channels_last=config.channels_last,
             )
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = spt.datasets.load_mnist()
+    (x_train, y_train), (x_test, y_test) = \
+        spt.datasets.load_mnist(x_shape=config.x_shape)
     train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
     test_flow = bernoulli_flow(
@@ -236,6 +214,14 @@ def main():
 
     with spt.utils.create_session().as_default() as session, \
             train_flow.threaded(5) as train_flow:
+        spt.utils.ensure_variables_initialized()
+
+        # initialize the network
+        for [x] in train_flow:
+            print('Network initialized, first-batch loss is {:.6g}.\n'.
+                  format(session.run(init_loss, feed_dict={input_x: x})))
+            break
+
         # train the network
         with spt.TrainLoop(params,
                            var_groups=['q_net', 'p_net'],
@@ -247,8 +233,7 @@ def main():
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
-                feed_dict={is_training: True},
-                metrics={'loss': loss}
+                metrics={'loss': train_loss}
             )
             trainer.anneal_after(
                 learning_rate,
@@ -260,7 +245,6 @@ def main():
                 metrics={'test_nll': test_nll, 'test_lb': test_lb},
                 inputs=[input_x],
                 data_flow=test_flow,
-                feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
             evaluator.after_run.add_hook(
