@@ -7,7 +7,8 @@ from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
                              unflatten_from_ndims,
                              flatten_to_ndims, is_tensor_object, assert_deps,
                              get_shape,
-                             add_name_and_scope_arg_doc, model_variable)
+                             add_name_and_scope_arg_doc, model_variable,
+                             maybe_check_numerics, maybe_add_histogram)
 from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
@@ -138,6 +139,9 @@ def conv2d(input,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
 
+        kernel = maybe_check_numerics(kernel, 'kernel')
+        maybe_add_histogram(kernel)
+
         if use_bias and bias is None:
             bias = model_variable(
                 'bias',
@@ -147,6 +151,8 @@ def conv2d(input,
                 constraint=bias_constraint,
                 trainable=trainable
             )
+            bias = maybe_check_numerics(bias, 'bias')
+            maybe_add_histogram(bias)
 
         # flatten to 4d
         output, s1, s2 = flatten_to_ndims(input, 4)
@@ -184,6 +190,8 @@ def conv2d(input,
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
 
+        output = maybe_check_numerics(output, 'output')
+        maybe_add_histogram(output)
     return output
 
 
@@ -383,6 +391,9 @@ def deconv2d(input,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
 
+        kernel = maybe_check_numerics(kernel, 'kernel')
+        maybe_add_histogram(kernel)
+
         if use_bias and bias is None:
             bias = model_variable(
                 'bias',
@@ -392,6 +403,8 @@ def deconv2d(input,
                 constraint=bias_constraint,
                 trainable=trainable
             )
+            bias = maybe_check_numerics(bias, 'bias')
+            maybe_add_histogram(bias)
 
         # flatten to 4d
         output, s1, s2 = flatten_to_ndims(input, 4)
@@ -422,5 +435,8 @@ def deconv2d(input,
 
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
+
+        output = maybe_check_numerics(output, 'output')
+        maybe_add_histogram(output)
 
     return output

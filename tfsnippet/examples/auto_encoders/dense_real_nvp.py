@@ -58,8 +58,11 @@ def q_net(x, posterior_flow, observed=None, n_z=None):
     # sample z ~ q(z|x)
     z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
     z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
-    z = net.add('z', spt.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1, flow=posterior_flow)
+    z_distribution = spt.FlowDistribution(
+        spt.Normal(mean=z_mean, logstd=z_logstd),
+        posterior_flow
+    )
+    z = net.add('z', z_distribution, n_samples=n_z)
 
     return net
 
@@ -113,7 +116,9 @@ def coupling_layer_shift_and_scale(x1, n2):
 def main():
     # parse the arguments
     arg_parser = ArgumentParser()
-    spt.register_config_arguments(config, arg_parser)
+    spt.register_config_arguments(config, arg_parser, title='Model options')
+    spt.register_config_arguments(spt.settings, arg_parser, prefix='tfsnippet',
+                                  title='TFSnippet options')
     arg_parser.parse_args(sys.argv[1:])
 
     # print the config
@@ -224,7 +229,8 @@ def main():
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
-                metrics={'loss': loss}
+                metrics={'loss': loss},
+                summaries=tf.summary.merge_all(spt.GraphKeys.AUTO_HISTOGRAM)
             )
             trainer.anneal_after(
                 learning_rate,

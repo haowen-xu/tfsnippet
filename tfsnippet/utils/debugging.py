@@ -2,63 +2,21 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from .deprecation import deprecated
 from .doc_utils import add_name_arg_doc
+from .graph_keys import GraphKeys
 
 __all__ = [
-    'is_assertion_enabled',
-    'set_assertion_enabled',
-    'should_check_numerics',
-    'set_check_numerics',
     'maybe_check_numerics',
     'assert_deps',
+    'maybe_add_histogram',
 ]
-
-
-@deprecated('check `tfsnippet.settings.enable_assertions` instead')
-def is_assertion_enabled():
-    """Whether or not to enable assertions?"""
-    from .config_ import settings
-    return settings.enable_assertions
-
-
-@deprecated('set `tfsnippet.settings.enable_assertions = True/False` instead')
-def set_assertion_enabled(enabled):
-    """
-    Set whether or not to enable assertions?
-
-    If the assertions are disabled, then :func:`assert_deps` will not execute
-    any given operations.
-    """
-    from .config_ import settings
-    settings.enable_assertions = bool(enabled)
-
-
-@deprecated('check `tfsnippet.settings.check_numerics` instead')
-def should_check_numerics():
-    """Whether or not to check numerics?"""
-    from .config_ import settings
-    return settings.check_numerics
-
-
-@deprecated('set `tfsnippet.settings.check_numerics = True/False` instead')
-def set_check_numerics(enabled):
-    """
-    Set whether or not to check numerics?
-
-    By checking numerics, one can figure out where the NaNs and Infinities
-    originate from.  This affects the behavior of :func:`maybe_check_numerics`,
-    and the default behavior of :class:`tfsnippet.distributions.Distribution`
-    sub-classes.
-    """
-    from .config_ import settings
-    settings.check_numerics = bool(enabled)
 
 
 @add_name_arg_doc
 def maybe_check_numerics(tensor, message, name=None):
     """
-    Check the numerics of `tensor`, if ``should_check_numerics()``.
+    If ``tfsnippet.settings.check_numerics == True``, check the numerics of
+    `tensor`.  Otherwise do nothing.
 
     Args:
         tensor: The tensor to be checked.
@@ -67,9 +25,9 @@ def maybe_check_numerics(tensor, message, name=None):
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.
     """
-    from .config_ import settings
-    tensor = tf.convert_to_tensor(tensor)
+    from .settings_ import settings
     if settings.check_numerics:
+        tensor = tf.convert_to_tensor(tensor)
         return tf.check_numerics(tensor, message, name=name)
     else:
         return tensor
@@ -78,8 +36,8 @@ def maybe_check_numerics(tensor, message, name=None):
 @contextmanager
 def assert_deps(assert_ops):
     """
-    If ``is_assertion_enabled() == True``, open a context that will run
-    `assert_ops` on exit.  Otherwise do nothing.
+    If ``tfsnippet.settings.enable_assertions == True``, open a context that
+    will run `assert_ops`.  Otherwise do nothing.
 
     Args:
         assert_ops (Iterable[tf.Operation or None]): A list of assertion
@@ -89,7 +47,7 @@ def assert_deps(assert_ops):
         bool: A boolean indicate whether or not the assertion operations
             are not empty, and are executed.
     """
-    from .config_ import settings
+    from .settings_ import settings
     assert_ops = [o for o in assert_ops if o is not None]
     if assert_ops and settings.enable_assertions:
         with tf.control_dependencies(assert_ops):
@@ -100,3 +58,30 @@ def assert_deps(assert_ops):
             if hasattr(op, 'mark_used'):
                 op.mark_used()
         yield False
+
+
+@add_name_arg_doc
+def maybe_add_histogram(tensor, collections=None, name=None):
+    """
+    If ``tfsnippet.settings.auto_histogram == True``, add the histogram
+    of `tensor` to `collections`.  Otherwise do nothing.
+
+    Args:
+        tensor: Take histogram of this tensor.
+        collections: Add the histogram to these collections. Defaults to
+            `[tfsnippet.GraphKeys.AUTO_HISTOGRAM]`.
+
+    Returns:
+        The serialized histogram of tensor.
+    """
+    from .settings_ import settings
+    if settings.auto_histogram:
+        tensor = tf.convert_to_tensor(tensor)
+        with tf.name_scope(name, default_name='maybe_add_histogram',
+                           values=[tensor]):
+            collections = tuple(collections or (GraphKeys.AUTO_HISTOGRAM,))
+            return tf.summary.histogram(
+                tensor.name.rsplit(':', 1)[0],
+                tensor,
+                collections=collections
+            )

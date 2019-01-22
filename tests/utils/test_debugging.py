@@ -7,12 +7,6 @@ from tfsnippet.utils import *
 
 class AssertionTestCase(tf.test.TestCase):
 
-    def test_set_enable_assertions(self):
-        self.assertTrue(settings.enable_assertions)
-        with scoped_set_config(settings, enable_assertions=False):
-            self.assertFalse(settings.enable_assertions)
-        self.assertTrue(settings.enable_assertions)
-
     def test_assert_deps(self):
         ph = tf.placeholder(dtype=tf.bool, shape=())
         op = tf.assert_equal(ph, True, message='abcdefg')
@@ -41,13 +35,8 @@ class AssertionTestCase(tf.test.TestCase):
 
 class CheckNumericsTestCase(tf.test.TestCase):
 
-    def test_set_check_numerics(self):
-        self.assertFalse(settings.check_numerics)
-        with scoped_set_config(settings, check_numerics=True):
-            self.assertTrue(settings.check_numerics)
-        self.assertFalse(settings.check_numerics)
-
     def test_check_numerics(self):
+        # test enabled
         ph = tf.placeholder(dtype=tf.float32, shape=())
         with scoped_set_config(settings, check_numerics=True):
             x = maybe_check_numerics(ph, message='numerical issues')
@@ -55,9 +44,35 @@ class CheckNumericsTestCase(tf.test.TestCase):
             with self.test_session() as sess:
                 _ = sess.run(x, feed_dict={ph: np.nan})
 
-    def test_not_check_numerics(self):
+        # test disabled
         with scoped_set_config(settings, check_numerics=False):
             x = maybe_check_numerics(
                 tf.constant(np.nan), message='numerical issues')
         with self.test_session() as sess:
             self.assertTrue(np.isnan(sess.run(x)))
+
+
+class AddHistogramTestCase(tf.test.TestCase):
+
+    def test_add_histogram(self):
+        x = tf.constant(0., name='x')
+        y = tf.constant(1., name='y')
+        z = tf.constant(1., name='z')
+
+        # test enabled
+        with scoped_set_config(settings, auto_histogram=True):
+            maybe_add_histogram(x)
+            maybe_add_histogram(y, collections=[tf.GraphKeys.SUMMARIES])
+
+        # test disabled
+        with scoped_set_config(settings, auto_histogram=False):
+            maybe_add_histogram(z)
+
+        self.assertListEqual(
+            [op.name for op in tf.get_collection(GraphKeys.AUTO_HISTOGRAM)],
+            ['maybe_add_histogram/x:0']
+        )
+        self.assertListEqual(
+            [op.name for op in tf.get_collection(tf.GraphKeys.SUMMARIES)],
+            ['maybe_add_histogram_1/y:0']
+        )

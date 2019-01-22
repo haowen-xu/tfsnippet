@@ -75,18 +75,24 @@ class ZhuSuanDistribution(Distribution):
         return self._distribution.is_reparameterized
 
     @property
-    def value_shape(self):
-        return self._distribution.value_shape
+    def value_ndims(self):
+        value_shape = self._distribution.get_value_shape()
+        assert(value_shape.ndims is not None)
+        return int(value_shape.ndims)
 
-    def get_value_shape(self):
-        return self._distribution.get_value_shape()
-
-    @property
-    def batch_shape(self):
-        return self._distribution.batch_shape
-
-    def get_batch_shape(self):
-        return self._distribution.get_batch_shape()
+    # @property
+    # def value_shape(self):
+    #     return self._distribution.value_shape
+    #
+    # def get_value_shape(self):
+    #     return self._distribution.get_value_shape()
+    #
+    # @property
+    # def batch_shape(self):
+    #     return self._distribution.batch_shape
+    #
+    # def get_batch_shape(self):
+    #     return self._distribution.get_batch_shape()
 
     def sample(self, n_samples=None, is_reparameterized=None, group_ndims=0,
                compute_density=None, name=None):

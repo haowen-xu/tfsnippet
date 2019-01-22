@@ -311,8 +311,7 @@ class InvertibleMatrix(VarScopeObject):
                         if self._log_det.dtype != dtype:
                             self._log_det = tf.cast(self._log_det, dtype=dtype)
 
-                self._log_det = maybe_check_numerics(
-                    self._log_det, message='numeric issues in log_det')
+                self._log_det = maybe_check_numerics(self._log_det, 'log_det')
 
             else:
                 initial_P, initial_L, initial_U = la.lu(initial_matrix)

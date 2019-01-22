@@ -233,7 +233,8 @@ def main():
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
-                metrics={'loss': train_loss}
+                metrics={'loss': train_loss},
+                summaries=tf.summary.merge_all(spt.GraphKeys.AUTO_HISTOGRAM)
             )
             trainer.anneal_after(
                 learning_rate,

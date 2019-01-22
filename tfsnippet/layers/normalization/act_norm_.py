@@ -184,9 +184,7 @@ class ActNorm(FeatureMappingFlow):
                 x_mean, x_var = tf.nn.moments(x, reduce_axis)
                 x_mean = tf.reshape(x_mean, self._var_shape)
                 x_var = maybe_check_numerics(
-                    tf.reshape(x_var, self._var_shape),
-                    'numeric issues in computed x_var'
-                )
+                    tf.reshape(x_var, self._var_shape), 'init.x_var')
 
                 bias = self._bias.assign(-x_mean)
                 if self._scale_type == 'exp':
@@ -194,16 +192,15 @@ class ActNorm(FeatureMappingFlow):
                         -tf.constant(.5, dtype=dtype) *
                         tf.log(tf.maximum(x_var, self._epsilon))
                     )
-                    pre_scale = maybe_check_numerics(
-                        pre_scale, 'numeric issues in initializing log_scale')
+                    pre_scale = maybe_check_numerics(pre_scale,
+                                                     'init.log_scale')
                 else:
                     assert(self._scale_type == 'linear')
                     pre_scale = self._pre_scale.assign(
                         tf.constant(1., dtype=dtype) /
                         tf.sqrt(tf.maximum(x_var, self._epsilon))
                     )
-                    pre_scale = maybe_check_numerics(
-                        pre_scale, 'numeric issues in initializing scale')
+                    pre_scale = maybe_check_numerics(pre_scale, 'init.scale')
             self._initialized = True
         else:
             bias = self._bias

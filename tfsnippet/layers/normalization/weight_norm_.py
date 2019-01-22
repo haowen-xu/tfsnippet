@@ -6,7 +6,8 @@ from tfsnippet.utils import (ParamSpec,
                              add_name_and_scope_arg_doc,
                              validate_int_tuple_arg,
                              resolve_negative_axis,
-                             maybe_check_numerics, model_variable)
+                             maybe_check_numerics,
+                             model_variable)
 
 __all__ = ['weight_norm']
 
@@ -75,7 +76,7 @@ def weight_norm(kernel,
         # normalize the kernel
         kernel = maybe_check_numerics(
             tf.nn.l2_normalize(kernel, axis=reduce_axis, epsilon=epsilon),
-            message='weight-normalized kernel'
+            'weight-normalized kernel'
         )
 
         # create the scaling variable
@@ -90,6 +91,7 @@ def weight_norm(kernel,
                     constraint=scale_constraint,
                     trainable=trainable
                 )
+                scale = maybe_check_numerics(scale, 'scale')
             kernel = kernel * scale
 
         # now return the normalized weight

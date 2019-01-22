@@ -14,6 +14,12 @@ class TFSnippetConfig(Config):
         bool, default=False,
         description='Whether or not to check numeric issues?'
     )
+    auto_histogram = ConfigField(
+        bool, default=False,
+        description='Whether or not to automatically add histograms of layer '
+                    'parameters and outputs to the collection '
+                    '`tfsnippet.GraphKeys.AUTO_HISTOGRAM`?'
+    )
 
 
 settings = TFSnippetConfig()

@@ -16,12 +16,14 @@ class NormalTestCase(tf.test.TestCase):
         with self.test_session():
             # test construction with std
             normal = Normal(mean=mean, std=std)
+            self.assertEqual(normal.value_ndims, 0)
             np.testing.assert_allclose(normal.mean.eval(), mean)
             np.testing.assert_allclose(normal.std.eval(), std)
             np.testing.assert_allclose(normal.logstd.eval(), logstd)
 
             # test construction with logstd
             normal = Normal(mean=mean, logstd=logstd)
+            self.assertEqual(normal.value_ndims, 0)
             np.testing.assert_allclose(normal.mean.eval(), mean)
             np.testing.assert_allclose(normal.std.eval(), std)
             np.testing.assert_allclose(normal.logstd.eval(), logstd)
@@ -39,8 +41,9 @@ class BernoulliTestCase(tf.test.TestCase):
 
     def test_props(self):
         logits = np.asarray([0., 1., -2.], dtype=np.float32)
+        bernoulli = Bernoulli(logits=logits)
+        self.assertEqual(bernoulli.value_ndims, 0)
         with self.test_session():
-            bernoulli = Bernoulli(logits=logits)
             np.testing.assert_allclose(bernoulli.logits.eval(), logits)
 
     def test_dtype(self):
@@ -59,9 +62,10 @@ class CategoricalTestCase(tf.test.TestCase):
 
     def test_props(self):
         logits = np.arange(24, dtype=np.float32).reshape([2, 3, 4])
+        categorical = Categorical(logits=tf.constant(logits))
+        self.assertEqual(categorical.value_ndims, 0)
+        self.assertEqual(categorical.n_categories, 4)
         with self.test_session():
-            categorical = Categorical(logits=tf.constant(logits))
-            self.assertEqual(categorical.n_categories, 4)
             np.testing.assert_allclose(categorical.logits.eval(), logits)
 
     def test_dtype(self):
@@ -80,6 +84,7 @@ class UniformTestCase(tf.test.TestCase):
 
     def test_props(self):
         uniform = Uniform(minval=-1., maxval=2.)
+        self.assertEqual(uniform.value_ndims, 0)
         with self.test_session():
             self.assertEqual(uniform.minval.eval(), -1.)
             self.assertEqual(uniform.maxval.eval(), 2.)

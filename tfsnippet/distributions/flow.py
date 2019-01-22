@@ -4,6 +4,7 @@ from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.layers import BaseFlow
 from tfsnippet.utils import validate_group_ndims_arg
 from .base import Distribution
+from .utils import reduce_group_ndims
 from .wrapper import as_distribution
 
 __all__ = ['FlowDistribution']
@@ -29,11 +30,18 @@ class FlowDistribution(Distribution):
                             format(flow))
         distribution = as_distribution(distribution)
         if not distribution.is_continuous:
-            raise ValueError('{!r} cannot be transformed by a flow, because '
-                             'it is not continuous.'.format(distribution))
+            raise ValueError('Distribution {!r} cannot be transformed by a '
+                             'flow, because it is not continuous.'.
+                             format(distribution))
         if not distribution.dtype.is_floating:
-            raise ValueError('{!r} cannot be transformed by a flow, because '
-                             'its data type is not float.'.format(distribution))
+            raise ValueError('Distribution {!r} cannot be transformed by a '
+                             'flow, because its data type is not float.'.
+                             format(distribution))
+        if distribution.value_ndims > flow.x_value_ndims:
+            raise ValueError('Distribution {!r} cannot be transformed by flow '
+                             '{!r}, because distribution.value_ndims is larger '
+                             'than flow.x_value_ndims.'.
+                             format(distribution, flow))
 
         self._flow = flow
         self._distribution = distribution
@@ -71,18 +79,8 @@ class FlowDistribution(Distribution):
         return self._distribution.is_reparameterized
 
     @property
-    def value_shape(self):
-        return self._distribution.value_shape
-
-    def get_value_shape(self):
-        return self._distribution.get_value_shape()
-
-    @property
-    def batch_shape(self):
-        return self._distribution.batch_shape
-
-    def get_batch_shape(self):
-        return self._distribution.get_batch_shape()
+    def value_ndims(self):
+        return self._flow.y_value_ndims
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
@@ -93,19 +91,26 @@ class FlowDistribution(Distribution):
 
         with tf.name_scope(
                 name, default_name='FlowDistribution.sample'):
-            # sample from the base distribution
+            # x and log p(x)
+            ndims_diff = self.flow.x_value_ndims - self.distribution.value_ndims
             x = self._distribution.sample(
                 n_samples=n_samples,
-                group_ndims=group_ndims,
+                group_ndims=ndims_diff,
                 is_reparameterized=is_reparameterized,
                 compute_density=True
             )
+            log_px = x.log_prob()
 
-            # now do the transformation
+            # y, log |dy/dx|
             is_reparameterized = x.is_reparameterized
-            y, log_det = self._flow.transform(x)  # y, log |dy/dx|
+            y, log_det = self._flow.transform(x)
             if not is_reparameterized:
                 y = tf.stop_gradient(y)  # important!
+
+            # compute log p(y) = log p(x) - log |dy/dx|
+            # and then apply `group_ndims` on log p(y)
+            log_py = reduce_group_ndims(
+                tf.reduce_sum, log_px - log_det, group_ndims)
 
             # compose the transformed tensor
             return StochasticTensor(
@@ -114,8 +119,7 @@ class FlowDistribution(Distribution):
                 n_samples=n_samples,
                 group_ndims=group_ndims,
                 is_reparameterized=is_reparameterized,
-                # log p(y) = log p(x) - log |dy/dx|
-                log_prob=x.log_prob() - log_det
+                log_prob=log_py
             )
 
     def log_prob(self, given, group_ndims=0, name=None):
@@ -124,6 +128,16 @@ class FlowDistribution(Distribution):
                 name,
                 default_name='FlowDistribution.log_prob',
                 values=[given]):
-            x, log_det = self._flow.inverse_transform(given)  # x, log |dx/dy|
-            log_px = self._distribution.log_prob(x, group_ndims=group_ndims)
-            return log_px + log_det  # log p(y) = log p(x) + log |dx/dy|
+            # x, log |dx/dy|
+            x, log_det = self._flow.inverse_transform(given)
+
+            # log p(x)
+            ndims_diff = self.flow.x_value_ndims - self.distribution.value_ndims
+            log_px = self._distribution.log_prob(x, group_ndims=ndims_diff)
+
+            # compute log p(y) = log p(x) + log |dx/dy|,
+            # and then apply `group_ndims` on log p(x)
+            log_py = reduce_group_ndims(
+                tf.reduce_sum, log_px + log_det, group_ndims)
+
+            return log_py
