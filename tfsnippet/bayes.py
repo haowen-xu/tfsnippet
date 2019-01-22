@@ -5,11 +5,12 @@ import six
 import tensorflow as tf
 from frozendict import frozendict
 
-from tfsnippet.distributions import (Distribution, FlowDistribution,
-                                     as_distribution)
+from tfsnippet.distributions import Distribution, as_distribution
 from tfsnippet.layers import BaseFlow
+from tfsnippet.ops import assert_scalar_equal
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.utils import get_default_scope_name
+from tfsnippet.utils import (get_default_scope_name, validate_group_ndims_arg,
+                             assert_deps, is_tensor_object)
 
 __all__ = ['BayesianNet']
 
@@ -134,7 +135,7 @@ class BayesianNet(object):
         return names
 
     def add(self, name, distribution, n_samples=None, group_ndims=0,
-            is_reparameterized=None, flow=None):
+            is_reparameterized=None):
         """
         Add a stochastic node to the network.
 
@@ -158,7 +159,6 @@ class BayesianNet(object):
             is_reparameterized: Whether or not the re-parameterization trick
                 should be applied? (default :obj:`None`, following the setting
                 of `distribution`)
-            flow (BaseFlow): If specified, transform `distribution` by `flow`.
 
         Returns:
             StochasticTensor: The sampled stochastic tensor.
@@ -178,15 +178,8 @@ class BayesianNet(object):
             raise KeyError('StochasticTensor with name {!r} already exists in '
                            'the BayesianNet.  Names must be unique.'.
                            format(name))
-        if flow is not None and name in self._observed and \
-                not flow.explicitly_invertible:
-            raise TypeError('The observed variable {!r} expects `flow` to be '
-                            'explicitly invertible, but it is not: {!r}.'.
-                            format(name, flow))
 
         distribution = as_distribution(distribution)
-        if flow is not None:
-            distribution = FlowDistribution(distribution, flow)
 
         if name in self._observed:
             t = StochasticTensor(

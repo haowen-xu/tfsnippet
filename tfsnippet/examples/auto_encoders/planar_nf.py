@@ -57,8 +57,11 @@ def q_net(x, posterior_flow, observed=None, n_z=None):
     # sample z ~ q(z|x)
     z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
     z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
-    z = net.add('z', spt.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
-                group_ndims=1, flow=posterior_flow)
+    z_distribution = spt.FlowDistribution(
+        spt.Normal(mean=z_mean, logstd=z_logstd),
+        posterior_flow
+    )
+    z = net.add('z', z_distribution, n_samples=n_z)
 
     return net
 

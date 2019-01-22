@@ -49,26 +49,27 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
         zs_distrib = zd.OnehotCategorical(tf.zeros([3, 4, 5]), dtype=tf.int64,
                                           group_ndims=1)
         distrib = ZhuSuanDistribution(zs_distrib)
+        self.assertEqual(distrib.value_ndims, 1)
         for attr in ['dtype', 'is_continuous', 'is_reparameterized']:
             self.assertEqual(
                 getattr(zs_distrib, attr),
                 getattr(distrib, attr),
                 msg='Attribute `{}` does not equal'.format(attr)
             )
-        for meth in ['get_value_shape', 'get_batch_shape']:
-            self.assertEqual(
-                getattr(zs_distrib, meth)(),
-                getattr(distrib, meth)(),
-                msg='Output of method `{}` does not equal'.format(meth)
-            )
-        with self.test_session():
-            for attr in ['value_shape', 'batch_shape']:
-                np.testing.assert_equal(
-                    getattr(zs_distrib, attr).eval(),
-                    getattr(distrib, attr).eval(),
-                    err_msg='Value of attribute `{}` does not equal'.
-                            format(attr)
-                )
+        # for meth in ['get_value_shape', 'get_batch_shape']:
+        #     self.assertEqual(
+        #         getattr(zs_distrib, meth)(),
+        #         getattr(distrib, meth)(),
+        #         msg='Output of method `{}` does not equal'.format(meth)
+        #     )
+        # with self.test_session():
+        #     for attr in ['value_shape', 'batch_shape']:
+        #         np.testing.assert_equal(
+        #             getattr(zs_distrib, attr).eval(),
+        #             getattr(distrib, attr).eval(),
+        #             err_msg='Value of attribute `{}` does not equal'.
+        #                     format(attr)
+        #         )
 
     def test_sample(self):
         # sample re-parameterized samples from a non-reparameterized
@@ -117,6 +118,7 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
         def test_is_reparemeterized(distrib_flag, sample_flag=None):
             normal = zd.Normal(mean=x, std=1., is_reparameterized=distrib_flag)
             distrib = ZhuSuanDistribution(normal)
+            self.assertEqual(distrib.value_ndims, 0)
             samples = distrib.sample(is_reparameterized=sample_flag)
             grads = tf.gradients(samples, x)
             if sample_flag is True or (sample_flag is None and distrib_flag):

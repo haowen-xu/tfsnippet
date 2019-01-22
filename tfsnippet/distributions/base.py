@@ -77,42 +77,63 @@ class Distribution(object):
         raise NotImplementedError()
 
     @property
-    def value_shape(self):
+    def value_ndims(self):
         """
-        Get the value shape of an individual sample.
+        Get the number of value dimensions in samples.
 
         Returns:
-            tf.Tensor: The value shape as tensor.
+            int: The number of value dimensions in samples.
         """
         raise NotImplementedError()
 
-    def get_value_shape(self):
-        """
-        Get the static value shape of an individual sample.
+    # These four properties represent important concepts of a Distribution,
+    # however, we temporarily comment out them, because:
+    #
+    # 1. At the moment, they are not necessary for other utilities of TFSnippet.
+    # 2. We borrow the concepts of these properties from ZhuSuan, however, their
+    #    implementation is terrible.  For example, `value_shape` is a property,
+    #    but in ZhuSuan, it is not cached, and will add TensorFlow graph nodes
+    #    every time you call it.  This disobeys the conventions of a property.
+    # 3. As for `FlowDistribution`, it requires more careful discussion about
+    #    what these properties should represent.
 
-        Returns:
-            tf.TensorShape: The static value shape.
-        """
-        raise NotImplementedError()
-
-    @property
-    def batch_shape(self):
-        """
-        Get the batch shape of the samples.
-
-        Returns:
-            tf.Tensor: The batch shape as tensor.
-        """
-        raise NotImplementedError()
-
-    def get_batch_shape(self):
-        """
-        Get the static batch shape of the samples.
-
-        Returns:
-            tf.TensorShape: The batch shape.
-        """
-        raise NotImplementedError()
+    # @property
+    # def value_shape(self):
+    #     """
+    #     Get the value shape of an individual sample.
+    #
+    #     Returns:
+    #         tf.Tensor: The value shape as tensor.
+    #     """
+    #     raise NotImplementedError()
+    #
+    # def get_value_shape(self):
+    #     """
+    #     Get the static value shape of an individual sample.
+    #
+    #     Returns:
+    #         tf.TensorShape: The static value shape.
+    #     """
+    #     raise NotImplementedError()
+    #
+    # @property
+    # def batch_shape(self):
+    #     """
+    #     Get the batch shape of the samples.
+    #
+    #     Returns:
+    #         tf.Tensor: The batch shape as tensor.
+    #     """
+    #     raise NotImplementedError()
+    #
+    # def get_batch_shape(self):
+    #     """
+    #     Get the static batch shape of the samples.
+    #
+    #     Returns:
+    #         tf.TensorShape: The batch shape.
+    #     """
+    #     raise NotImplementedError()
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
