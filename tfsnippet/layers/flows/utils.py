@@ -200,8 +200,7 @@ class Scale(object):
             with tf.name_scope('scale', values=[self._pre_scale]):
                 self._cached_scale = maybe_check_numerics(
                     self._scale(),
-                    message=('numeric issues in {}.scale'.
-                             format(self.__class__.__name__))
+                    message='{}.scale'.format(self.__class__.__name__)
                 )
         return self._cached_scale
 
@@ -211,8 +210,7 @@ class Scale(object):
             with tf.name_scope('inv_scale', values=[self._pre_scale]):
                 self._cached_inv_scale = maybe_check_numerics(
                     self._inv_scale(),
-                    message=('numeric issues in {}.inv_scale'.
-                             format(self.__class__.__name__))
+                    message='{}.inv_scale'.format(self.__class__.__name__)
                 )
         return self._cached_inv_scale
 
@@ -222,8 +220,7 @@ class Scale(object):
             with tf.name_scope('log_scale', values=[self._pre_scale]):
                 self._cached_log_scale = maybe_check_numerics(
                     self._log_scale(),
-                    message=('numeric issues in {}.log_scale'.
-                             format(self.__class__.__name__))
+                    message='{}.log_scale'.format(self.__class__.__name__)
                 )
         return self._cached_log_scale
 
@@ -233,8 +230,7 @@ class Scale(object):
             with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
                 self._cached_neg_log_scale = maybe_check_numerics(
                     self._neg_log_scale(),
-                    message=('numeric issues in {}.neg_log_scale'.
-                             format(self.__class__.__name__))
+                    message='{}.neg_log_scale'.format(self.__class__.__name__)
                 )
         return self._cached_neg_log_scale
 
@@ -305,8 +301,7 @@ class LinearScale(Scale):
 
     def _div(self, x):
         # TODO: use epsilon to prevent dividing by zero
-        return maybe_check_numerics(
-            x / self.scale(), message='numeric issues in LinearScale._div')
+        return maybe_check_numerics(x / self.scale(), message='LinearScale.div')
 
 
 class ZeroLogDet(TensorWrapper):

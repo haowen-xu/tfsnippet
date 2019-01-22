@@ -1,8 +1,10 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.utils import (validate_enum_arg, flatten_to_ndims, unflatten_from_ndims,
-                             add_name_arg_doc)
+from tfsnippet.utils import (validate_enum_arg, flatten_to_ndims,
+                             unflatten_from_ndims,
+                             add_name_arg_doc, maybe_check_numerics,
+                             maybe_add_histogram)
 
 from .utils import validate_conv2d_strides_tuple, validate_conv2d_input
 
@@ -27,6 +29,7 @@ def _pool2d(pool_fn, input, pool_size, strides=(1, 1), channels_last=True,
             data_format=data_format
         )
         output = unflatten_from_ndims(output, s1, s2)
+
     return output
 
 

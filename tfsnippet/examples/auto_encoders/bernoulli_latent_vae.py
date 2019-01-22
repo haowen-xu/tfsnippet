@@ -98,7 +98,9 @@ def baseline_net(x):
 def main():
     # parse the arguments
     arg_parser = ArgumentParser()
-    spt.register_config_arguments(config, arg_parser)
+    spt.register_config_arguments(config, arg_parser, title='Model options')
+    spt.register_config_arguments(spt.settings, arg_parser, prefix='tfsnippet',
+                                  title='TFSnippet options')
     arg_parser.parse_args(sys.argv[1:])
 
     # print the config
@@ -180,7 +182,8 @@ def main():
                            early_stopping=False) as loop:
             trainer = spt.Trainer(
                 loop, train_op, [input_x], train_flow,
-                metrics={'loss': loss}
+                metrics={'loss': loss},
+                summaries=tf.summary.merge_all(spt.GraphKeys.AUTO_HISTOGRAM)
             )
             trainer.anneal_after(
                 learning_rate,

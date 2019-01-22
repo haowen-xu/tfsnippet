@@ -81,7 +81,9 @@ def model(x, is_training, channels_last, k=4, n=2):
 def main():
     # parse the arguments
     arg_parser = ArgumentParser()
-    spt.register_config_arguments(config, arg_parser)
+    spt.register_config_arguments(config, arg_parser, title='Model options')
+    spt.register_config_arguments(spt.settings, arg_parser, prefix='tfsnippet',
+                                  title='TFSnippet options')
     arg_parser.parse_args(sys.argv[1:])
 
     # print the config
@@ -168,7 +170,8 @@ def main():
             trainer = spt.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
                 feed_dict={is_training: True},
-                metrics={'loss': loss, 'acc': acc}
+                metrics={'loss': loss, 'acc': acc},
+                summaries=tf.summary.merge_all(spt.GraphKeys.AUTO_HISTOGRAM)
             )
             trainer.anneal_after(
                 learning_rate,

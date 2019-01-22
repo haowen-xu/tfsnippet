@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
                              get_default_scope_name, get_static_shape,
-                             InputSpec, is_integer, assert_deps)
+                             InputSpec, is_integer, assert_deps,
+                             maybe_check_numerics, maybe_add_histogram)
 from ..base import BaseLayer
 from .utils import assert_log_det_shape_matches_input, ZeroLogDet
 
@@ -202,6 +203,14 @@ class BaseFlow(BaseLayer):
                     if asserted:  # pragma: no cover
                         log_det = tf.identity(log_det)
 
+            if y is not None:
+                y = maybe_check_numerics(y, 'y')
+                maybe_add_histogram(y)
+
+            if log_det is not None:
+                log_det = maybe_check_numerics(log_det, 'log_det')
+                maybe_add_histogram(log_det)
+
             return y, log_det
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
@@ -264,6 +273,14 @@ class BaseFlow(BaseLayer):
                         ]) as asserted:
                     if asserted:  # pragma: no cover
                         log_det = tf.identity(log_det)
+
+            if x is not None:
+                x = maybe_check_numerics(x, 'x')
+                maybe_add_histogram(x)
+
+            if log_det is not None:
+                log_det = maybe_check_numerics(log_det, 'log_det')
+                maybe_add_histogram(log_det)
 
             return x, log_det
 
