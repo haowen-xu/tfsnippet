@@ -17,8 +17,8 @@ from tfsnippet.examples.utils import (MLResults,
 
 class ExpConfig(spt.Config):
     # data options
-    channels_last = False
-    x_shape = (1, 28, 28)
+    channels_last = True
+    x_shape = (28, 28, 1)
 
     # model parameters
     z_dim = 40
