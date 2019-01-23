@@ -18,7 +18,6 @@ from tfsnippet.examples.utils import (MLResults,
 class ExpConfig(spt.Config):
     # data options
     channels_last = True
-    x_shape = (28, 28, 1)
 
     # model parameters
     z_dim = 40
@@ -41,6 +40,10 @@ class ExpConfig(spt.Config):
     # evaluation parameters
     test_n_z = 500
     test_batch_size = 64
+
+    @property
+    def x_shape(self):
+        return (28, 28, 1) if self.channels_last else (1, 28, 28)
 
 
 config = ExpConfig()

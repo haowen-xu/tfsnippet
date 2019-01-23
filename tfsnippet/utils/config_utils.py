@@ -1,3 +1,5 @@
+import inspect
+import types
 from argparse import ArgumentParser, Action
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -287,15 +289,16 @@ class Config(object):
         print(config_defaults(config))  # same as the above line
     """
 
-    def __init__(self):
-        """Construct a new :class:`Config`."""
-        for key in self:
-            value = self[key]
-            if isinstance(value, ConfigField):
-                value = value.default_value
-            self[key] = value
+    def __getattribute__(self, item):
+        value = object.__getattribute__(self, item)
+        if isinstance(value, ConfigField):
+            value = value.default_value
+        return value
 
     def __setattr__(self, key, value):
+        if isinstance(value, ConfigField):
+            raise TypeError('`value` must not be a ConfigField object.')
+
         cls = self.__class__
         cls_value = getattr(cls, key, None)
 
@@ -317,15 +320,21 @@ class Config(object):
         return (key for key in dir(self) if key in self)
 
     def __contains__(self, key):
+        cls_value = getattr(self.__class__, key, None)
         return (hasattr(self, key) and
                 not key.startswith('_') and
-                not hasattr(Config, key))
+                not hasattr(Config, key) and
+                not isinstance(cls_value, property) and
+                not callable(cls_value))
 
     def __getitem__(self, key):
         if key not in self:
             raise KeyError('`{}` is not a config key of `{}`.'.
                            format(key, self))
-        return getattr(self, key)
+        value = getattr(self, key)
+        if isinstance(value, ConfigField):
+            value = value.default_value
+        return value
 
     def __setitem__(self, key, value):
         if key.startswith('_') or hasattr(Config, key):
@@ -374,8 +383,9 @@ def get_config_defaults(config):
                         'subclass of `Config`: got {!r}.'.format(config))
     ret = {}
     for key in dir(config):
-        if not key.startswith('_') and not hasattr(Config, key):
-            value = getattr(config, key)
+        value = getattr(config, key)
+        if not key.startswith('_') and not hasattr(Config, key) and \
+                not isinstance(value, property) and not callable(value):
             if isinstance(value, ConfigField):
                 value = value.default_value
             ret[key] = value

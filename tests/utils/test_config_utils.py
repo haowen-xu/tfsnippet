@@ -167,6 +167,13 @@ class ConfigTestCase(unittest.TestCase):
             z = ConfigField(int, default=1000, description='the z field')
             w = ['w']
 
+            @property
+            def x_property(self):
+                return self.x
+
+            def get_x(self):
+                return self.x
+
         # test get defaults from class
         defaults = {'x': 123, 'y': None, 'z': 1000, 'w': ['w']}
         self.assertDictEqual(get_config_defaults(MyConfig), defaults)
@@ -176,6 +183,16 @@ class ConfigTestCase(unittest.TestCase):
         self.assertEqual(config.x, 123)
         self.assertIsNone(config.y)
         self.assertEqual(config.z, 1000)
+        self.assertEqual(config.x_property, 123)
+        self.assertEqual(config.get_x(), 123)
+
+        # test cannot set a ConfigField to attribute
+        with pytest.raises(TypeError, match='`value` must not be a '
+                                            'ConfigField object'):
+            config.x = ConfigField(int, default=0)
+        with pytest.raises(TypeError, match='`value` must not be a '
+                                            'ConfigField object'):
+            config['ww'] = ConfigField(int, default=0)
 
         # test scan through the default values
         keys = ['w', 'x', 'y', 'z']
