@@ -154,7 +154,8 @@ def main():
 
     # derive the loss for initializing
     with tf.name_scope('initialization'), \
-            arg_scope([p_net, q_net], is_initializing=True):
+            arg_scope([p_net, q_net], is_initializing=True), \
+            spt.utils.scoped_set_config(spt.settings, auto_histogram=False):
         init_q_net = q_net(input_x)
         init_chain = init_q_net.chain(
             p_net, latent_axis=0, observed={'x': input_x})

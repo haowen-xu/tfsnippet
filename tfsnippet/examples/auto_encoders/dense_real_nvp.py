@@ -154,7 +154,8 @@ def main():
 
     # derive the initialization op
     with tf.name_scope('initialization'), \
-            arg_scope([spt.layers.act_norm], initializing=True):
+            arg_scope([spt.layers.act_norm], initializing=True), \
+            spt.utils.scoped_set_config(spt.settings, auto_histogram=False):
         init_q_net = q_net(input_x, posterior_flow)
         init_chain = init_q_net.chain(
             p_net, latent_axis=0, observed={'x': input_x})

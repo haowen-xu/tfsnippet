@@ -297,7 +297,7 @@ class LinearScale(Scale):
 
     def _div(self, x):
         # TODO: use epsilon to prevent dividing by zero
-        return maybe_check_numerics(x / self.scale(), message='LinearScale.div')
+        return self._check_tensor(x / self.scale(), 'div')
 
 
 class ZeroLogDet(TensorWrapper):

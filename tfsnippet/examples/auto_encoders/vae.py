@@ -119,7 +119,8 @@ def main():
         'learning_rate', config.initial_lr, config.lr_anneal_factor)
 
     # derive the output for initialization
-    with tf.name_scope('initialization'):
+    with tf.name_scope('initialization'), \
+            spt.utils.scoped_set_config(spt.settings, auto_histogram=False):
         init_q_net = q_net(input_x, is_initializing=True)
         init_chain = init_q_net.chain(
             p_net, latent_axis=0, observed={'x': input_x},

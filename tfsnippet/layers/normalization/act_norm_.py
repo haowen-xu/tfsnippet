@@ -7,7 +7,8 @@ from tfsnippet.layers.flows.utils import (broadcast_log_det_against_input,
 from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              get_static_shape, maybe_check_numerics,
                              validate_int_tuple_arg, get_dimensions_size,
-                             validate_enum_arg, model_variable)
+                             validate_enum_arg, model_variable,
+                             maybe_add_histogram, settings)
 from ..flows import FeatureMappingFlow
 
 __all__ = ['ActNorm', 'act_norm']
@@ -164,6 +165,15 @@ class ActNorm(FeatureMappingFlow):
         return True
 
     def _transform(self, x, compute_y, compute_log_det):
+        if not self._initialized:  # pragma: no cover
+            if settings.auto_histogram:
+                raise RuntimeError('`tfsnippet.settings.auto_histogram` must '
+                                   'not be True in initialization stage!')
+
+        def check_tensor(tensor, name):
+            maybe_add_histogram(tensor, name)
+            return maybe_check_numerics(tensor, name)
+
         # check the argument
         dtype = x.dtype.base_dtype
         shape = get_static_shape(x)
@@ -184,7 +194,7 @@ class ActNorm(FeatureMappingFlow):
                 x_mean, x_var = tf.nn.moments(x, reduce_axis)
                 x_mean = tf.reshape(x_mean, self._var_shape)
                 x_var = maybe_check_numerics(
-                    tf.reshape(x_var, self._var_shape), 'init.x_var')
+                    tf.reshape(x_var, self._var_shape), 'x_var')
 
                 bias = self._bias.assign(-x_mean)
                 if self._scale_type == 'exp':
@@ -192,19 +202,19 @@ class ActNorm(FeatureMappingFlow):
                         -tf.constant(.5, dtype=dtype) *
                         tf.log(tf.maximum(x_var, self._epsilon))
                     )
-                    pre_scale = maybe_check_numerics(pre_scale,
-                                                     'init.log_scale')
                 else:
                     assert(self._scale_type == 'linear')
                     pre_scale = self._pre_scale.assign(
                         tf.constant(1., dtype=dtype) /
                         tf.sqrt(tf.maximum(x_var, self._epsilon))
                     )
-                    pre_scale = maybe_check_numerics(pre_scale, 'init.scale')
             self._initialized = True
         else:
             bias = self._bias
             pre_scale = self._pre_scale
+
+        bias = check_tensor(bias, 'bias')
+        pre_scale = check_tensor(pre_scale, 'pre_scale')
 
         # align the shape of variables, and create the scale object
         bias = tf.reshape(bias, self._var_shape_aligned)
