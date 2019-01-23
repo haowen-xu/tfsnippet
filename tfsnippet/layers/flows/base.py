@@ -204,12 +204,12 @@ class BaseFlow(BaseLayer):
                         log_det = tf.identity(log_det)
 
             if y is not None:
+                maybe_add_histogram(y, 'y')
                 y = maybe_check_numerics(y, 'y')
-                maybe_add_histogram(y)
 
             if log_det is not None:
+                maybe_add_histogram(log_det, 'log_det')
                 log_det = maybe_check_numerics(log_det, 'log_det')
-                maybe_add_histogram(log_det)
 
             return y, log_det
 
@@ -275,12 +275,12 @@ class BaseFlow(BaseLayer):
                         log_det = tf.identity(log_det)
 
             if x is not None:
+                maybe_add_histogram(x, 'x')
                 x = maybe_check_numerics(x, 'x')
-                maybe_add_histogram(x)
 
             if log_det is not None:
+                maybe_add_histogram(log_det, 'log_det')
                 log_det = maybe_check_numerics(log_det, 'log_det')
-                maybe_add_histogram(log_det)
 
             return x, log_det
 

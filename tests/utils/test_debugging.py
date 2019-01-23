@@ -55,24 +55,27 @@ class CheckNumericsTestCase(tf.test.TestCase):
 class AddHistogramTestCase(tf.test.TestCase):
 
     def test_add_histogram(self):
-        x = tf.constant(0., name='x')
-        y = tf.constant(1., name='y')
-        z = tf.constant(1., name='z')
+        with tf.name_scope('parent'):
+            x = tf.constant(0., name='x')
+            y = tf.constant(1., name='y')
+            z = tf.constant(2., name='z')
+            w = tf.constant(3., name='w')
 
         # test enabled
         with scoped_set_config(settings, auto_histogram=True):
-            maybe_add_histogram(x)
-            maybe_add_histogram(y, collections=[tf.GraphKeys.SUMMARIES])
+            maybe_add_histogram(x, strip_scope=True)
+            maybe_add_histogram(y, summary_name='the_tensor')
+            maybe_add_histogram(z, collections=[tf.GraphKeys.SUMMARIES])
 
         # test disabled
         with scoped_set_config(settings, auto_histogram=False):
-            maybe_add_histogram(z)
+            maybe_add_histogram(w)
 
         self.assertListEqual(
             [op.name for op in tf.get_collection(GraphKeys.AUTO_HISTOGRAM)],
-            ['maybe_add_histogram/x:0']
+            ['maybe_add_histogram/x:0', 'maybe_add_histogram_1/the_tensor:0']
         )
         self.assertListEqual(
             [op.name for op in tf.get_collection(tf.GraphKeys.SUMMARIES)],
-            ['maybe_add_histogram_1/y:0']
+            ['maybe_add_histogram_2/parent/z:0']
         )

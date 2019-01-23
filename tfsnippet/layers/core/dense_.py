@@ -112,8 +112,8 @@ def dense(input, units,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
 
+        maybe_add_histogram(kernel, 'kernel')
         kernel = maybe_check_numerics(kernel, 'kernel')
-        maybe_add_histogram(kernel)
 
         if use_bias and bias is None:
             bias = model_variable(
@@ -125,8 +125,8 @@ def dense(input, units,
                 constraint=bias_constraint,
                 trainable=trainable,
             )
+            maybe_add_histogram(bias, 'bias')
             bias = maybe_check_numerics(bias, 'bias')
-            maybe_add_histogram(bias)
 
         # flatten to 2d
         output, s1, s2 = flatten_to_ndims(input, 2)
@@ -147,7 +147,7 @@ def dense(input, units,
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
 
+        maybe_add_histogram(output, 'output')
         output = maybe_check_numerics(output, 'output')
-        maybe_add_histogram(output)
 
     return output

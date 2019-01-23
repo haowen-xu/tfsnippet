@@ -61,15 +61,19 @@ def assert_deps(assert_ops):
 
 
 @add_name_arg_doc
-def maybe_add_histogram(tensor, collections=None, name=None):
+def maybe_add_histogram(tensor, summary_name=None, collections=None,
+                        strip_scope=False, name=None):
     """
     If ``tfsnippet.settings.auto_histogram == True``, add the histogram
     of `tensor` to `collections`.  Otherwise do nothing.
 
     Args:
         tensor: Take histogram of this tensor.
+        summary_name: Specify the summary name for `tensor`.
         collections: Add the histogram to these collections. Defaults to
             `[tfsnippet.GraphKeys.AUTO_HISTOGRAM]`.
+        strip_scope: If :obj:`True`, strip the name scope from `tensor.name`
+            when adding the histogram.
 
     Returns:
         The serialized histogram of tensor.
@@ -80,8 +84,12 @@ def maybe_add_histogram(tensor, collections=None, name=None):
         with tf.name_scope(name, default_name='maybe_add_histogram',
                            values=[tensor]):
             collections = tuple(collections or (GraphKeys.AUTO_HISTOGRAM,))
+            if summary_name is None:
+                summary_name = tensor.name
+                summary_name = summary_name.replace(':', '_')
+                if summary_name.endswith('_0'):
+                    summary_name = summary_name[:-2]
+                if strip_scope:
+                    summary_name = summary_name.rsplit('/', 1)[-1]
             return tf.summary.histogram(
-                tensor.name.rsplit(':', 1)[0],
-                tensor,
-                collections=collections
-            )
+                summary_name, tensor, collections=collections)

@@ -5,7 +5,7 @@ from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              assert_deps, broadcast_to_shape_strict,
                              maybe_check_numerics, DocInherit, is_tensor_object,
                              TensorWrapper, broadcast_to_shape,
-                             register_tensor_wrapper_class)
+                             register_tensor_wrapper_class, maybe_add_histogram)
 
 __all__ = [
     'broadcast_log_det_against_input',
@@ -158,7 +158,6 @@ def broadcast_log_det_against_input(log_det, input, value_ndims, name=None):
 
         return broadcast_to_shape_strict(log_det, shape)
 
-
 @DocInherit
 class Scale(object):
     """
@@ -194,44 +193,41 @@ class Scale(object):
     def _neg_log_scale(self):
         raise NotImplementedError()
 
+    def _check_tensor(self, tensor, name):
+        tensor_name = '{}.{}'.format(self.__class__.__name__, name)
+        maybe_add_histogram(tensor, tensor_name)
+        return maybe_check_numerics(tensor, tensor_name)
+
     def scale(self):
         """Compute `f(pre_scale)`."""
         if self._cached_scale is None:
             with tf.name_scope('scale', values=[self._pre_scale]):
-                self._cached_scale = maybe_check_numerics(
-                    self._scale(),
-                    message='{}.scale'.format(self.__class__.__name__)
-                )
+                self._cached_scale = \
+                    self._check_tensor(self._scale(), 'scale')
         return self._cached_scale
 
     def inv_scale(self):
         """Compute `1. / f(pre_scale)`."""
         if self._cached_inv_scale is None:
             with tf.name_scope('inv_scale', values=[self._pre_scale]):
-                self._cached_inv_scale = maybe_check_numerics(
-                    self._inv_scale(),
-                    message='{}.inv_scale'.format(self.__class__.__name__)
-                )
+                self._cached_inv_scale = \
+                    self._check_tensor(self._inv_scale(), 'inv_scale')
         return self._cached_inv_scale
 
     def log_scale(self):
         """Compute `log(f(pre_scale))`."""
         if self._cached_log_scale is None:
             with tf.name_scope('log_scale', values=[self._pre_scale]):
-                self._cached_log_scale = maybe_check_numerics(
-                    self._log_scale(),
-                    message='{}.log_scale'.format(self.__class__.__name__)
-                )
+                self._cached_log_scale = \
+                    self._check_tensor(self._log_scale(), 'log_scale')
         return self._cached_log_scale
 
     def neg_log_scale(self):
         """Compute `-log(f(pre_scale))`."""
         if self._cached_neg_log_scale is None:
             with tf.name_scope('neg_log_scale', values=[self._pre_scale]):
-                self._cached_neg_log_scale = maybe_check_numerics(
-                    self._neg_log_scale(),
-                    message='{}.neg_log_scale'.format(self.__class__.__name__)
-                )
+                self._cached_neg_log_scale =  \
+                    self._check_tensor(self._neg_log_scale(), 'neg_log_scale')
         return self._cached_neg_log_scale
 
     def _mult(self, x):

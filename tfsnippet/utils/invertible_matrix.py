@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from scipy import linalg as la
 
-from .debugging import maybe_check_numerics
+from .debugging import maybe_check_numerics, maybe_add_histogram
 from .doc_utils import add_name_arg_doc, add_name_and_scope_arg_doc
 from .model_vars import model_variable
 from .random import VarScopeRandomState
@@ -282,18 +282,31 @@ class InvertibleMatrix(VarScopeObject):
         # generate the initial orthogonal matrix
         initial_matrix = la.qr(random_state.normal(size=shape))[0]
 
+        # helper for creating the variable and add to histogram
+        def check_tensor(tensor, name=None):
+            if name is None:
+                name = tensor.name.rsplit('/')[-1]
+                if name.endswith(':0'):
+                    name = name[:-2]
+            maybe_add_histogram(tensor, name, strip_scope=True)
+            return maybe_check_numerics(tensor, name)
+
         # create the variables
         with reopen_variable_scope(self.variable_scope):
             if not strict:
-                self._matrix = model_variable(
-                    'matrix',
-                    initializer=tf.constant(initial_matrix, dtype=dtype),
-                    dtype=dtype,
-                    trainable=trainable
+                # the matrix
+                self._matrix = check_tensor(
+                    model_variable(
+                        'matrix',
+                        initializer=tf.constant(initial_matrix, dtype=dtype),
+                        dtype=dtype,
+                        trainable=trainable
+                    )
                 )
-                self._inv_matrix = tf.matrix_inverse(
-                    self._matrix, name='inv_matrix')
+                self._inv_matrix = check_tensor(
+                    tf.matrix_inverse(self._matrix, name='inv_matrix'))
 
+                # log_det
                 if is_tensorflow_version_higher_or_equal('1.10.0'):
                     self._log_det = tf.linalg.slogdet(
                         self._matrix, name='log_det')[1]
@@ -311,7 +324,7 @@ class InvertibleMatrix(VarScopeObject):
                         if self._log_det.dtype != dtype:
                             self._log_det = tf.cast(self._log_det, dtype=dtype)
 
-                self._log_det = maybe_check_numerics(self._log_det, 'log_det')
+                self._log_det = check_tensor(self._log_det, 'log_det')
 
             else:
                 initial_P, initial_L, initial_U = la.lu(initial_matrix)
@@ -335,17 +348,21 @@ class InvertibleMatrix(VarScopeObject):
                     dtype=dtype,
                     trainable=False
                 )
-                pre_L = self._pre_L = model_variable(
-                    'pre_L',
-                    initializer=tf.constant(initial_L, dtype=dtype),
-                    dtype=dtype,
-                    trainable=trainable
+                pre_L = self._pre_L = check_tensor(
+                    model_variable(
+                        'pre_L',
+                        initializer=tf.constant(initial_L, dtype=dtype),
+                        dtype=dtype,
+                        trainable=trainable
+                    )
                 )
-                pre_U = self._pre_U = model_variable(
-                    'pre_U',
-                    initializer=tf.constant(initial_U, dtype=dtype),
-                    dtype=dtype,
-                    trainable=trainable
+                pre_U = self._pre_U = check_tensor(
+                    model_variable(
+                        'pre_U',
+                        initializer=tf.constant(initial_U, dtype=dtype),
+                        dtype=dtype,
+                        trainable=trainable
+                    )
                 )
                 sign = self._sign = model_variable(
                     'sign',
@@ -353,37 +370,49 @@ class InvertibleMatrix(VarScopeObject):
                     dtype=dtype,
                     trainable=False
                 )
-                log_s = self._log_s = model_variable(
-                    'log_s',
-                    initializer=tf.constant(initial_log_s, dtype=dtype),
-                    dtype=dtype,
-                    trainable=trainable
+                log_s = self._log_s = check_tensor(
+                    model_variable(
+                        'log_s',
+                        initializer=tf.constant(initial_log_s, dtype=dtype),
+                        dtype=dtype,
+                        trainable=trainable
+                    )
                 )
 
                 with tf.name_scope('L', values=[pre_L]):
                     L_mask = tf.constant(np.tril(np.ones(shape), k=-1),
                                          dtype=dtype)
-                    L = self._L = L_mask * pre_L + tf.eye(*shape, dtype=dtype)
+                    L = self._L = check_tensor(
+                        L_mask * pre_L + tf.eye(*shape, dtype=dtype), 'L')
 
                 with tf.name_scope('U', values=[pre_U, sign, log_s]):
                     U_mask = tf.constant(np.triu(np.ones(shape), k=1),
                                          dtype=dtype)
-                    U = self._U = U_mask * pre_U + tf.diag(sign * tf.exp(log_s))
+                    U = self._U = check_tensor(
+                        U_mask * pre_U + tf.diag(sign * tf.exp(log_s)), 'U')
 
                 with tf.name_scope('matrix', values=[P, L, U]):
-                    self._matrix = tf.matmul(P, tf.matmul(L, U))
+                    self._matrix = check_tensor(
+                        tf.matmul(P, tf.matmul(L, U), name='matrix'))
 
                 with tf.name_scope('inv_matrix', values=[P, L, U]):
-                    self._inv_matrix = tf.matmul(
-                        tf.matrix_inverse(U, name='inv_U'),
+                    self._inv_matrix = check_tensor(
                         tf.matmul(
-                            tf.matrix_inverse(L, name='inv_L'),
-                            tf.matrix_inverse(P, name='inv_P'),
+                            check_tensor(
+                                tf.matrix_inverse(U, name='inv_U')),
+                            tf.matmul(
+                                check_tensor(
+                                    tf.matrix_inverse(L, name='inv_L')),
+                                check_tensor(
+                                    tf.matrix_inverse(P, name='inv_P')),
+                            ),
+                            name='inv_matrix'
                         )
                     )
 
                 with tf.name_scope('log_det', values=[log_s]):
-                    self._log_det = tf.reduce_sum(log_s)
+                    self._log_det = check_tensor(
+                        tf.reduce_sum(log_s, name='log_det'))
 
     @property
     def shape(self):
