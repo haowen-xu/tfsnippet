@@ -161,15 +161,17 @@ class ConfigFieldTestCase(unittest.TestCase):
 class ConfigTestCase(unittest.TestCase):
 
     def test_config(self):
-        class MyConfig(Config):
+        class ParentConfig(Config):
             x = 123
-            y = ConfigField(str, nullable=True, choices=['abc', 'def'])
-            z = ConfigField(int, default=1000, description='the z field')
-            w = ['w']
 
             @property
             def x_property(self):
                 return self.x
+
+        class MyConfig(ParentConfig):
+            y = ConfigField(str, nullable=True, choices=['abc', 'def'])
+            z = ConfigField(int, default=1000, description='the z field')
+            w = ['w']
 
             def get_x(self):
                 return self.x

@@ -15,3 +15,5 @@ class L2RegualrizerTestCase(tf.test.TestCase):
                 sess.run(l2_regularizer(lambda_)(w)),
                 loss
             )
+
+            self.assertIsNone(l2_regularizer(None))
