@@ -160,16 +160,14 @@ def main():
             arg_scope([p_net, q_net], is_initializing=True), \
             spt.utils.scoped_set_config(spt.settings, auto_histogram=False):
         init_q_net = q_net(input_x)
-        init_chain = init_q_net.chain(
-            p_net, latent_axis=0, observed={'x': input_x})
+        init_chain = init_q_net.chain(p_net, observed={'x': input_x})
         init_loss = tf.reduce_mean(init_chain.vi.training.sgvb())
 
     # derive the loss and lower-bound for training
     with tf.name_scope('training'), \
             arg_scope([p_net, q_net], is_training=True):
         train_q_net = q_net(input_x)
-        train_chain = train_q_net.chain(
-            p_net, latent_axis=0, observed={'x': input_x})
+        train_chain = train_q_net.chain(p_net, observed={'x': input_x})
         train_loss = (
             tf.reduce_mean(train_chain.vi.training.sgvb()) +
             tf.losses.get_regularization_loss()

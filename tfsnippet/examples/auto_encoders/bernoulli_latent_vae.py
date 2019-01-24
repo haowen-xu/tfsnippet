@@ -121,8 +121,7 @@ def main():
     # derive the loss and lower-bound for training
     with tf.name_scope('training'):
         train_q_net = q_net(input_x)
-        train_chain = train_q_net.chain(
-            p_net, latent_axis=0, observed={'x': input_x})
+        train_chain = train_q_net.chain(p_net, observed={'x': input_x})
 
         baseline = baseline_net(input_x)
         cost, baseline_cost = \
