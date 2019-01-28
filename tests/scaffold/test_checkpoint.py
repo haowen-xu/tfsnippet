@@ -1,12 +1,11 @@
 import os
-from tempfile import TemporaryDirectory
 
 import pytest
 import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.scaffold import *
-from tfsnippet.utils import ensure_variables_initialized
+from tfsnippet.utils import ensure_variables_initialized, TemporaryDirectory
 
 
 class CheckpointSaverTestCase(tf.test.TestCase):
