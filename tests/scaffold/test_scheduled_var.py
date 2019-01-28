@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 
 from tests.helper import assert_variables
-from tfsnippet.trainer import *
+from tfsnippet.scaffold import ScheduledVariable, AnnealingVariable
 from tfsnippet.utils import ensure_variables_initialized, TemporaryDirectory
 
 
@@ -30,6 +30,9 @@ class ScheduledVariableTestCase(tf.test.TestCase):
             with self.test_session() as sess:
                 saver.restore(sess, save_path)
                 self.assertEqual(v.get(), 456)
+
+                sess.run(v.assign_op, feed_dict={v.assign_ph: 789})
+                self.assertEqual(v.get(), 789)
 
     def test_AnnealingDynamicValue(self):
         with self.test_session() as sess:

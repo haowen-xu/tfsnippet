@@ -4,6 +4,7 @@ import six
 import tensorflow as tf
 
 from tfsnippet.trainer import *
+from tfsnippet.scaffold import ScheduledVariable
 from tfsnippet.utils import ensure_variables_initialized
 
 

@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from tfsnippet.utils import (DisposableContext, TemporaryDirectory, makedirs,
                              deprecated)
-from .variable_saver import VariableSaver
+from .checkpoint import CheckpointSaver
 
 __all__ = ['EarlyStopping', 'EarlyStoppingContext', 'early_stopping']
 
@@ -46,7 +46,7 @@ class EarlyStopping(DisposableContext):
             param_vars (list[tf.Variable] or dict[str, tf.Variable]): List or
                 dict of variables to be memorized. If a dict is specified, the
                 keys of the dict would be used as the serializations keys via
-                :class:`VariableSaver`.
+                :class:`CheckpointSaver`.
             initial_metric (float or tf.Tensor or tf.Variable): The initial best
                 metric (for recovering from previous session).
             checkpoint_dir (str): The directory where to save the checkpoint
@@ -84,7 +84,7 @@ class EarlyStopping(DisposableContext):
         self._best_metric = initial_metric
         self._ever_updated = False
         self._temp_dir_ctx = None
-        self._saver = None  # type: VariableSaver
+        self._saver = None  # type: CheckpointSaver
 
     def _enter(self):
         # open a temporary directory if the checkpoint dir is not specified
@@ -95,7 +95,8 @@ class EarlyStopping(DisposableContext):
             makedirs(self._checkpoint_dir, exist_ok=True)
 
         # create the variable saver
-        self._saver = VariableSaver(self._param_vars, self._checkpoint_dir)
+        self._saver = CheckpointSaver(
+            self._param_vars, self._checkpoint_dir, max_to_keep=2)
 
         # return self as the context object
         return self
@@ -106,7 +107,7 @@ class EarlyStopping(DisposableContext):
             # exc_info = (exc_type, exc_val, exc_tb)
             if exc_type is None or exc_type is KeyboardInterrupt or \
                     self._restore_on_error:
-                self._saver.restore(ignore_non_exist=True)
+                self._saver.restore_latest(ignore_non_exist=True)
 
         finally:
             # cleanup the checkpoint directory

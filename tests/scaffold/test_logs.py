@@ -6,8 +6,8 @@ from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.scaffold import summarize_variables, MetricLogger
-from tfsnippet.trainer import ScheduledVariable
+from tfsnippet.scaffold import (summarize_variables, MetricLogger,
+                                ScheduledVariable)
 from tfsnippet.utils import TemporaryDirectory, ensure_variables_initialized
 
 

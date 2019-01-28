@@ -13,6 +13,7 @@ from tfsnippet.utils import (humanize_duration,
                              StatisticsCollector,
                              get_default_session_or_error,
                              DocInherit)
+from .scheduled_var import ScheduledVariable
 
 __all__ = [
     'MetricFormatter',
@@ -196,7 +197,6 @@ class MetricLogger(object):
             global_step (int or tf.Variable or tf.Tensor): The global step
                 counter. (optional)
         """
-        from tfsnippet.trainer import ScheduledVariable
         tf_summary_values = []
         for k, v in six.iteritems(metrics):
             if isinstance(v, ScheduledVariable):

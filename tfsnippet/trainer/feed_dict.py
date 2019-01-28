@@ -1,4 +1,4 @@
-from .scheduled_var import ScheduledVariable
+from tfsnippet.scaffold import ScheduledVariable
 
 __all__ = ['resolve_feed_dict', 'merge_feed_dict']
 

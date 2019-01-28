@@ -150,8 +150,8 @@ class EarlyStoppingTestCase(tf.test.TestCase):
                 checkpoint_dir = os.path.join(tempdir, '1')
                 with EarlyStopping([a, b], checkpoint_dir=checkpoint_dir) as es:
                     self.assertTrue(es.update(1.))
-                    self.assertTrue(
-                        os.path.exists(os.path.join(checkpoint_dir, 'latest')))
+                    self.assertTrue(os.path.exists(
+                        os.path.join(checkpoint_dir, 'checkpoint')))
                 self.assertFalse(os.path.exists(checkpoint_dir))
 
     def test_not_cleanup_checkpoint_dir(self):
@@ -162,7 +162,7 @@ class EarlyStoppingTestCase(tf.test.TestCase):
                 with EarlyStopping([a, b], checkpoint_dir=checkpoint_dir,
                                    cleanup=False) as es:
                     self.assertTrue(es.update(1.))
-                    self.assertTrue(
-                        os.path.exists(os.path.join(checkpoint_dir, 'latest')))
-                self.assertTrue(
-                    os.path.exists(os.path.join(checkpoint_dir, 'latest')))
+                    self.assertTrue(os.path.exists(
+                        os.path.join(checkpoint_dir, 'checkpoint')))
+                self.assertTrue(os.path.exists(
+                    os.path.join(checkpoint_dir, 'checkpoint')))

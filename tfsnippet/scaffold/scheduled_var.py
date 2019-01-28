@@ -83,6 +83,26 @@ class ScheduledVariable(TensorWrapper):
         """
         return self._self_var
 
+    @property
+    def assign_op(self):
+        """
+        Get the assignment operation.
+
+        Returns:
+            tf.Operation: The assignment operation.
+        """
+        return self._self_assign_op
+
+    @property
+    def assign_ph(self):
+        """
+        Get the assignment placeholder.
+
+        Returns:
+            tf.Tensor: The assignment placeholder.
+        """
+        return self._self_assign_ph
+
     def get(self):
         """Get the current value of the variable."""
         return get_default_session_or_error().run(self._self_read_op)

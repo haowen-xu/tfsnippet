@@ -9,7 +9,7 @@ from .type_utils import is_tensor_object
 
 __all__ = [
     'get_static_shape', 'get_batch_size', 'get_rank', 'get_shape',
-    'get_dimensions_size',
+    'get_dimension_size', 'get_dimensions_size',
     'flatten_to_ndims', 'unflatten_from_ndims',
     'resolve_negative_axis',  'concat_shapes', 'is_shape_equal',
     'broadcast_to_shape', 'broadcast_to_shape_strict',
@@ -212,44 +212,69 @@ def get_rank(tensor, name=None):
 
 
 @add_name_arg_doc
-def get_dimensions_size(tensor, axis=None, name=None):
+def get_dimension_size(tensor, axis, name=None):
     """
     Get the size of `tensor` of specified `axis`.
 
-    If `axis` is :obj:`None`, select the size of all dimensions.
+    Args:
+        tensor (tf.Tensor): The tensor to be tested.
+        axis (Iterable[int] or None): The dimension to be queried.
+
+    Returns:
+        int or tf.Tensor: An integer or a tensor, the size of queried dimension.
+    """
+    tensor = tf.convert_to_tensor(tensor)
+
+    with tf.name_scope(name, default_name='get_dimension_size',
+                       values=[tensor]):
+        shape = get_static_shape(tensor)
+
+        if shape is not None and not is_tensor_object(axis) and \
+                shape[axis] is not None:
+            return shape[axis]
+
+        return tf.shape(tensor)[axis]
+
+
+@add_name_arg_doc
+def get_dimensions_size(tensor, axes=None, name=None):
+    """
+    Get the size of `tensor` of specified `axes`.
+
+    If `axes` is :obj:`None`, select the size of all dimensions.
 
     Args:
         tensor (tf.Tensor): The tensor to be tested.
-        axis (Iterable[int] or None): The dimensions to be selected.
+        axes (Iterable[int] or None): The dimensions to be selected.
 
     Returns:
         tuple[int] or tf.Tensor: A tuple of integers if all selected
             dimensions have static sizes.  Otherwise a tensor.
     """
     tensor = tf.convert_to_tensor(tensor)
-    if axis is not None:
-        axis = tuple(axis)
-        if not axis:
+    if axes is not None:
+        axes = tuple(axes)
+        if not axes:
             return ()
 
     with tf.name_scope(name, default_name='get_dimensions_size',
                        values=[tensor]):
         shape = get_static_shape(tensor)
 
-        if shape is not None and axis is not None:
-            shape = tuple(shape[a] for a in axis)
+        if shape is not None and axes is not None:
+            shape = tuple(shape[a] for a in axes)
 
         if shape is None or None in shape:
             dynamic_shape = tf.shape(tensor)
-            if axis is None:
+            if axes is None:
                 shape = dynamic_shape
             else:
-                shape = tf.stack([dynamic_shape[i] for i in axis], axis=0)
+                shape = tf.stack([dynamic_shape[i] for i in axes], axis=0)
 
         return shape
 
 
-get_shape = functools.partial(get_dimensions_size, axis=None)
+get_shape = functools.partial(get_dimensions_size, axes=None)
 
 
 @add_name_arg_doc

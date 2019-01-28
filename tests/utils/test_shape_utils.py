@@ -179,6 +179,45 @@ class GetRankTestCase(tf.test.TestCase):
 
 class GetDimensionSizeTestCase(tf.test.TestCase):
 
+    def test_get_dimension_size(self):
+        with self.test_session() as sess:
+            # test static shape
+            ph = tf.placeholder(tf.float32, (1, 2, 3))
+            self.assertEqual(get_dimension_size(ph, 0), 1)
+            self.assertEqual(get_dimension_size(ph, 1), 2)
+            self.assertEqual(get_dimension_size(ph, 2), 3)
+            self.assertEqual(get_dimension_size(ph, -1), 3)
+
+            # test dynamic shape, but no dynamic axis is queried
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            self.assertEqual(get_dimension_size(ph, 0), 1)
+            self.assertEqual(get_dimension_size(ph, 2), 3)
+            self.assertEqual(get_dimension_size(ph, -1), 3)
+
+            # test dynamic shape
+            def _assert_equal(a, b):
+                self.assertIsInstance(a, tf.Tensor)
+                self.assertEqual(sess.run(a, feed_dict={ph: ph_in}), b)
+
+            ph = tf.placeholder(tf.float32, (1, None, 3))
+            ph_in = np.arange(6, dtype=np.float32).reshape((1, 2, 3))
+            _assert_equal(get_dimension_size(ph, 1), 2)
+            _assert_equal(get_dimension_size(ph, -2), 2)
+
+            axis_ph = tf.placeholder(tf.int32, None)
+            self.assertEqual(
+                sess.run(get_dimension_size(ph, axis_ph),
+                         feed_dict={ph: ph_in, axis_ph: 1}),
+                2
+            )
+
+            # test fully dynamic shape
+            ph = tf.placeholder(tf.float32, None)
+            _assert_equal(get_dimension_size(ph, 0), 1)
+            _assert_equal(get_dimension_size(ph, 1), 2)
+            _assert_equal(get_dimension_size(ph, 2), 3)
+            _assert_equal(get_dimension_size(ph, -2), 2)
+
     def test_get_dimensions_size(self):
         with self.test_session() as sess:
             # test empty query

@@ -6,7 +6,7 @@ import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.dataflows import DataFlow
-from tfsnippet.scaffold import TrainLoop
+from tfsnippet.scaffold import TrainLoop, AnnealingVariable
 from tfsnippet.trainer import *
 
 
