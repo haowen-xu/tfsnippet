@@ -2,6 +2,7 @@ from .archive_file import *
 from .caching import *
 from .concepts import *
 from .config_utils import *
+from .console_table import *
 from .data_utils import *
 from .debugging import *
 from .deprecation import *
@@ -25,8 +26,8 @@ from .type_utils import *
 
 __all__ = [
     'AutoInitAndCloseable', 'BoolConfigValidator', 'CacheDir', 'Config',
-    'ConfigField', 'ConfigValidator', 'ContextStack', 'Disposable',
-    'DisposableContext', 'DocInherit', 'ETA', 'Extractor',
+    'ConfigField', 'ConfigValidator', 'ConsoleTable', 'ContextStack',
+    'Disposable', 'DisposableContext', 'DocInherit', 'ETA', 'Extractor',
     'FloatConfigValidator', 'GraphKeys', 'InputSpec', 'IntConfigValidator',
     'InvertibleMatrix', 'NoReentrantContext', 'ParamSpec', 'PermutationMatrix',
     'RarExtractor', 'StatisticsCollector', 'StrConfigValidator',
@@ -46,12 +47,13 @@ __all__ = [
     'is_integer', 'is_shape_equal', 'is_tensor_object',
     'is_tensorflow_version_higher_or_equal', 'iter_files', 'makedirs',
     'maybe_add_histogram', 'maybe_check_numerics', 'maybe_close',
-    'minibatch_slices_iterator', 'model_variable', 'register_config_arguments',
-    'register_config_validator', 'register_tensor_wrapper_class',
-    'reopen_variable_scope', 'reshape_tail', 'resolve_negative_axis',
-    'root_variable_scope', 'scoped_set_config', 'set_cache_root',
-    'set_random_seed', 'settings', 'split_numpy_array', 'split_numpy_arrays',
-    'transpose_conv2d_axis', 'transpose_conv2d_channels_last_to_x',
+    'minibatch_slices_iterator', 'model_variable', 'print_as_table',
+    'register_config_arguments', 'register_config_validator',
+    'register_tensor_wrapper_class', 'reopen_variable_scope', 'reshape_tail',
+    'resolve_negative_axis', 'root_variable_scope', 'scoped_set_config',
+    'set_cache_root', 'set_random_seed', 'settings', 'split_numpy_array',
+    'split_numpy_arrays', 'transpose_conv2d_axis',
+    'transpose_conv2d_channels_last_to_x',
     'transpose_conv2d_channels_x_to_last', 'unflatten_from_ndims',
     'validate_enum_arg', 'validate_group_ndims_arg', 'validate_int_tuple_arg',
     'validate_n_samples_arg', 'validate_positive_int_arg',

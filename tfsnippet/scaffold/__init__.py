@@ -1,6 +1,6 @@
 from .checkpoint import *
 from .early_stopping_ import *
-from .logs import *
+from .logging_ import *
 from .scheduled_var import *
 from .train_loop_ import *
 

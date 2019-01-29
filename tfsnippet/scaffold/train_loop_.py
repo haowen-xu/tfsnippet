@@ -13,7 +13,7 @@ from tfsnippet.dataflows import DataFlow
 from tfsnippet.utils import (StatisticsCollector, DisposableContext,
                              humanize_duration, ETA, deprecated)
 from .early_stopping_ import EarlyStopping
-from .logs import summarize_variables, DefaultMetricFormatter, MetricLogger
+from .logging_ import summarize_variables, DefaultMetricFormatter, MetricLogger
 
 __all__ = [
     'TrainLoop', 'TrainLoopContext', 'train_loop',

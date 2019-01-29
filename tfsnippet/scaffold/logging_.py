@@ -249,6 +249,13 @@ class MetricLogger(object):
         return '; '.join(buf)
 
 
+# NOTICE: currently we still cannot rewrite the following code using
+#         :class:`tfsnippet.utils.ConsoleTable`, because the title
+#         "... (xxx in total)" requires a two-column layout, while
+#         the remaining part of the table requires a three-column
+#         layout.  Column spanning is still not supported.
+#         Nevertheless, it works fine.  So we just leave it untouched.
+
 def _var_size(v):
     return int(np.prod(v.get_shape().as_list(), dtype=np.int32))
 
