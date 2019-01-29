@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 import pytest
 import tensorflow as tf
@@ -18,13 +20,12 @@ def prepare_test_payload(is_reparameterized):
     return x, y, z, f, log_f
 
 
-def assert_allclose(a, b):
-    np.testing.assert_allclose(a, b, atol=1e-4)
-
-
 class SGVBEstimatorTestCase(tf.test.TestCase):
 
     def test_sgvb(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, rtol=1e-6, atol=1e-5)
+
         with self.test_session() as sess:
             x, y, z, f, log_f = prepare_test_payload(is_reparameterized=True)
 
@@ -62,6 +63,9 @@ class IWAEEstimatorTestCase(tf.test.TestCase):
             _ = iwae_estimator(log_f, axis=None)
 
     def test_iwae(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, rtol=1e-6, atol=1e-5)
+
         with self.test_session() as sess:
             x, y, z, f, log_f = prepare_test_payload(is_reparameterized=True)
             wk_hat = f / tf.reduce_sum(f, axis=0, keepdims=True)

@@ -124,10 +124,9 @@ def main():
         train_chain = train_q_net.chain(p_net, observed={'x': input_x})
 
         baseline = baseline_net(input_x)
-        cost, baseline_cost = \
-            train_chain.vi.training.reinforce(baseline=baseline)
-        loss = tf.losses.get_regularization_loss() + \
-            tf.reduce_mean(cost + baseline_cost)
+        nvil_loss = tf.reduce_mean(
+            train_chain.vi.training.nvil(baseline=baseline))
+        loss = tf.losses.get_regularization_loss() + nvil_loss
 
     # derive the nll and logits output for testing
     with tf.name_scope('testing'):
