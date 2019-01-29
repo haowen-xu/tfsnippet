@@ -8,5 +8,5 @@ __all__ = [
     'VariationalChain', 'VariationalEvaluation', 'VariationalInference',
     'VariationalLowerBounds', 'VariationalTrainingObjectives',
     'elbo_objective', 'importance_sampling_log_likelihood', 'iwae_estimator',
-    'monte_carlo_objective', 'sgvb_estimator',
+    'monte_carlo_objective', 'nvil_estimator', 'sgvb_estimator',
 ]
