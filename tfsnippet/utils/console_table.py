@@ -127,7 +127,13 @@ class ConsoleTable(object):
     add_dict = add_key_values
     add_config = add_key_values
 
-    def __str__(self):
+    def format(self):
+        """
+        Format the table to string.
+
+        Returns:
+            str: The formatted table.
+        """
         # first, calculate the width of each column
         widths = [0] * self._col_count
         hr_width = 0
@@ -179,6 +185,9 @@ class ConsoleTable(object):
 
         return '\n'.join(ret)
 
+    def __str__(self):
+        return self.format()
+
 
 def print_as_table(title, key_values, hr='='):
     """
@@ -193,4 +202,4 @@ def print_as_table(title, key_values, hr='='):
     table.add_title(title)
     table.add_hr(hr)
     table.add_key_values(key_values)
-    print(str(table))
+    print(table.format())

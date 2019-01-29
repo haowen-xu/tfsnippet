@@ -1,9 +1,10 @@
+import io
 import sys
 import unittest
 from collections import OrderedDict
-from io import StringIO
 
 import pytest
+import six
 
 from tfsnippet.utils import ConsoleTable, print_as_table
 
@@ -116,7 +117,10 @@ c   [1, 2, 3]'''
             t.add_key_values({})
 
     def test_print_as_table(self):
-        buf = StringIO()
+        if six.PY2:
+            buf = io.BytesIO()
+        else:
+            buf = io.StringIO()
         original_stdout = sys.stdout
         try:
             sys.stdout = buf
