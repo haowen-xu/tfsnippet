@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 
 import tensorflow as tf
-from tensorflow.python.training.moving_averages import assign_moving_average
 
 from tfsnippet.ops import log_mean_exp
 from tfsnippet.utils import add_name_arg_doc, get_static_shape
@@ -149,6 +148,7 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
         baseline = tf.convert_to_tensor(baseline)
     if alt_values is not None:
         alt_values = tf.convert_to_tensor(alt_values)
+    dtype = values.dtype
 
     @contextmanager
     def mk_scope():
@@ -198,14 +198,15 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
                 moving_mean = tf.get_variable(
                     'moving_mean', shape=moving_mean_shape,
                     initializer=tf.constant_initializer(0.),
-                    trainable=False
+                    trainable=False, dtype=dtype
                 )
 
-                update_mean_op = assign_moving_average(
-                    moving_mean, batch_center, decay=decay)
+                decay = tf.convert_to_tensor(1. - decay)
+                if decay.dtype != dtype:  # pragma: no cover
+                    decay = tf.cast(decay, dtype)
+                moving_mean = moving_mean.assign(
+                    moving_mean - (moving_mean - batch_center) * decay)
                 l_signal = l_signal - moving_mean
-                with tf.control_dependencies([update_mean_op]):
-                    l_signal = tf.identity(l_signal)
 
         # compute the nvil cost
         with tf.name_scope('cost'):

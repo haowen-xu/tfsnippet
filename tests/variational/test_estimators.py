@@ -135,10 +135,12 @@ class NVILEstimatorTestCase(tf.test.TestCase):
             sess.run(tf.assign(moving_mean, [[6.]]))
 
             cost_shape = cost.get_shape().as_list()
+            moving_mean = 4.8 + .2 * tf.reduce_mean(f)
             assert_allclose(*sess.run([
                 tf.gradients([cost], [y])[0],
                 tf.reduce_sum(
-                    z * f + (f - 6.) * (3 * (x ** 2 - 1) * (y ** 2)),
+                    z * f +
+                    (f - moving_mean) * (3 * (x ** 2 - 1) * (y ** 2)),
                     axis=0)
             ]))
 
