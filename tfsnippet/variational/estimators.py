@@ -85,7 +85,7 @@ def iwae_estimator(log_values, axis, keepdims=False, name=None):
 def nvil_estimator(values, latent_log_joint, baseline=None,
                    center_by_moving_average=True, decay=0.8,
                    axis=None, keepdims=False, batch_axis=None,
-                   alt_values=None, name=None):
+                   name=None):
     """
     Derive the gradient estimator for
     :math:`\\mathbb{E}_{q(\\mathbf{z}|\\mathbf{x})}\\big[f(\\mathbf{x},\\mathbf{z})\\big]`,
@@ -123,10 +123,6 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
         batch_axis: The batch axes to be reduced when computing
             expectation over `x`.  If not specified, all axes will be
             treated as batch axes, except the sampling axes.
-        alt_values: Alternative `values` for computing the gradient of
-            :math:`f(x,z)`.  This argument is originally designed for a
-            slight optimization in :meth:`tfsnippet.VariationalInference.nvil`.
-            USE THIS ARGUMENT ONLY IF YOU KNOW WHAT YOU ARE DOING!
 
     Returns:
         (tf.Tensor, tf.Tensor): The `(surrogate, baseline cost)`.
@@ -146,8 +142,6 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
     latent_log_joint = tf.convert_to_tensor(latent_log_joint)  # log q(z|x)
     if baseline is not None:
         baseline = tf.convert_to_tensor(baseline)
-    if alt_values is not None:
-        alt_values = tf.convert_to_tensor(alt_values)
     dtype = values.dtype
 
     @contextmanager
@@ -159,16 +153,12 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
             ns_values = [values, latent_log_joint]
             if baseline is not None:
                 ns_values += [baseline]
-            if alt_values is not None:
-                ns_values += [alt_values]
             with tf.name_scope(name or 'nvil_estimator', values=ns_values):
                 yield
 
     with mk_scope():
         l_signal = values
         baseline_cost = None
-        if alt_values is None:
-            alt_values = values
 
         # compute the baseline cost
         if baseline is not None:
@@ -190,9 +180,8 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
                 moving_mean_shape = get_static_shape(batch_center)
                 if None in moving_mean_shape:
                     raise ValueError(
-                        'The shape of `values` or `alt_values` after '
-                        '`batch_axis` having been reduced must be static: '
-                        'values or alt_values {}, batch_axis {}'.
+                        'The shape of `values` after `batch_axis` having been '
+                        'reduced must be static: values {}, batch_axis {}'.
                         format(values, batch_axis)
                     )
                 moving_mean = tf.get_variable(
@@ -210,9 +199,8 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
 
         # compute the nvil cost
         with tf.name_scope('cost'):
-            cost = tf.stop_gradient(l_signal) * latent_log_joint + alt_values
+            cost = tf.stop_gradient(l_signal) * latent_log_joint + values
             if axis is not None:
                 cost = tf.reduce_mean(cost, axis, keepdims=keepdims)
 
-        # return alt_values, None
         return cost, baseline_cost

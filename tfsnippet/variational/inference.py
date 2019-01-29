@@ -281,8 +281,7 @@ class VariationalTrainingObjectives(object):
                 axis=self._vi.axis,
                 baseline=baseline,
                 center_by_moving_average=center_by_moving_average,
-                decay=decay,
-                alt_values=self._vi.log_joint
+                decay=decay
             )
 
             if baseline_cost is not None:

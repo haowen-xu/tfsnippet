@@ -6,8 +6,9 @@ import pytest
 import tensorflow as tf
 import zhusuan as zs
 
+from tfsnippet import Normal
 from tfsnippet.ops import add_n_broadcast
-from tfsnippet.utils import ensure_variables_initialized
+from tfsnippet.utils import ensure_variables_initialized, get_static_shape
 from tfsnippet.variational import *
 
 
@@ -125,7 +126,6 @@ class VariationalInferenceTestCase(tf.test.TestCase):
                 baseline=None,
                 center_by_moving_average=True,
                 decay=0.8,
-                alt_values=log_p
             )
             answer = - a
             ensure_variables_initialized()
@@ -142,7 +142,6 @@ class VariationalInferenceTestCase(tf.test.TestCase):
                 baseline=baseline,
                 center_by_moving_average=False,
                 decay=0.8,
-                alt_values=log_p
             )
             answer = b - a
             ensure_variables_initialized()

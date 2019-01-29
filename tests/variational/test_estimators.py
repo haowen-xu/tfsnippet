@@ -102,9 +102,8 @@ class NVILEstimatorTestCase(tf.test.TestCase):
             _ = nvil_estimator(log_f, log_q, center_by_moving_average=False)
 
         with pytest.raises(ValueError,
-                           match='The shape of `values` or `alt_values` '
-                                 'after `batch_axis` having been reduced '
-                                 'must be static'):
+                           match='The shape of `values` after `batch_axis` '
+                                 'having been reduced must be static'):
             _ = nvil_estimator(
                 tf.placeholder(dtype=tf.float32, shape=[None, None]),
                 log_q,
@@ -200,34 +199,4 @@ class NVILEstimatorTestCase(tf.test.TestCase):
                 tf.reduce_sum(
                     -2 * (f - baseline) * (-3.14 * tf.sin(y)),
                     axis=0) / 7
-            ]))
-
-            # test alt_values
-            cost, baseline_cost = nvil_estimator(
-                values=f,
-                latent_log_joint=log_q,
-                baseline=baseline,
-                center_by_moving_average=False,
-                alt_values=alt_f
-            )
-            self.assertEqual(
-                len(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)),
-                var_count
-            )
-            self.assertListEqual(cost.get_shape().as_list(), cost_shape)
-
-            assert_allclose(*sess.run([
-                tf.gradients([cost], [y])[0],
-                tf.reduce_sum(
-                    2 * z * tf.exp(2 * y * z) +
-                    (f - 3.14 * tf.cos(y)) * (3 * (x ** 2 - 1) * (y ** 2)),
-                    axis=0)
-            ]))
-            assert_allclose(*sess.run([
-                tf.gradients([baseline_cost], [y])[0],
-                # -2 * (f(x,z) - C(x)) * C'(x)
-                tf.reduce_sum(
-                    -2 * (f - baseline) * (-3.14 * tf.sin(y)),
-                    axis=0
-                )
             ]))
