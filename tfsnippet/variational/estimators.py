@@ -140,8 +140,8 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
             It will be :obj:`None` if `baseline` is :obj:`None`.
     """
     if baseline is None and not center_by_moving_average:
-        raise ValueError('`baseline` is not specified , thus '
-                         '`center_by_moving_average` must be be False.')
+        raise ValueError('`baseline` is not specified, thus '
+                         '`center_by_moving_average` must be False.')
 
     values = tf.convert_to_tensor(values)  # f(x,z)
     latent_log_joint = tf.convert_to_tensor(latent_log_joint)  # log q(z|x)
@@ -190,9 +190,9 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
                 moving_mean_shape = get_static_shape(batch_center)
                 if None in moving_mean_shape:
                     raise ValueError(
-                        'The shape of `l_signal` or `values` after '
+                        'The shape of `values` or `alt_values` after '
                         '`batch_axis` having been reduced must be static: '
-                        'values or l_signal {}, batch_axis {}'.
+                        'values or alt_values {}, batch_axis {}'.
                         format(values, batch_axis)
                     )
                 moving_mean = tf.get_variable(
@@ -213,4 +213,5 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
             if axis is not None:
                 cost = tf.reduce_mean(cost, axis, keepdims=keepdims)
 
+        # return alt_values, None
         return cost, baseline_cost
