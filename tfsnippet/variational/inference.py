@@ -276,23 +276,19 @@ class VariationalTrainingObjectives(object):
         """
         with tf.name_scope(name, default_name='nvil'):
             cost, baseline_cost = nvil_estimator(
-                values=self._vi.log_joint,
+                values=self._vi.log_joint - self._vi.latent_log_prob,
                 latent_log_joint=self._vi.latent_log_prob,
                 axis=self._vi.axis,
                 baseline=baseline,
                 center_by_moving_average=center_by_moving_average,
                 decay=decay,
-                l_signal=self._vi.log_joint - self._vi.latent_log_prob
+                alt_values=self._vi.log_joint
             )
-            return baseline_cost_weight * baseline_cost - cost
-        # # reinforce requires extra variables to collect the moving average
-        # # statistics, so we need to generate a variable scope
-        # with tf.variable_scope(name, default_name='reinforce'):
-        #     return self._vi.zs_elbo().reinforce(
-        #         variance_reduction=variance_reduction,
-        #         baseline=baseline,
-        #         decay=decay,
-        #     )
+
+            if baseline_cost is not None:
+                return baseline_cost_weight * baseline_cost - cost
+            else:
+                return -cost
 
     reinforce = nvil
 

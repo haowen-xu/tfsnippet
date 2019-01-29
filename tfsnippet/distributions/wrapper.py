@@ -1,7 +1,6 @@
 import contextlib
 
 import tensorflow as tf
-import zhusuan
 
 from tfsnippet.utils import get_default_scope_name
 from .base import Distribution
@@ -27,8 +26,13 @@ def as_distribution(distribution):
     """
     if isinstance(distribution, Distribution):
         return distribution
-    if isinstance(distribution, zhusuan.distributions.Distribution):
-        return ZhuSuanDistribution(distribution)
+    try:
+        import zhusuan
+    except ImportError:  # pragma: no cover
+        pass
+    else:
+        if isinstance(distribution, zhusuan.distributions.Distribution):
+            return ZhuSuanDistribution(distribution)
     raise TypeError('Type `{}` cannot be casted into `tfsnippet.distributions.'
                     'Distribution`'.format(distribution.__class__.__name__))
 
@@ -53,6 +57,7 @@ class ZhuSuanDistribution(Distribution):
                 since :class:`ZhuSuanDistribution` may temporarily modify
                 internal states of `distribution`.
         """
+        import zhusuan
         if not isinstance(distribution, zhusuan.distributions.Distribution):
             raise TypeError('`distribution` is not an instance of `zhusuan.'
                             'distributions.Distribution`')
