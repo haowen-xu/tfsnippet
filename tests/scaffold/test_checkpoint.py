@@ -17,12 +17,14 @@ class CheckpointSaverTestCase(tf.test.TestCase):
                 v2 = tf.get_variable('v2', dtype=tf.int32, shape=())
             sv = ScheduledVariable('sv', dtype=tf.float32, initial_value=123)
             obj = Mock(
-                __getstate__=Mock(return_value={'value': 123}),
-                __setstate__=Mock()
+                spec=CheckpointSavableObject,
+                get_state=Mock(return_value={'value': 123}),
+                set_state=Mock()
             )
             obj2 = Mock(
-                __getstate__=Mock(return_value={'value': 456}),
-                __setstate__=Mock()
+                spec=CheckpointSavableObject,
+                get_state=Mock(return_value={'value': 456}),
+                set_state=Mock()
             )
 
             saver = CheckpointSaver([v1, obj, sv, obj2, v2], tmpdir + '/1')
@@ -53,24 +55,19 @@ class CheckpointSaverTestCase(tf.test.TestCase):
             self.assertIsInstance(saver.saver, tf.train.Saver)
 
             with pytest.raises(TypeError, match='is not a savable object'):
-                _ = CheckpointSaver(
-                    [Mock(__getstate__=Mock(return_value={'value': 123}))],
-                    tmpdir
-                )
-            with pytest.raises(TypeError, match='is not a savable object'):
-                _ = CheckpointSaver({'obj': Mock(__setstate__=Mock())}, tmpdir)
+                _ = CheckpointSaver([object()], tmpdir)
             with pytest.raises(TypeError, match='is not a savable object'):
                 _ = CheckpointSaver([tf.constant(123.)], tmpdir)
 
     def test_save_restore(self):
-        class MyObject(object):
+        class MyObject(CheckpointSavableObject):
             def __init__(self, value):
                 self.value = value
 
-            def __getstate__(self):
+            def get_state(self):
                 return self.__dict__
 
-            def __setstate__(self, state):
+            def set_state(self, state):
                 keys = list(self.__dict__)
                 for k in keys:
                     if k not in state:

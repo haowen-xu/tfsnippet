@@ -14,7 +14,7 @@ if six.PY2:
 else:
     import pickle as pkl
 
-__all__ = ['CheckpointSaver']
+__all__ = ['CheckpointSavableObject', 'CheckpointSaver']
 
 
 CheckpointSaverSerialVar = namedtuple(
@@ -23,10 +23,36 @@ CheckpointSaverSerialVar = namedtuple(
 )
 
 
+class CheckpointSavableObject(object):
+    """
+    Base class for all objects that can be saved via :class:`CheckpointSaver`.
+    """
+
+    def get_state(self):
+        """
+        Get the internal states of the object.
+
+        The returned state dict must be pickle-able.
+
+        Returns:
+            dict: The internal states dict.
+        """
+        raise NotImplementedError()
+
+    def set_state(self, state):
+        """
+        Set the internal states of the object.
+
+        Args:
+            state: The internal states dict.
+        """
+        raise NotImplementedError()
+
+
 class CheckpointSaver(VarScopeObject):
     """
-    Save and restore :class:`tf.Variable` and :class:`CheckpointSavableObject`
-    with :class:`tf.train.Saver`.
+    Save and restore :class:`tf.Variable`, :class:`ScheduledVariable` and
+    :class:`CheckpointSavableObject` with :class:`tf.train.Saver`.
     """
 
     @add_name_and_scope_arg_doc
@@ -49,9 +75,9 @@ class CheckpointSaver(VarScopeObject):
                  checkpoint files?
         """
         def check_obj(obj):
-            if not isinstance(obj, (tf.Variable, ScheduledVariable)) and \
-                    (not hasattr(obj, '__getstate__') or
-                     not hasattr(obj, '__setstate__')):
+            if not isinstance(obj, (tf.Variable,
+                                    ScheduledVariable,
+                                    CheckpointSavableObject)):
                 raise TypeError('{!r} is not a savable object.'.format(obj))
 
         if isinstance(objects, (dict, OrderedDict)):
@@ -215,7 +241,7 @@ class CheckpointSaver(VarScopeObject):
         obj_values = session.run(
             [self._serial_dict[o].read_op for o in objects])
         for obj, val in zip(objects, obj_values):
-            obj.__setstate__(pkl.loads(val))
+            obj.set_state(pkl.loads(val))
 
     def save(self, global_step=None, session=None):
         """
@@ -240,7 +266,7 @@ class CheckpointSaver(VarScopeObject):
             obj_serial = self._serial_dict[obj]
             op_list.append(obj_serial.assign_op)
             feed_dict[obj_serial.assign_ph] = pkl.dumps(
-                obj.__getstate__(), protocol=pkl.HIGHEST_PROTOCOL)
+                obj.get_state(), protocol=pkl.HIGHEST_PROTOCOL)
 
         session.run(op_list, feed_dict=feed_dict)
 
