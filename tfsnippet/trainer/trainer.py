@@ -59,6 +59,9 @@ class Trainer(BaseTrainer):
 
             # run the main training loop
             trainer.run()
+
+    See Also:
+        :class:`tfsnippet.trainer.BaseTrainer`
     """
 
     def __init__(self, loop, train_op, inputs, data_flow, feed_dict=None,

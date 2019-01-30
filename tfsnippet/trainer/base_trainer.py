@@ -42,8 +42,37 @@ class BaseTrainer(object):
     responsibility to derive his training operation from a certain TensorFlow
     optimizer, and pass it to a proper trainer.
 
-    See Also:
-        :class:`tfsnippet.trainer.LossTrainer`
+    The event schedule of a :class:`BaseTrainer` can be briefly described as
+    follows::
+
+        for epoch in epochs:
+            events.fire(EventKeys.BEFORE_EPOCH, epoch)
+
+            for step in steps:
+                events.fire(EventKeys.BEFORE_STEP, step)
+
+                ...  # actually train for a step
+
+                events.fire(EventKeys.AFTER_STEP_EVAL, step)
+                events.fire(EventKeys.AFTER_STEP_ANNEAL, step)
+                events.fire(EventKeys.AFTER_STEP_LOG, step)
+                events.fire(EventKeys.AFTER_STEP, step)
+
+            events.fire(EventKeys.AFTER_EPOCH_EVAL, epoch)
+            events.fire(EventKeys.AFTER_EPOCH_ANNEAL, epoch)
+            events.fire(EventKeys.AFTER_EPOCH_LOG, epoch)
+            events.fire(EventKeys.AFTER_EPOCH, epoch)
+
+    Using `trainer.events.on(EventKeys.AFTER_EPOCH, lambda epoch: ...)` can
+    register an after-epoch event handler.  Handlers for other events can be
+    registered in a similar way.
+
+    To make things even simpler, we provide several methods to register
+    callbacks that will run every few epochs/steps, e.g.::
+
+        trainer.evaluate_after_epochs(
+            lambda: print('after epoch callback'), 10)  # run every 10 epochs
+        trainer.log_after_steps(1000)  # call `loop.print_logs` every 1000 steps
     """
 
     def __init__(self, loop):

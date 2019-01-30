@@ -38,6 +38,15 @@ class Evaluator(object):
     It is a common practice to compute one or more metrics for evaluation
     and validation during the training process.  This class provides a
     convenient interface for computing metrics by mini-batches.
+
+    The event schedule of an :class:`Evaluator` can be briefly described as
+    follows::
+
+        events.fire(EventKeys.BEFORE_EVALUATION)
+
+        ...  # actually run the evaluation
+
+        events.fire(EventKeys.AFTER_EVALUATION)
     """
 
     def __init__(self, loop, metrics, inputs, data_flow, feed_dict=None,
