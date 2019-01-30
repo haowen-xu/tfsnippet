@@ -25,7 +25,7 @@ class ConsoleTableTestCase(unittest.TestCase):
         t.add_row(['a', 'b', 'console'])
         t.add_hr('=')
         t.add_skip()
-        t.add_title('Another title')
+        t.add_title('Another title', 'Top Right')
 
         self.assertEqual(
             str(t),
@@ -38,7 +38,7 @@ a            business        c
 ******************************
 a               b      console
 ==============================
-Another title'''
+Another title        Top Right'''
         )
 
         with pytest.raises(ValueError, match='`col_count` must be at least 1'):
@@ -76,6 +76,15 @@ Another title'''
             str(t),
             'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n'
             'a   b'
+        )
+
+        t = ConsoleTable(2)
+        t.add_title('x' * 40, 'y' * 10)
+        t.add_row(['a', 'b'])
+        self.assertEqual(
+            str(t),
+            'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx yyyyyyyyyy\n'
+            'a                                                 b'
         )
 
     def test_add_key_values(self):

@@ -15,8 +15,24 @@ class ConsoleTable(object):
             self.c = c
 
     class _TitleRow(object):
-        def __init__(self, title):
-            self.title = title
+        def __init__(self, title, space=1):
+            if isinstance(title, tuple):
+                assert(len(title) == 2)
+                self.title = tuple(str(s) for s in title)
+            else:
+                self.title = str(title)
+            self.space = space
+
+        def format(self, row_width=0):
+            if isinstance(self.title, tuple):
+                assert(len(self.title) == 2)
+                pieces_len = sum(map(len, self.title))
+                row_width = max(
+                    row_width, pieces_len + self.space * (len(self.title) - 1))
+                return (self.title[0] + (' ' * (row_width - pieces_len)) +
+                        self.title[1])
+            else:
+                return self.title
 
     def __init__(self, col_count, col_space=3, col_align=None, expand_col=0):
         """
@@ -73,15 +89,20 @@ class ConsoleTable(object):
                              format(self._col_count, row))
         self._rows.append(row)
 
-    def add_title(self, title):
+    def add_title(self, title, top_right=None):
         """
         Add row of title.
 
         Args:
             title (str): The title content.
+            top_right (str): Optional top-right content.
         """
         title = str(title)
-        self._rows.append(ConsoleTable._TitleRow(title))
+        if top_right is not None:
+            top_right = str(top_right)
+            self._rows.append(ConsoleTable._TitleRow((title, top_right)))
+        else:
+            self._rows.append(ConsoleTable._TitleRow(title))
 
     def add_hr(self, c='-'):
         """
@@ -136,18 +157,18 @@ class ConsoleTable(object):
         """
         # first, calculate the width of each column
         widths = [0] * self._col_count
-        hr_width = 0
+        rol_width = 0
         for row in self._rows:
             if isinstance(row, ConsoleTable._Row):
                 for i, col in enumerate(row):
                     widths[i] = max(widths[i], len(col))
             elif isinstance(row, ConsoleTable._TitleRow):
-                hr_width = max(hr_width, len(row.title))
+                rol_width = max(rol_width, len(row.format()))
         col_width_sum = sum(widths) + self._col_space * (self._col_count - 1)
-        if hr_width > col_width_sum:
-            widths[self._expand_col] += hr_width - col_width_sum
+        if rol_width > col_width_sum:
+            widths[self._expand_col] += rol_width - col_width_sum
         else:
-            hr_width = col_width_sum
+            rol_width = col_width_sum
 
         # next, format each rows
         ret = []
@@ -169,10 +190,10 @@ class ConsoleTable(object):
                 ret.append(col_span.join(row_text))
 
             elif isinstance(row, ConsoleTable._TitleRow):
-                ret.append(row.title)
+                ret.append(row.format(rol_width))
 
             elif isinstance(row, ConsoleTable._HR):
-                ret.append(row.c * hr_width)
+                ret.append(row.c * rol_width)
 
             else:
                 assert(isinstance(row, ConsoleTable._EmptyRow))
