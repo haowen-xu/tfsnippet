@@ -250,8 +250,10 @@ def main():
                 data_flow=test_flow,
                 time_metric_name='test_time'
             )
-            evaluator.after_run.add_hook(
-                lambda: results.update_metrics(evaluator.last_metrics_dict))
+            evaluator.events.on(
+                spt.EventKeys.AFTER_EVALUATION,
+                lambda: results.update_metrics(evaluator.last_metrics_dict)
+            )
             trainer.evaluate_after_epochs(evaluator, freq=10)
             trainer.evaluate_after_epochs(
                 functools.partial(plot_samples, loop), freq=10)

@@ -170,11 +170,11 @@ quickly run a training-loop by using utilities from TFSnippet:
             spt.Evaluator(loop, loss, [input_x, input_y], valid_flow),
             freq=1
         )
-        # You may log the learning-rate after every epoch by adding a callback
-        # hook.  Surely you may also add any other callbacks.
-        trainer.after_epochs.add_hook(
-            lambda: trainer.loop.collect_metrics(lr=learning_rate),
-            freq=1
+        # You may log the learning-rate after every epoch registering an
+        # event handler.  Surely you may also add any other handlers.
+        trainer.events.on(
+            EventKeys.AFTER_EPOCH,
+            lambda epoch: trainer.loop.collect_metrics(lr=learning_rate),
         )
         # Print training metrics after every epoch.
         trainer.log_after_epochs(freq=1)

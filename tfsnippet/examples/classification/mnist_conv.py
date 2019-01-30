@@ -171,8 +171,10 @@ def main():
                 feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
-            evaluator.after_run.add_hook(
-                lambda: results.update_metrics(evaluator.last_metrics_dict))
+            evaluator.events.on(
+                spt.EventKeys.AFTER_EVALUATION,
+                lambda: results.update_metrics(evaluator.last_metrics_dict)
+            )
             trainer.evaluate_after_epochs(evaluator, freq=5)
             trainer.log_after_epochs(freq=1)
             trainer.run()

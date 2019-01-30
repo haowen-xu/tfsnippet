@@ -14,6 +14,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - Added the global config object `settings`.
 - Added `model_variable` and `get_model_variables`; now all layer variables are created via `model_variable` function, instead of `tf.get_variable`.
 - Added `CheckpointSaver`.
+- Added `utils.EventSource`.
 
 ### Changed
 - `global_reuse`, `instance_reuse`, `reopen_variable_scope`, `root_variable_scope` and `VarScopeObject` have been rewritten, and their behaviors have been slightly changed.  This might cause existing code to be malfunction, if these code relies heavily on the precise variable scope or name scope of certain variables or tensors.
@@ -23,6 +24,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - Some utilities in `utils` have been migrated to `ops`.
 - `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` have been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
 - `BayesianNet.add` now removes the `flow` argument.
+- The hook facility of `BaseTrainer` and `Evaluator` have been rewritten with `utils.EventSource`.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.

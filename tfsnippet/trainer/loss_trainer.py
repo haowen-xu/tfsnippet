@@ -1,5 +1,3 @@
-import warnings
-
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.utils import deprecated, deprecated_arg
 from .trainer import Trainer

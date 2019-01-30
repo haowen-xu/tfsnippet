@@ -7,6 +7,7 @@ from .data_utils import *
 from .debugging import *
 from .deprecation import *
 from .doc_utils import *
+from .events import *
 from .graph_keys import *
 from .imported import *
 from .invertible_matrix import *
@@ -27,16 +28,17 @@ from .type_utils import *
 __all__ = [
     'AutoInitAndCloseable', 'BoolConfigValidator', 'CacheDir', 'Config',
     'ConfigField', 'ConfigValidator', 'ConsoleTable', 'ContextStack',
-    'Disposable', 'DisposableContext', 'DocInherit', 'ETA', 'Extractor',
-    'FloatConfigValidator', 'GraphKeys', 'InputSpec', 'IntConfigValidator',
-    'InvertibleMatrix', 'NoReentrantContext', 'ParamSpec', 'PermutationMatrix',
-    'RarExtractor', 'StatisticsCollector', 'StrConfigValidator',
-    'TFSnippetConfig', 'TarExtractor', 'TemporaryDirectory',
-    'TensorArgValidator', 'TensorWrapper', 'VarScopeObject',
-    'VarScopeRandomState', 'ZipExtractor', 'add_name_and_scope_arg_doc',
-    'add_name_arg_doc', 'append_arg_to_doc', 'append_to_doc', 'assert_deps',
-    'broadcast_to_shape', 'broadcast_to_shape_strict', 'camel_to_underscore',
-    'concat_shapes', 'create_session', 'deprecated', 'deprecated_arg',
+    'Disposable', 'DisposableContext', 'DocInherit', 'ETA', 'EventSource',
+    'Extractor', 'FloatConfigValidator', 'GraphKeys', 'InputSpec',
+    'IntConfigValidator', 'InvertibleMatrix', 'NoReentrantContext',
+    'ParamSpec', 'PermutationMatrix', 'RarExtractor', 'StatisticsCollector',
+    'StrConfigValidator', 'TFSnippetConfig', 'TarExtractor',
+    'TemporaryDirectory', 'TensorArgValidator', 'TensorWrapper',
+    'VarScopeObject', 'VarScopeRandomState', 'ZipExtractor',
+    'add_name_and_scope_arg_doc', 'add_name_arg_doc', 'append_arg_to_doc',
+    'append_to_doc', 'assert_deps', 'broadcast_to_shape',
+    'broadcast_to_shape_strict', 'camel_to_underscore', 'concat_shapes',
+    'create_session', 'deprecated', 'deprecated_arg',
     'ensure_variables_initialized', 'flatten_to_ndims', 'get_batch_size',
     'get_cache_root', 'get_config_defaults', 'get_config_validator',
     'get_default_scope_name', 'get_default_session_or_error',

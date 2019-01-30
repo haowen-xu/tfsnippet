@@ -1,9 +1,8 @@
-from tfsnippet.scaffold import TrainLoop
+from tfsnippet.scaffold import TrainLoop, EventKeys
 from tfsnippet.utils import (ensure_variables_initialized,
                              get_default_session_or_error,
-                             DocInherit)
+                             DocInherit, EventSource)
 
-from .hooks import HookPriority, HookList
 from .evaluator import Evaluator
 
 __all__ = ['BaseTrainer']
@@ -14,6 +13,20 @@ def check_epochs_and_steps_arg(epochs=None, steps=None):
             (epochs is None and steps is None):
         raise ValueError('One and only one of `epochs` and `steps` should '
                          'be specified.')
+
+
+class OnEveryFewCalls(object):
+    def __init__(self, freq, callback):
+        assert(callable(callback))
+        self.freq = freq
+        self.callback = callback
+
+    def __call__(self, counter__, *args, **kwargs):
+        if counter__ % self.freq == 0:
+            return self.callback(*args, **kwargs)
+
+    def __repr__(self):  # for `test_base_trainer.py`
+        return '{}:{}'.format(self.callback, self.freq)
 
 
 @DocInherit
@@ -41,16 +54,18 @@ class BaseTrainer(object):
             loop (TrainLoop): The training loop object.
         """
         self._loop = loop
-
-        self._before_epochs = HookList()
-        self._after_epochs = HookList()
-        self._before_steps = HookList()
-        self._after_steps = HookList()
-        self._hook_lists = (
-            self._before_epochs, self._before_steps, self._after_steps,
-            self._after_epochs
-        )
-
+        self._events = EventSource([
+            EventKeys.BEFORE_EPOCH,
+            EventKeys.AFTER_EPOCH_EVAL,
+            EventKeys.AFTER_EPOCH_ANNEAL,
+            EventKeys.AFTER_EPOCH_LOG,
+            EventKeys.AFTER_EPOCH,
+            EventKeys.BEFORE_STEP,
+            EventKeys.AFTER_STEP_EVAL,
+            EventKeys.AFTER_STEP_ANNEAL,
+            EventKeys.AFTER_STEP_LOG,
+            EventKeys.AFTER_STEP,
+        ])
         self._is_fitting = False
 
     @property
@@ -63,6 +78,16 @@ class BaseTrainer(object):
         """
         return self._loop
 
+    @property
+    def events(self):
+        """
+        Get the event source object.
+
+        Returns:
+            EventSource: The event source object.
+        """
+        return self._events
+
     def run(self):
         """Run training loop."""
         if self._is_fitting:
@@ -74,27 +99,33 @@ class BaseTrainer(object):
             ensure_variables_initialized()
             self.loop.print_training_summary()
 
-            # initialize internal status
-            for hook_list in self.hook_lists:
-                hook_list.reset()
+            for _ in self.loop.iter_epochs():
+                epoch = int(self.loop.epoch)
 
-            for epoch in self.loop.iter_epochs():
-                # run before epoch hook
-                self.before_epochs.call_hooks()
+                # trigger before epoch event
+                self.events.fire(EventKeys.BEFORE_EPOCH, epoch)
 
                 # run steps of this epoch
                 for payload in self._iter_steps():
-                    # run before step hook
-                    self.before_steps.call_hooks()
+                    step = int(self.loop.step)
+
+                    # trigger before step event
+                    self.events.fire(EventKeys.BEFORE_STEP, step)
 
                     # run the step
                     self._run_step(session, payload)
 
-                    # run after step hook
-                    self.after_steps.call_hooks()
+                    # trigger after step events
+                    self.events.fire(EventKeys.AFTER_STEP_EVAL, step)
+                    self.events.fire(EventKeys.AFTER_STEP_ANNEAL, step)
+                    self.events.fire(EventKeys.AFTER_STEP_LOG, step)
+                    self.events.fire(EventKeys.AFTER_STEP, step)
 
-                # run after epoch hook
-                self.after_epochs.call_hooks()
+                # trigger after epoch events
+                self.events.fire(EventKeys.AFTER_EPOCH_EVAL, epoch)
+                self.events.fire(EventKeys.AFTER_EPOCH_ANNEAL, epoch)
+                self.events.fire(EventKeys.AFTER_EPOCH_LOG, epoch)
+                self.events.fire(EventKeys.AFTER_EPOCH, epoch)
         finally:
             self._is_fitting = False
 
@@ -124,72 +155,6 @@ class BaseTrainer(object):
         """
         raise NotImplementedError()
 
-    @property
-    def before_epochs(self):
-        """
-        Get the hooks run before epochs.
-
-        Returns:
-            HookList: The hook list.
-        """
-        return self._before_epochs
-
-    @property
-    def after_epochs(self):
-        """
-        Get the hooks run after epochs.
-
-        Returns:
-            HookList: The hook list.
-        """
-        return self._after_epochs
-
-    @property
-    def before_steps(self):
-        """
-        Get the hooks run before steps.
-
-        Returns:
-            HookList: The hook list.
-        """
-        return self._before_steps
-
-    @property
-    def after_steps(self):
-        """
-        Get the hooks run after steps.
-
-        Returns:
-            HookList: The hook list.
-        """
-        return self._after_steps
-
-    @property
-    def hook_lists(self):
-        """
-        Get all the hook lists.
-
-        Returns:
-            tuple[HookList]: The tuple (self.before_epochs, self.before_steps,
-                self.after_steps, self.after_epochs).
-        """
-        return self._hook_lists
-
-    def remove_by_priority(self, priority):
-        """
-        Remove hooks having the specified `priority` from all lists.
-
-        Args:
-            priority: The priority of the hooks to be removed.
-
-        Returns:
-            int: The number of removed hooks.
-        """
-        ret = 0
-        for hook_list in self.hook_lists:
-            ret += hook_list.remove_by_priority(priority)
-        return ret
-
     def log_after_steps(self, freq):
         """
         Add a logging hook to run after every few steps.
@@ -197,8 +162,10 @@ class BaseTrainer(object):
         Args:
             freq (int): The frequency for this logging hook to run.
         """
-        self.after_steps.add_hook(
-            self.loop.print_logs, freq=freq, priority=HookPriority.LOGGING)
+        self.events.on(
+            EventKeys.AFTER_STEP_LOG,
+            OnEveryFewCalls(freq, self.loop.print_logs)
+        )
 
     def log_after_epochs(self, freq):
         """
@@ -207,8 +174,10 @@ class BaseTrainer(object):
         Args:
             freq (int): The frequency for this logging hook to run.
         """
-        self.after_epochs.add_hook(
-            self.loop.print_logs, freq=freq, priority=HookPriority.LOGGING)
+        self.events.on(
+            EventKeys.AFTER_EPOCH_LOG,
+            OnEveryFewCalls(freq, self.loop.print_logs)
+        )
 
     def log_after(self, epochs=None, steps=None):
         """
@@ -235,7 +204,8 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        return self.remove_by_priority(HookPriority.LOGGING)
+        self.events.clear_event_handlers(EventKeys.AFTER_STEP_LOG)
+        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_LOG)
 
     def evaluate_after_steps(self, evaluator, freq):
         """
@@ -247,8 +217,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this evaluation hook to run.
         """
         callback = evaluator if callable(evaluator) else evaluator.run
-        self.after_steps.add_hook(
-            callback, freq=freq, priority=HookPriority.EVALUATION)
+        self.events.on(
+            EventKeys.AFTER_STEP_EVAL, OnEveryFewCalls(freq, callback))
 
     def evaluate_after_epochs(self, evaluator, freq):
         """
@@ -260,8 +230,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this evaluation hook to run.
         """
         callback = evaluator if callable(evaluator) else evaluator.run
-        self.after_epochs.add_hook(
-            callback, freq=freq, priority=HookPriority.EVALUATION)
+        self.events.on(
+            EventKeys.AFTER_EPOCH_EVAL, OnEveryFewCalls(freq, callback))
 
     def evaluate_after(self, evaluator, epochs=None, steps=None):
         """
@@ -290,7 +260,8 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        return self.remove_by_priority(HookPriority.EVALUATION)
+        self.events.clear_event_handlers(EventKeys.AFTER_STEP_EVAL)
+        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_EVAL)
 
     # legacy names for evaluation
     validate_after_steps = evaluate_after_steps
@@ -308,8 +279,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this annealing hook to run.
         """
         callback = value if callable(value) else value.anneal
-        self.after_steps.add_hook(
-            callback, freq=freq, priority=HookPriority.ANNEALING)
+        self.events.on(
+            EventKeys.AFTER_STEP_ANNEAL, OnEveryFewCalls(freq, callback))
 
     def anneal_after_epochs(self, value, freq):
         """
@@ -321,8 +292,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this annealing hook to run.
         """
         callback = value if callable(value) else value.anneal
-        self.after_epochs.add_hook(
-            callback, freq=freq, priority=HookPriority.ANNEALING)
+        self.events.on(
+            EventKeys.AFTER_EPOCH_ANNEAL, OnEveryFewCalls(freq, callback))
 
     def anneal_after(self, value, epochs=None, steps=None):
         """
@@ -351,4 +322,5 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        return self.remove_by_priority(HookPriority.ANNEALING)
+        self.events.clear_event_handlers(EventKeys.AFTER_STEP_ANNEAL)
+        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_ANNEAL)
