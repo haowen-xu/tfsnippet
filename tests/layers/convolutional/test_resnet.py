@@ -78,8 +78,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             def assertEqual(self, *args, **kwargs):
                 return self.test_obj.assertEqual(*args, **kwargs)
 
-            def __call__(self, input, out_channels, kernel_size, strides, name):
-                if name == 'shortcut':
+            def __call__(self, input, out_channels, kernel_size, strides,
+                         scope):
+                if scope == 'shortcut':
                     if not self.apply_shortcut:
                         raise RuntimeError('shortcut should not be called.')
                     self.assertEqual(input, self.shortcut_in)
@@ -87,7 +88,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                     self.assertEqual(kernel_size, self.shortcut_kernel_size)
                     self.assertEqual(strides, self.strides)
                     return self.shortcut_out
-                elif name == 'conv':
+                elif scope == 'conv':
                     self.assertEqual(input, self.conv0_in)
                     if self.resize_at_exit:
                         self.assertEqual(out_channels, self.in_channels)
@@ -98,7 +99,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                         self.assertEqual(kernel_size, self.kernel_size)
                         self.assertEqual(strides, self.strides)
                     return self.conv0_out
-                elif name == 'conv_1':
+                elif scope == 'conv_1':
                     self.assertEqual(input, self.conv1_in)
                     self.assertEqual(out_channels, self.out_channels)
                     self.assertEqual(kernel_size, self.kernel_size)
@@ -108,7 +109,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                         self.assertEqual(strides, 1)
                     return self.conv1_out
                 else:
-                    raise ValueError('Unexpected name: {!r}'.format(name))
+                    raise ValueError('Unexpected name: {!r}'.format(scope))
 
         def normalizer_fn(t):
             return 'normalizer_fn({})'.format(t)

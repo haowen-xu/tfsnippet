@@ -46,7 +46,7 @@ def resnet_general_block(conv_fn,
                 out_channels=out_channels,
                 kernel_size=shortcut_kernel_size,
                 strides=strides,
-                name='shortcut'
+                scope='shortcut'
             )
 
         residual = input
@@ -55,7 +55,7 @@ def resnet_general_block(conv_fn,
             out_channels=in_channels if resize_at_exit else out_channels,
             kernel_size=kernel_size,
             strides=strides,
-            name='conv'
+            scope='conv'
         )
         residual = dropout_fn(residual)
         residual = conv_fn(
@@ -63,7 +63,7 @@ def resnet_general_block(conv_fn,
             out_channels=out_channels,
             kernel_size=kernel_size,
             strides=strides,
-            name='conv_1'
+            scope='conv_1'
         )
 
         output = shortcut + residual
@@ -71,7 +71,7 @@ def resnet_general_block(conv_fn,
     Args:
         conv_fn: The convolution function for "shortcut", "conv" and "conv_1"
             convolutional layers.  It must accept, and only expect, 5 named
-            arguments ``(input, out_channels, kernel_size, strides, name)``.
+            arguments ``(input, out_channels, kernel_size, strides, scope)``.
         input (Tensor): The input tensor.
         in_channels (int): The channel numbers of the tensor.
         out_channels (int): The channel numbers of the output.
@@ -117,47 +117,55 @@ def resnet_general_block(conv_fn,
 
     # define two types of convolution operations: resizing conv, and
     # size keeping conv
-    def resize_conv(input, kernel_size, name):
+    def resize_conv(input, kernel_size, scope):
         return conv_fn(input=input, out_channels=out_channels,
                        kernel_size=kernel_size, strides=strides,
-                       name=name)
+                       scope=scope)
 
-    def keep_conv(input, kernel_size, n_channels, name):
+    def keep_conv(input, kernel_size, n_channels, scope):
         return conv_fn(input=input, out_channels=n_channels,
                        kernel_size=kernel_size, strides=1,
-                       name=name)
+                       scope=scope)
 
     # define a helper to apply fn on input `x`
-    def apply_fn(fn, x):
+    def apply_fn(fn, x, scope):
         if fn is not None:
-            x = fn(x)
+            with tf.variable_scope(scope):
+                x = fn(x)
         return x
 
     with tf.variable_scope(scope, default_name=name or 'resnet_general_block'):
         # build the shortcut path
         if has_non_unit_item(strides) or in_channels != out_channels:
-            shortcut = resize_conv(input, shortcut_kernel_size, name='shortcut')
+            shortcut = resize_conv(
+                input, shortcut_kernel_size, scope='shortcut')
         else:
             shortcut = input
 
         # build the residual path
         if resize_at_exit:
-            conv0 = partial(keep_conv, kernel_size=kernel_size, name='conv',
-                            n_channels=in_channels)
-            conv1 = partial(resize_conv, kernel_size=kernel_size, name='conv_1')
+            conv0 = partial(
+                keep_conv, kernel_size=kernel_size, scope='conv',
+                n_channels=in_channels
+            )
+            conv1 = partial(
+                resize_conv, kernel_size=kernel_size, scope='conv_1')
         else:
-            conv0 = partial(resize_conv, kernel_size=kernel_size, name='conv')
-            conv1 = partial(keep_conv, kernel_size=kernel_size, name='conv_1',
-                            n_channels=out_channels)
+            conv0 = partial(
+                resize_conv, kernel_size=kernel_size, scope='conv')
+            conv1 = partial(
+                keep_conv, kernel_size=kernel_size, scope='conv_1',
+                n_channels=out_channels
+            )
 
         with tf.variable_scope('residual'):
             residual = input
-            residual = apply_fn(normalizer_fn, residual)
-            residual = apply_fn(activation_fn, residual)
+            residual = apply_fn(normalizer_fn, residual, 'norm')
+            residual = apply_fn(activation_fn, residual, 'activation')
             residual = conv0(residual)
-            residual = apply_fn(dropout_fn, residual)
-            residual = apply_fn(normalizer_fn, residual)
-            residual = apply_fn(activation_fn, residual)
+            residual = apply_fn(dropout_fn, residual, 'dropout')
+            residual = apply_fn(normalizer_fn, residual, 'norm_1')
+            residual = apply_fn(activation_fn, residual, 'activation_1')
             residual = conv1(residual)
 
         # merge the shortcut path and the residual path
@@ -373,14 +381,14 @@ def resnet_deconv2d_block(input,
         trainable=trainable,
     )
 
-    def conv_fn2(input, out_channels, kernel_size, strides, name):
+    def conv_fn2(input, out_channels, kernel_size, strides, scope):
         if strides == 1:  # the shortcut connection
             return conv_fn(
                 input=input,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 strides=strides,
-                name=name
+                scope=scope
             )
         else:  # the residual connection
             return conv_fn(
@@ -389,7 +397,7 @@ def resnet_deconv2d_block(input,
                 output_shape=output_shape,
                 kernel_size=kernel_size,
                 strides=strides,
-                name=name
+                scope=scope
             )
 
     # build the resnet block
