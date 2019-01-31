@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pytest
 import six
 
-from tfsnippet.utils import ConsoleTable, print_as_table
+from tfsnippet.utils import ConsoleTable, print_as_table, Config
 
 
 class ConsoleTableTestCase(unittest.TestCase):
@@ -121,9 +121,21 @@ b   the string
 c   [1, 2, 3]'''
         )
 
+        # test type error
         t = ConsoleTable(3)
         with pytest.raises(TypeError, match='cannot add a key-value sequence'):
             t.add_key_values({})
+
+    def test_add_config(self):
+        config = Config()
+        config.a = 123
+        config.b = 456
+        t = ConsoleTable(2)
+        t.add_config(config, sort_keys=True)
+        self.assertEqual(
+            str(t),
+            '''a   123\nb   456'''
+        )
 
     def test_print_as_table(self):
         if six.PY2:

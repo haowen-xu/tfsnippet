@@ -1,3 +1,5 @@
+from .config_utils import Config
+
 __all__ = ['ConsoleTable', 'print_as_table']
 
 
@@ -146,7 +148,19 @@ class ConsoleTable(object):
             self.add_row([key, value])
 
     add_dict = add_key_values
-    add_config = add_key_values
+
+    def add_config(self, config, sort_keys=False):
+        """
+        Add a config to the table.
+
+        Args:
+            config (Config): A config object.
+            sort_keys (bool): Whether or not to sort the keys?
+        """
+        self.add_key_values(
+            ((key, config[key]) for key in config),
+            sort_keys=sort_keys
+        )
 
     def format(self):
         """

@@ -1,5 +1,3 @@
-import inspect
-import types
 from argparse import ArgumentParser, Action
 from collections import OrderedDict
 from contextlib import contextmanager

@@ -282,6 +282,7 @@ def resnet_deconv2d_block(input,
                           strides=(1, 1),
                           shortcut_kernel_size=(1, 1),
                           channels_last=True,
+                          output_shape=None,
                           resize_at_exit=False,
                           activation_fn=None,
                           normalizer_fn=None,
@@ -311,6 +312,14 @@ def resnet_deconv2d_block(input,
             dimensions, for the "shortcut" deconvolutional layer.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
+        output_shape: If specified, use this as the shape of the
+            deconvolution output; otherwise compute the size of each dimension
+            by::
+
+                output_size = input_size * strides
+                if padding == 'valid':
+                    output_size += max(kernel_size - strides, 0)
+
         resize_at_exit (bool): See :func:`resnet_general_block`.
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
@@ -364,9 +373,28 @@ def resnet_deconv2d_block(input,
         trainable=trainable,
     )
 
+    def conv_fn2(input, out_channels, kernel_size, strides, name):
+        if strides == 1:  # the shortcut connection
+            return conv_fn(
+                input=input,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                strides=strides,
+                name=name
+            )
+        else:  # the residual connection
+            return conv_fn(
+                input=input,
+                out_channels=out_channels,
+                output_shape=output_shape,
+                kernel_size=kernel_size,
+                strides=strides,
+                name=name
+            )
+
     # build the resnet block
     return resnet_general_block(
-        conv_fn,
+        conv_fn2,
         input=input,
         in_channels=in_channels,
         out_channels=out_channels,
