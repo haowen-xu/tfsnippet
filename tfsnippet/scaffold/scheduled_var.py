@@ -125,7 +125,7 @@ class AnnealingVariable(ScheduledVariable):
     """
 
     def __init__(self, name, initial_value, ratio, min_value=None,
-                 dtype=tf.float32):
+                 dtype=tf.float32, model_var=False, collections=None):
         """
         Construct a new :class:`AnnealingVariable`.
 
@@ -135,10 +135,16 @@ class AnnealingVariable(ScheduledVariable):
             ratio: A number or a tensor, the ratio of annealing at each time.
             min_value: Optional, a number, the minimum value.
             dtype (tf.DType): Data type of the variable.
+            model_var (bool): If :obj:`True`, will add the variable to
+                the `MODEL_VARIABLES` collection.
+            collections (Iterable[str]): Add the variable to these graph
+                collections, in addition to the `MODEL_VARIABLES` and
+                `GLOBAL_VARIABLES` collections.
         """
         super(AnnealingVariable, self).__init__(
             name=name, initial_value=initial_value, dtype=dtype,
-            ratio=ratio, min_value=min_value
+            ratio=ratio, min_value=min_value, model_var=model_var,
+            collections=collections
         )
 
     def _init(self, name, initial_value, dtype, collections, ratio, min_value):
