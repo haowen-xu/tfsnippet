@@ -49,3 +49,15 @@ def reduce_group_ndims(operation, tensor, group_ndims, name=None):
             if group_ndims > 0:
                 tensor = operation(tensor, tf.range(-group_ndims, 0))
     return tensor
+
+
+def compute_density_immediately(t):
+    """
+    Compute the prob and log_prob of `t` immediately.
+
+    Args:
+        t (StochasticTensor): The stochastic tensor.
+    """
+    with tf.name_scope('compute_density_immediately'):
+        log_p = t.log_prob()
+        t._self_prob = tf.exp(log_p)

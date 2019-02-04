@@ -26,7 +26,7 @@ class SGVBEstimatorTestCase(tf.test.TestCase):
 
     def test_sgvb(self):
         assert_allclose = functools.partial(
-            np.testing.assert_allclose, rtol=1e-6, atol=1e-5)
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
 
         with self.test_session() as sess:
             x, y, z, f, log_f, log_q = \
@@ -68,7 +68,7 @@ class IWAEEstimatorTestCase(tf.test.TestCase):
 
     def test_iwae(self):
         assert_allclose = functools.partial(
-            np.testing.assert_allclose, rtol=1e-6, atol=1e-5)
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
 
         with self.test_session() as sess:
             x, y, z, f, log_f, log_q = \
@@ -112,7 +112,7 @@ class NVILEstimatorTestCase(tf.test.TestCase):
 
     def test_nvil(self):
         assert_allclose = functools.partial(
-            np.testing.assert_allclose, rtol=1e-6, atol=1e-5)
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-6)
 
         with self.test_session() as sess:
             x, y, z, f, log_f, log_q = \

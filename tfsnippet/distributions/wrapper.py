@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from tfsnippet.utils import get_default_scope_name
 from .base import Distribution
-from .utils import reduce_group_ndims
+from .utils import reduce_group_ndims, compute_density_immediately
 
 __all__ = ['as_distribution']
 
@@ -129,9 +129,7 @@ class ZhuSuanDistribution(Distribution):
                     is_reparameterized=is_reparameterized,
                 )
                 if compute_density:
-                    with tf.name_scope('compute_prob_and_log_prob'):
-                        log_p = t.log_prob()
-                        t._self_prob = tf.exp(log_p)
+                    compute_density_immediately(t)
                 return t
 
     def log_prob(self, given, group_ndims=0, name=None):

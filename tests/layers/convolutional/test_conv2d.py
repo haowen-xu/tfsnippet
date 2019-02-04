@@ -225,7 +225,7 @@ class Conv2dTestCase(tf.test.TestCase):
 
     def test_normalization_and_activation(self):
         assert_allclose = functools.partial(
-            np.testing.assert_allclose, atol=1e-5, rtol=1e-5)
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-5)
         with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
                 self.test_session() as sess:
             np.random.seed(1234)
@@ -282,7 +282,7 @@ class Deconv2dTestCase(tf.test.TestCase):
     def check(self, x, padding, kernel, bias, strides):
         """Integrated tests for specific argument combinations."""
         assert_allclose = functools.partial(
-            np.testing.assert_allclose, atol=1e-5, rtol=1e-5)
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-5)
         strides = (strides,) * 2 if is_integer(strides) else tuple(strides)
 
         x_shape = (x.shape[-3], x.shape[-2])

@@ -1,13 +1,11 @@
 import pytest
 import numpy as np
 import tensorflow as tf
-from mock import Mock
+from mock import Mock, mock
 
 from tfsnippet.bayes import BayesianNet
-from tfsnippet.distributions import Normal, FlowDistribution
-from tfsnippet.layers import BaseFlow
+from tfsnippet.distributions import Normal
 from tfsnippet.stochastic import StochasticTensor
-from tests.layers.flows.helper import QuadraticFlow
 
 
 class BayesianNetTestCase(tf.test.TestCase):
@@ -86,6 +84,60 @@ class BayesianNetTestCase(tf.test.TestCase):
         # default is_reparameterized of Normal
         z = net.add('z', Normal(0., 1.))
         self.assertTrue(z.is_reparameterized)
+
+    def test_add_is_reparameterized_arg(self):
+        with self.test_session() as sess:
+            normal = Normal(mean=0., std=1.)
+
+            # test is_reparameterized: False
+            with mock.patch('tensorflow.stop_gradient',
+                            Mock(wraps=tf.stop_gradient)) as m:
+                x = normal.sample(5, is_reparameterized=True)
+                self.assertTrue(x.is_reparameterized)
+                net = BayesianNet({'x': x.tensor})
+                t = net.add('x', Normal(mean=1., std=2.), n_samples=5,
+                            is_reparameterized=False)
+                self.assertFalse(t.is_reparameterized)
+            self.assertTrue(m.call_count, 1)
+            self.assertIs(m.call_args[0][0], x.tensor)
+
+            # test inherit is_reparameterized from `x`
+            x = normal.sample(5, is_reparameterized=True)
+            self.assertTrue(x.is_reparameterized)
+            net = BayesianNet({'x': x})
+            t = net.add('x', Normal(mean=1., std=2.), n_samples=5)
+            self.assertEqual(t.is_reparameterized, x.is_reparameterized)
+            np.testing.assert_allclose(*sess.run([x, t]))
+
+            x = normal.sample(5, is_reparameterized=False)
+            self.assertFalse(x.is_reparameterized)
+            net = BayesianNet({'x': x})
+            t = net.add('x', Normal(mean=1., std=2.), n_samples=5)
+            self.assertEqual(t.is_reparameterized, x.is_reparameterized)
+            np.testing.assert_allclose(*sess.run([x, t]))
+
+            # test override is_reparameterized: True -> False
+            with mock.patch('tensorflow.stop_gradient',
+                            Mock(wraps=tf.stop_gradient)) as m:
+                x = normal.sample(5, is_reparameterized=True)
+                self.assertTrue(x.is_reparameterized)
+                net = BayesianNet({'x': x})
+                t = net.add('x', Normal(mean=1., std=2.), n_samples=5,
+                            is_reparameterized=False)
+                self.assertFalse(t.is_reparameterized)
+            self.assertTrue(m.call_count, 1)
+            self.assertIs(m.call_args[0][0], x)
+
+            # test cannot override is_reparameterized: False -> True
+            x = normal.sample(5, is_reparameterized=False)
+            self.assertFalse(x.is_reparameterized)
+            net = BayesianNet({'x': x})
+            with pytest.raises(ValueError,
+                               match='`is_reparameterized` is True, but the '
+                                     'observation for `x` is not '
+                                     're-parameterized'):
+                _ = net.add('x', Normal(mean=1., std=2.), n_samples=5,
+                            is_reparameterized=True)
 
     def test_outputs(self):
         x_observed = np.arange(24, dtype=np.float32).reshape([2, 3, 4])
@@ -198,7 +250,7 @@ class BayesianNetTestCase(tf.test.TestCase):
         chain = q_net.variational_chain(model_builder)
         self.assertEqual(
             model_builder.call_args,
-            (({'y': q_net['y'].tensor, 'z': q_net['z'].tensor},),)
+            (({'y': q_net['y'], 'z': q_net['z']},),)
         )
         self.assertEqual(chain.latent_names, ('z', 'y'))
         self.assertIsNone(chain.latent_axis)
@@ -207,7 +259,7 @@ class BayesianNetTestCase(tf.test.TestCase):
         chain = q_net.variational_chain(model_builder, latent_names=['y'])
         self.assertEqual(
             model_builder.call_args,
-            (({'y': q_net['y'].tensor},),)
+            (({'y': q_net['y']},),)
         )
         self.assertEqual(chain.latent_names, ('y',))
 
@@ -219,8 +271,7 @@ class BayesianNetTestCase(tf.test.TestCase):
         chain = q_net.variational_chain(model_builder, observed=q_net.observed)
         self.assertEqual(
             model_builder.call_args,
-            (({'x': q_net.observed['x'], 'y': q_net['y'].tensor,
-               'z': q_net['z'].tensor},),)
+            (({'x': q_net.observed['x'], 'y': q_net['y'], 'z': q_net['z']},),)
         )
         self.assertEqual(chain.latent_names, ('z', 'y'))
 
