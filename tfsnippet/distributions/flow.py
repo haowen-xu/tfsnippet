@@ -57,7 +57,7 @@ class FlowDistribution(Distribution):
         return self._flow
 
     @property
-    def distribution(self):
+    def base_distribution(self):
         """
         Get the base distribution.
 
@@ -92,7 +92,8 @@ class FlowDistribution(Distribution):
         with tf.name_scope(
                 name, default_name='FlowDistribution.sample'):
             # x and log p(x)
-            ndims_diff = self.flow.x_value_ndims - self.distribution.value_ndims
+            ndims_diff = (self.flow.x_value_ndims -
+                          self.base_distribution.value_ndims)
             x = self._distribution.sample(
                 n_samples=n_samples,
                 group_ndims=ndims_diff,
@@ -132,7 +133,8 @@ class FlowDistribution(Distribution):
             x, log_det = self._flow.inverse_transform(given)
 
             # log p(x)
-            ndims_diff = self.flow.x_value_ndims - self.distribution.value_ndims
+            ndims_diff = (self.flow.x_value_ndims -
+                          self.base_distribution.value_ndims)
             log_px = self._distribution.log_prob(x, group_ndims=ndims_diff)
 
             # compute log p(y) = log p(x) + log |dx/dy|,

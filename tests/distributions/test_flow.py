@@ -49,7 +49,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
         distrib = FlowDistribution(normal, flow)
 
         self.assertIs(distrib.flow, flow)
-        self.assertIs(distrib.distribution, normal)
+        self.assertIs(distrib.base_distribution, normal)
         self.assertEqual(distrib.dtype, tf.float64)
         self.assertTrue(distrib.is_continuous)
         self.assertTrue(distrib.is_reparameterized)

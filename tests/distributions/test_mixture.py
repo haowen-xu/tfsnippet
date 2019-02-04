@@ -29,11 +29,6 @@ class MixtureTestCase(tf.test.TestCase):
                                  r'n_categories`: 1 vs 5'):
             _ = Mixture(Categorical(logits=tf.zeros([5])), [Normal(0., 0.)])
 
-        with pytest.raises(TypeError,
-                           match='The 1-th component is not a Distribution'):
-            _ = Mixture(Categorical(logits=tf.zeros([2])),
-                        [Normal(0., 0.), object()])
-
         with pytest.raises(ValueError,
                            match='`dtype` of the 1-th component does not '
                                  'agree with the first component'):

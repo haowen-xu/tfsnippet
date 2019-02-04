@@ -6,6 +6,7 @@ from tfsnippet.utils import is_tensor_object, concat_shapes, get_shape
 from .base import Distribution
 from .univariate import Categorical
 from .utils import reduce_group_ndims, compute_density_immediately
+from .wrapper import as_distribution
 
 __all__ = ['Mixture']
 
@@ -45,7 +46,7 @@ class Mixture(Distribution):
                 will be applied on the mixture samples, such that no gradient
                 will be propagated back through these samples.
         """
-        components = tuple(components)
+        components = tuple(as_distribution(c) for c in components)
         is_reparameterized = bool(is_reparameterized)
 
         if not isinstance(categorical, Categorical):
@@ -65,11 +66,6 @@ class Mixture(Distribution):
                 format(len(components), categorical.n_categories)
             )
         for i, c in enumerate(components):
-            if not isinstance(c, Distribution):
-                raise TypeError(
-                    'The {}-th component is not a Distribution: {}'.
-                    format(i, c)
-                )
             if is_reparameterized and not c.is_reparameterized:
                 raise ValueError(
                     '`is_reparameterized` is True, but the {}-th component '

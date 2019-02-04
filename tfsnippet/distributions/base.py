@@ -86,6 +86,35 @@ class Distribution(object):
         """
         raise NotImplementedError()
 
+    def expand_value_ndims(self, ndims):
+        """
+        Convert the last few `batch_ndims` into `value_ndims`.
+
+        For a particular :class:`Distribution`, the number of dimensions
+        between the samples and the log-probability of the samples should
+        satisfy::
+
+            samples.ndims - distribution.value_ndims == log_det.ndims
+
+        We denote `samples.ndims - distribution.value_ndims` by `batch_ndims`.
+        This method thus wraps the current distribution, converts the last
+        few `batch_ndims` into `value_ndims`.
+
+        Args:
+            ndims (int): The last few `batch_ndims` to be converted into
+                `value_ndims`.  Must be non-negative.
+
+        Returns:
+            Distribution: The converted distribution.
+        """
+        from .batch_to_value import BatchToValueDistribution
+        ndims = int(ndims)
+        if ndims == 0:
+            return self
+        return BatchToValueDistribution(self, ndims)
+
+    batch_ndims_to_value = expand_value_ndims
+
     # These four properties represent important concepts of a Distribution,
     # however, we temporarily comment out them, because:
     #
