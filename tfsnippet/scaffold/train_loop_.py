@@ -6,6 +6,7 @@ import re
 import time
 from collections import OrderedDict
 from contextlib import contextmanager
+from logging import getLogger
 
 import six
 import tensorflow as tf
@@ -293,10 +294,15 @@ class TrainLoop(DisposableContext):
 
         self._checkpoint_saver = None
         if checkpoint_dir:
+            getLogger(__name__).debug(
+                'Global variables to save at checkpoints: %s',
+                tf.global_variables()
+            )
             self._checkpoint_saver = CheckpointSaver(
                 tf.global_variables() + [self._states] + save_objects,
                 save_dir=checkpoint_dir,
                 max_to_keep=checkpoint_max_to_keep,
+                save_meta=False
             )
 
         # euphemeral train loop states
@@ -345,15 +351,13 @@ class TrainLoop(DisposableContext):
         if self._checkpoint_saver is not None:
             checkpoint_file = None
             if isinstance(self._restore_checkpoint, six.string_types):
-                checkpoint_file = six.string_types
+                checkpoint_file = str(self._restore_checkpoint)
             elif self._restore_checkpoint:
                 checkpoint_file = self._checkpoint_saver.latest_checkpoint()
             if checkpoint_file:
-                self._checkpoint_saver.restore(checkpoint_file)
-                assert(self.step > 0)
-                assert(self.epoch > 0)
-                self.println('Restore states from checkpoint: {}'.
+                self.println('Resume training from checkpoint: {}'.
                              format(checkpoint_file))
+                self._checkpoint_saver.restore(checkpoint_file)
 
         # initialize the eta flags
         self._eta = ETA()
@@ -516,8 +520,7 @@ class TrainLoop(DisposableContext):
                     loop.make_checkpoint()
         """
         if not self._checkpoint_saver:
-            raise RuntimeError('Checkpoint is not configured.')
-        self._require_context()
+            raise RuntimeError('Checkpoint directory is not configured.')
         self._checkpoint_saver.save(self._states.step)
 
     def iter_epochs(self):

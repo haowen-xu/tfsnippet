@@ -9,7 +9,8 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.dataflows import DataFlow
-from tfsnippet.scaffold import TrainLoop
+from tfsnippet.scaffold import (TrainLoop, CheckpointSavableObject,
+                                ScheduledVariable)
 from tfsnippet.utils import (TemporaryDirectory,
                              ensure_variables_initialized,
                              get_default_session_or_error)
@@ -64,6 +65,9 @@ class TrainLoopTestCase(tf.test.TestCase):
                     self.assertEqual(step, loop.step)
                     self.assertEqual(epoch, loop.epoch)
                     self.assertEqual(x, x_ans)
+                    self.assertIsInstance(loop.step_data, tuple)
+                    self.assertEqual(len(loop.step_data), 1)
+                    np.testing.assert_equal(loop.step_data[0], x_ans)
                     x_ans += 1
                     step_counter += 1
                     self.assertEqual(step, step_counter)
@@ -499,6 +503,88 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertAlmostEqual(loop.best_valid_metric, 0.8)
             self.assertEqual(get_variable_values([a, b]), [13, 23])
 
+    def test_checkpoint(self):
+        class MyObject(CheckpointSavableObject):
+            def __init__(self):
+                self.value = 123
+
+            def get_state(self):
+                return {'value': self.value}
+
+            def set_state(self, state):
+                self.value = state['value']
+
+        o = MyObject()
+        var = ScheduledVariable('var', initial_value=456, dtype=tf.int32)
+
+        with self.test_session() as sess, \
+                TemporaryDirectory() as tempdir:
+            ensure_variables_initialized()
+
+            with TrainLoop([var.variable],
+                           checkpoint_dir=tempdir,
+                           checkpoint_save_objects=[o]) as loop:
+                loop.make_checkpoint()
+
+            # test restore_checkpoint == True
+            o.value = 1234
+            var.set(4567)
+            self.assertEqual(o.value, 1234)
+            self.assertEqual(var.get(), 4567)
+
+            with TrainLoop([var.variable],
+                           checkpoint_dir=tempdir,
+                           checkpoint_save_objects=[o]):
+                self.assertEqual(loop.epoch, 0)
+                self.assertEqual(loop.step, 0)
+                self.assertEqual(o.value, 123)
+                self.assertEqual(var.get(), 456)
+
+            # test restore_checkpoint == False, and generate new checkpoints
+            o.value = 1234
+            var.set(4567)
+
+            with TrainLoop([var.variable],
+                           checkpoint_dir=tempdir,
+                           checkpoint_save_objects=[o],
+                           checkpoint_epoch_freq=2,
+                           restore_checkpoint=False,
+                           max_epoch=8) as loop:
+                self.assertEqual(loop.epoch, 0)
+                self.assertEqual(loop.step, 0)
+                self.assertEqual(o.value, 1234)
+                self.assertEqual(var.get(), 4567)
+
+                for epoch in loop.iter_epochs():
+                    for _ in loop.iter_steps([1, 1]):
+                        pass
+
+                    o.value = 9120 + epoch
+                    var.set(9450 + epoch)
+
+            # restore from latest
+            with TrainLoop([var.variable],
+                           checkpoint_dir=tempdir,
+                           checkpoint_save_objects=[o]) as loop:
+                self.assertEqual(loop.epoch, 8)
+                self.assertEqual(loop.step, 16)
+                self.assertEqual(o.value, 9128)
+                self.assertEqual(var.get(), 9458)
+
+            # restore from specified file
+            for epoch in [2, 4, 6, 8]:
+                restore_checkpoint = os.path.join(
+                    tempdir, 'checkpoint.dat-{}'.format(epoch * 2))
+
+                with TrainLoop([var.variable],
+                               checkpoint_dir=tempdir,
+                               checkpoint_save_objects=[o],
+                               restore_checkpoint=restore_checkpoint) as loop:
+                    self.assertEqual(loop.epoch, epoch)
+                    self.assertEqual(loop.step, epoch * 2)
+                    self.assertEqual(o.value, 9120 + epoch)
+                    self.assertEqual(var.get(), 9450 + epoch)
+
     def test_tensor_arguments(self):
         with self.test_session():
             a = tf.get_variable('a', initializer=0, dtype=tf.int32)
@@ -513,6 +599,26 @@ class TrainLoopTestCase(tf.test.TestCase):
                 self.assertEqual(loop.max_step, 7)
 
     def test_errors(self):
+        with TemporaryDirectory() as tempdir:
+            with pytest.raises(ValueError, match='`checkpoint_epoch_freq` must '
+                                                 'be a positive integer'):
+                with TrainLoop([], checkpoint_dir=tempdir,
+                               checkpoint_epoch_freq=0):
+                    pass
+
+            with pytest.raises(ValueError,
+                               match='Currently `early_stopping = True` is not '
+                                     'supported when `checkpoint_dir` is '
+                                     'specified'):
+                with TrainLoop([], checkpoint_dir=tempdir,
+                               early_stopping=True):
+                    pass
+
+            with pytest.raises(RuntimeError, match='Checkpoint directory is '
+                                                   'not configured'):
+                with TrainLoop([]) as loop:
+                    loop.make_checkpoint()
+
         with pytest.raises(
                 RuntimeError, match='Another epoch loop has been opened'):
             with TrainLoop([], max_epoch=10) as loop:
