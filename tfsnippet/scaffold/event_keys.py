@@ -3,17 +3,32 @@ __all__ = ['EventKeys']
 
 class EventKeys(object):
     """Defines event keys for TFSnippet."""
+    # (TrainLoop) Enter the train loop.
+    ENTER_LOOP = 'enter'
+
+    # (TrainLoop) Exit the train loop.
+    EXIT_LOOP = 'exit'
+
+    # (TrainLoop) When metrics (except time metrics) have been collected.
+    METRICS_COLLECTED = 'metrics_collected'
+
+    # (TrainLoop) When time metrics have been collected.
+    TIME_METRICS_COLLECTED = 'time_metrics_collected'
+
+    # (TrainLoop) When TensorFlow summary has been added.
+    SUMMARY_ADDED = 'summary_added'
+
     # (TrainLoop, Trainer) Before executing an epoch.
     BEFORE_EPOCH = 'before_epoch'
 
     # (Trainer) Run evaluation after an epoch.
-    AFTER_EPOCH_EVAL = 'after_epoch:eval'
+    EPOCH_EVALUATION = 'after_epoch:eval'
 
     # (Trainer) Anneal after an epoch.
-    AFTER_EPOCH_ANNEAL = 'after_epoch:anneal'
+    EPOCH_ANNEALING = 'after_epoch:anneal'
 
     # (Trainer) Log after an epoch.
-    AFTER_EPOCH_LOG = 'after_epoch:log'
+    EPOCH_LOGGING = 'after_epoch:log'
 
     # (TrainLoop, Trainer) After executing an epoch.
     AFTER_EPOCH = 'after_epoch'
@@ -22,19 +37,19 @@ class EventKeys(object):
     BEFORE_STEP = 'before_step'
 
     # (Trainer) Run evaluation after a step.
-    AFTER_STEP_EVAL = 'after_step:eval'
+    STEP_EVALUATION = 'after_step:eval'
 
     # (Trainer) Anneal after a step.
-    AFTER_STEP_ANNEAL = 'after_step:anneal'
+    STEP_ANNEALING = 'after_step:anneal'
 
     # (Trainer) Log after a step.
-    AFTER_STEP_LOG = 'after_step:log'
+    STEP_LOGGING = 'after_step:log'
 
     # (TrainLoop, Trainer) After executing a step.
     AFTER_STEP = 'after_step'
 
-    # (Evaluator) Before executing the evaluator.
-    BEFORE_EVALUATION = 'before_evaluation'
+    # (Trainer, Evaluator) Before execution.
+    BEFORE_EXECUTION = 'before_execution'
 
-    # (Evaluator) After executing the evaluator.
-    AFTER_EVALUATION = 'after_evaluation'
+    # (Evaluator) After execution.
+    AFTER_EXECUTION = 'after_execution'

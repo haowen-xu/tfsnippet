@@ -44,6 +44,24 @@ class EventSourceTestCase(unittest.TestCase):
         events.fire('ev1', 123, value=456)
         self.assertEqual(f1.call_args, ((123,), {'value': 456}))
 
+    def test_order(self):
+        dest = []
+
+        def f(x):
+            dest.append(x)
+
+        events = EventSource()
+        events.on('ev', lambda: f(1))
+        events.on('ev', lambda: f(2))
+        events.on('ev', lambda: f(3))
+
+        events.fire('ev')
+        self.assertListEqual(dest, [1, 2, 3])
+
+        del dest[:]
+        events.reverse_fire('ev')
+        self.assertListEqual(dest, [3, 2, 1])
+
     def test_clear(self):
         f1 = Mock()
         f2 = Mock()

@@ -39,16 +39,12 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(loop.step, 0)
             self.assertIsNone(loop.max_epoch)
             self.assertIsNone(loop.max_step)
-            self.assertEqual(loop.summary_metric_prefix, 'metrics/')
 
-        with TrainLoop([], initial_epoch=1, initial_step=3,
-                       max_epoch=2, max_step=10, summary_metric_prefix='123/'
-                       ) as loop:
-            self.assertEqual(loop.epoch, 1)
-            self.assertEqual(loop.step, 3)
+        with TrainLoop([], max_epoch=2, max_step=10,
+                       summary_metric_prefix='123/') as loop:
             self.assertEqual(loop.max_epoch, 2)
             self.assertEqual(loop.max_step, 10)
-            self.assertEqual(loop.summary_metric_prefix, '123/')
+            self.assertEqual(loop._summary_metric_prefix, '123/')
             loop.max_epoch = 20
             loop.max_step = 100
             self.assertEqual(loop.max_epoch, 20)
@@ -510,13 +506,9 @@ class TrainLoopTestCase(tf.test.TestCase):
             with TrainLoop([a],
                            early_stopping=True,
                            initial_valid_metric=tf.constant(1.23),
-                           initial_epoch=tf.constant(4),
-                           initial_step=tf.constant(5),
                            max_epoch=tf.constant(6),
                            max_step=tf.constant(7)) as loop:
                 self.assertAlmostEqual(loop._early_stopping._best_metric, 1.23)
-                self.assertEqual(loop.epoch, 4)
-                self.assertEqual(loop.step, 5)
                 self.assertEqual(loop.max_epoch, 6)
                 self.assertEqual(loop.max_step, 7)
 

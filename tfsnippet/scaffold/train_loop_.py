@@ -7,12 +7,16 @@ import time
 from collections import OrderedDict
 from contextlib import contextmanager
 
+import six
 import tensorflow as tf
 
 from tfsnippet.dataflows import DataFlow
 from tfsnippet.utils import (StatisticsCollector, DisposableContext,
-                             humanize_duration, ETA, deprecated)
+                             humanize_duration, ETA, deprecated,
+                             EventSource)
+from .checkpoint import CheckpointSavableObject, CheckpointSaver
 from .early_stopping_ import EarlyStopping
+from .event_keys import EventKeys
 from .logging_ import summarize_variables, DefaultMetricFormatter, MetricLogger
 
 __all__ = [
@@ -23,6 +27,27 @@ EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
 
 
+class TrainLoopStates(CheckpointSavableObject):
+    """
+    Internal states of a :class:`TrainLoop`, which can be saved via a
+    :class:`CheckpointSaver`.
+    """
+
+    def __init__(self, epoch=0, step=0):
+        self.epoch = epoch
+        self.step = step
+
+    def get_state(self):
+        return {
+            'epoch': self.epoch,
+            'step': self.step
+        }
+
+    def set_state(self, state):
+        self.epoch = state['epoch']
+        self.step = state['step']
+
+
 class TrainLoop(DisposableContext):
     """
     Training loop object.
@@ -30,16 +55,15 @@ class TrainLoop(DisposableContext):
     This class provides a set of convenient methods for writing training loop.
     It is useful for maintaining epoch and step counters, logging training
     metrics, memorizing best parameters for early-stopping, etc.  An
-    example of using the :class:`TrainLoop`:
+    example of using the :class:`TrainLoop`::
 
-    .. code-block:: python
+        import tfsnippet as spt
 
-        from tfsnippet.dataflows import DataFlow
-        from tfsnippet.scaffold import TrainLoop
-
-        with TrainLoop(param_vars, max_epoch=10, early_stopping=True) as loop:
+        with spt.TrainLoop(param_vars,
+                           max_epoch=10,
+                           early_stopping=True) as loop:
             loop.print_training_summary()
-            train_flow = DataFlow.arrays([x, y], batch_size, shuffle=True)
+            train_flow = spt.DataFlow.arrays([x, y], batch_size, shuffle=True)
 
             for epoch in loop.iter_epochs():
                 for step, (x, y) in loop.iter_steps(train_flow):
@@ -53,6 +77,34 @@ class TrainLoop(DisposableContext):
                         loss, feed_dict={input_x: test_x, input_y: test_y})
                     loop.collect_metrics(valid_loss=valid_loss)
                 loop.print_logs()
+
+    The event schedule of a :class:`TrainLoop` can be briefly described as::
+
+        # the main training loop
+        events.fire(EventKeys.ENTER_LOOP, self)
+
+        for epoch in self.iter_epochs():
+            events.fire(EventKeys.BEFORE_EPOCH, self)
+
+            for step in self.iter_steps(...):
+                events.fire(EventKeys.BEFORE_STEP, self)
+
+                ...  # execute the step
+
+                events.reverse_fire(EventKeys.AFTER_STEP, self)
+
+            events.reverse_fire(EventKeys.AFTER_EPOCH, self)
+
+        events.fire(EventKeys.EXIT_LOOP, self)
+
+        # when metrics are fed into the loop by :meth:`collect_metrics`
+        def collect_metrics(self, metrics_dict=None, **kwargs):
+            metrics_dict = merge(metrics_dict, kwargs)
+            events.fire(EventKeys.METRICS_COLLECTED, self, metrics_dict)
+
+        # when summaries are fed into the loop by :meth:`add_summary`
+        def add_summary(self, summary):
+            events.fire(EventKeys.SUMMARY_ADDED, self, summary)
     """
 
     def __init__(self,
@@ -60,21 +112,30 @@ class TrainLoop(DisposableContext):
                  var_groups=None,
                  show_eta=True,
                  print_func=print,
+                 max_epoch=None,
+                 max_step=None,
+                 metric_formatter=DefaultMetricFormatter(),
+
+                 # checkpoint related arguments
+                 checkpoint_dir=None,
+                 checkpoint_epoch_freq=None,
+                 checkpoint_max_to_keep=None,
+                 checkpoint_save_objects=None,
+                 restore_checkpoint=True,
+
+                 # summary related arguments
                  summary_dir=None,
                  summary_writer=None,
                  summary_graph=None,
                  summary_metric_prefix='metrics/',
                  summary_skip_pattern=re.compile(r'.*(time|timer)$'),
                  summary_commit_freqs=None,
-                 metric_formatter=DefaultMetricFormatter(),
+
+                 # validation and early-stopping related arguments
                  valid_metric_name='valid_loss',
                  initial_valid_metric=None,
                  valid_metric_smaller_is_better=None,
-                 early_stopping=False,
-                 initial_epoch=0,
-                 initial_step=0,
-                 max_epoch=None,
-                 max_step=None):
+                 early_stopping=False):
         """
         Construct the :class:`TrainLoop`.
 
@@ -89,6 +150,33 @@ class TrainLoop(DisposableContext):
                 (calling ``print`` by default). An alternative of this argument
                 may be ``getLogger(__name__).info``, such that the log messages
                 will be printed via logging facilities.
+            max_epoch (None or int or tf.Tensor or tf.Variable):
+                The maximum epoch to run.  If :obj:`None`, will run for
+                infinite epochs.  If ``1``, the epoch counter will be
+                discarded in the output logs. (default :obj:`None`)
+            max_step (None or int or tf.Tensor or tf.Variable):
+                The maximum step to run.  If :obj:`None`, will run for
+                infinite steps.  Note this limit applies for the total
+                step counter, rather than the epoch-wise step counter.
+                (default :obj:`None`)
+            metric_formatter (MetricFormatter): The training metrics formatter.
+
+            checkpoint_dir (str): If specified, will save checkpoint files to
+                this directory, when :meth:`make_checkpoint()` is called.
+            checkpoint_epoch_freq (int or None): If specified, will make
+                checkpoint every this number of epochs.  If not specified,
+                you must call :meth:`make_checkpoint()` manually.
+            checkpoint_max_to_keep (int or None): Maximum number of checkpoint
+                versions to keep. If :obj:`None` or `0`, keep all versions.
+            checkpoint_save_objects (Iterable[CheckpointSavableObject]): If
+                specified, will save and restore the states of these objects.
+            restore_checkpoint (bool or str): If :obj:`True`, will restore
+                the latest checkpoint.  If a str, it should be the path of
+                a checkpoint file, and will restore from this checkpoint.
+                If :obj:`False`, will not restore the from the checkpoint
+                files (but will still save new checkpoints if `checkpoint_dir`
+                if specified).
+
             summary_dir (str): Directory for writing TensorFlow summaries.
                 Ignored if `summary_writer` is specified.
             summary_writer: TensorFlow summary writer for writing metrics.
@@ -102,7 +190,7 @@ class TrainLoop(DisposableContext):
             summary_commit_freqs (dict[str, int] or None): If specified,
                 a metric will be committed to `summary_writer` no more frequent
                 than ``summary_commit_freqs[metric]``. (default :obj:`None`)
-            metric_formatter (MetricFormatter): The training metrics formatter.
+
             valid_metric_name (str): Name of the validation metric.
             initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
                 value of the validation metric for early-stopping.
@@ -114,41 +202,33 @@ class TrainLoop(DisposableContext):
             early_stopping (bool): Whether or not to do early-stopping?
                 (default :obj:`False`)  If :obj:`True`, early-stopping will be
                 applied on `param_vars`, according to the validation metric.
-            initial_epoch (int or tf.Tensor or tf.Variable): The initial epoch
-                (default 0). Should be one less than the actual first epoch.
-            initial_step (int or tf.Tensor or tf.Variable): The initial step
-                (default 0). Should be one less than the actual first step.
-            max_epoch (None or int or tf.Tensor or tf.Variable):
-                The maximum epoch to run.  If :obj:`None`, will run for
-                infinite epochs.  If ``1``, the epoch counter will be
-                discarded in the output logs. (default :obj:`None`)
-            max_step (None or int or tf.Tensor or tf.Variable):
-                The maximum step to run.  If :obj:`None`, will run for
-                infinite steps.  Note this limit applies for the total
-                step counter, rather than the epoch-wise step counter.
-                (default :obj:`None`)
+                This argument cannot be used toegether with `checkpoint_dir`.
         """
         # regularize the parameters
         if not isinstance(param_vars, (dict, OrderedDict)):
             param_vars = list(param_vars)
-
-        if isinstance(initial_valid_metric, (tf.Variable, tf.Tensor)):
-            initial_valid_metric = initial_valid_metric.eval()
-        if isinstance(initial_epoch, (tf.Variable, tf.Tensor)):
-            initial_epoch = int(initial_epoch.eval())
-        if isinstance(initial_step, (tf.Variable, tf.Tensor)):
-            initial_step = int(initial_step.eval())
         if isinstance(max_epoch, (tf.Variable, tf.Tensor)):
             max_epoch = int(max_epoch.eval())
         if isinstance(max_step, (tf.Variable, tf.Tensor)):
             max_step = int(max_step.eval())
 
-        smaller_is_better = valid_metric_smaller_is_better
-        if smaller_is_better is None:
-            smaller_is_better = not (
-                    valid_metric_name.endswith('acc') or
-                    valid_metric_name.endswith('accuracy')
+        if checkpoint_dir is not None:
+            checkpoint_dir = os.path.abspath(checkpoint_dir)
+        if checkpoint_epoch_freq is not None:
+            checkpoint_epoch_freq = int(checkpoint_epoch_freq)
+            if checkpoint_epoch_freq < 1:
+                raise ValueError(
+                    '`checkpoint_epoch_freq` must be a positive integer: '
+                    'got {}'.format(checkpoint_epoch_freq)
+                )
+        if isinstance(restore_checkpoint, six.string_types):
+            restore_checkpoint = os.path.abspath(restore_checkpoint)
+        if checkpoint_dir is not None and early_stopping:
+            raise ValueError(
+                'Currently `early_stopping = True` is not supported when '
+                '`checkpoint_dir` is specified.'
             )
+        save_objects = list(checkpoint_save_objects or ())
 
         if summary_writer is not None:
             summary_dir = None
@@ -159,16 +239,24 @@ class TrainLoop(DisposableContext):
         else:
             own_summary_writer = False
 
+        if isinstance(initial_valid_metric, (tf.Variable, tf.Tensor)):
+            initial_valid_metric = initial_valid_metric.eval()
+        smaller_is_better = valid_metric_smaller_is_better
+        if smaller_is_better is None:
+            smaller_is_better = not (
+                    valid_metric_name.endswith('acc') or
+                    valid_metric_name.endswith('accuracy')
+            )
+
         # memorize the parameters
         self._param_vars = copy.copy(param_vars)
         self._var_groups = list(var_groups) if var_groups else None
         self._print_func = print_func
         self._show_eta = show_eta
+        self._max_epoch = max_epoch
+        self._max_step = max_step
         self._metric_formatter = metric_formatter
-        self._use_early_stopping = early_stopping
-        self._valid_metric_name = valid_metric_name
-        self._initial_valid_metric = initial_valid_metric
-        self._valid_metric_smaller_is_better = smaller_is_better
+
         self._summary_dir = summary_dir
         self._summary_writer = summary_writer
         self._summary_metric_prefix = summary_metric_prefix
@@ -177,31 +265,56 @@ class TrainLoop(DisposableContext):
         self._summary_commit_freqs = dict(summary_commit_freqs or ())
         self._own_summary_writer = own_summary_writer
 
-        # train loop states
+        self._use_early_stopping = early_stopping
+        self._valid_metric_name = valid_metric_name
+        self._initial_valid_metric = initial_valid_metric
+        self._valid_metric_smaller_is_better = smaller_is_better
+
+        # the event source
+        self._events = EventSource([
+            EventKeys.ENTER_LOOP,
+            EventKeys.EXIT_LOOP,
+            EventKeys.BEFORE_EPOCH,
+            EventKeys.AFTER_EPOCH,
+            EventKeys.BEFORE_STEP,
+            EventKeys.AFTER_STEP,
+            EventKeys.METRICS_COLLECTED,
+            EventKeys.TIME_METRICS_COLLECTED,
+            EventKeys.SUMMARY_ADDED,
+        ])
+
+        # the restorable train loop states
+        self._states = TrainLoopStates()
+
+        # initialize the checkpoint saver
+        self._checkpoint_dir = checkpoint_dir
+        self._checkpoint_epoch_freq = checkpoint_epoch_freq
+        self._restore_checkpoint = restore_checkpoint
+
+        self._checkpoint_saver = None
+        if checkpoint_dir:
+            self._checkpoint_saver = CheckpointSaver(
+                tf.global_variables() + [self._states] + save_objects,
+                save_dir=checkpoint_dir,
+                max_to_keep=checkpoint_max_to_keep,
+            )
+
+        # euphemeral train loop states
+        self._eta = None
         self._step_metrics = None  # type: MetricLogger
         self._epoch_metrics = None  # type: MetricLogger
         self._early_stopping = None  # type: EarlyStopping
-
-        # the active data flow of current epoch
-        self._data_flow = None  # type: DataFlow
-
-        # flag to track the context
         self._within_epoch = False
         self._within_step = False
         self._steps_per_epoch = None  # average steps per epoch
-        self._eta = None
-
-        # epoch and step counter
-        self._epoch = initial_epoch
-        self._step = initial_step
-        self._max_epoch = max_epoch
-        self._max_step = max_step
-
-        # epoch and step context flags
         self._best_valid_metric = initial_valid_metric
         self._is_best_valid_metric = False
         self._epoch_start_time = None
         self._step_start_time = None
+
+        # the active data flow of current epoch
+        self._data_flow = None  # type: DataFlow
+        self._step_data = None  # the data of the current step
 
     def _enter(self):
         # open the summary writer if required
@@ -220,7 +333,7 @@ class TrainLoop(DisposableContext):
         )
 
         # open the early-stopping if required
-        if self.use_early_stopping:
+        if self._use_early_stopping:
             self._early_stopping = EarlyStopping(
                 self._param_vars,
                 initial_metric=self._initial_valid_metric,
@@ -228,27 +341,49 @@ class TrainLoop(DisposableContext):
             )
             self._early_stopping.__enter__()
 
+        # restore the checkpoint
+        if self._checkpoint_saver is not None:
+            checkpoint_file = None
+            if isinstance(self._restore_checkpoint, six.string_types):
+                checkpoint_file = six.string_types
+            elif self._restore_checkpoint:
+                checkpoint_file = self._checkpoint_saver.latest_checkpoint()
+            if checkpoint_file:
+                self._checkpoint_saver.restore(checkpoint_file)
+                assert(self.step > 0)
+                assert(self.epoch > 0)
+                self.println('Restore states from checkpoint: {}'.
+                             format(checkpoint_file))
+
         # initialize the eta flags
         self._eta = ETA()
+
+        # trigger the event
+        self.events.on(EventKeys.ENTER_LOOP, self)
 
         # return self as the context object
         return self
 
     def _exit(self, exc_type, exc_val, exc_tb):
-        # close the summary writer
-        if self._own_summary_writer:
-            self._summary_writer.close()
-            self._summary_writer = None
-            self._own_summary_writer = False
+        try:
+            # close the summary writer
+            if self._own_summary_writer:
+                self._summary_writer.close()
+                self._summary_writer = None
+                self._own_summary_writer = False
 
-        # close the early-stopping context
-        if self._early_stopping is not None:
-            self._early_stopping.__exit__(exc_type, exc_val, exc_tb)
-            self._early_stopping = None
+            # close the early-stopping context
+            if self._early_stopping is not None:
+                self._early_stopping.__exit__(exc_type, exc_val, exc_tb)
+                self._early_stopping = None
 
-        # clear status
-        self._steps_per_epoch = None
-        self._eta = None
+        finally:
+            # clear status
+            self._steps_per_epoch = None
+            self._eta = None
+
+            # trigger the event
+            self.events.on(EventKeys.EXIT_LOOP, self)
 
     def _commit_epoch_stop_time(self):
         if self._epoch_start_time is not None:
@@ -289,6 +424,64 @@ class TrainLoop(DisposableContext):
                 return float(self.epoch) / self.max_epoch
 
     @property
+    def param_vars(self):
+        """Get the trainable parameter variables."""
+        return self._param_vars
+
+    @property
+    def var_groups(self):
+        """Get the variable groups."""
+        return self._var_groups
+
+    @property
+    def max_epoch(self):
+        """Get or set the max value for epoch counter."""
+        return self._max_epoch
+
+    @max_epoch.setter
+    def max_epoch(self, value):
+        self._max_epoch = int(value)
+
+    @property
+    def max_step(self):
+        """Get or set the max value for global step counter."""
+        return self._max_step
+
+    @max_step.setter
+    def max_step(self, value):
+        self._max_step = int(value)
+
+    @property
+    def summary_writer(self):
+        """Get the summary writer instance."""
+        return self._summary_writer
+
+    @property
+    def events(self):
+        """
+        Get the event source.
+
+        Returns:
+            EventSource: The event source.
+        """
+        return self._events
+
+    @property
+    def epoch(self):
+        """Get the epoch counter (starting from 1)."""
+        return self._states.epoch
+
+    @property
+    def step(self):
+        """Get the global step counter (starting from 1)."""
+        return self._states.step
+
+    @property
+    def step_data(self):
+        """Get the data of current step."""
+        return self._step_data
+
+    @property
     def use_early_stopping(self):
         """Whether or not to adopt early-stopping?"""
         return self._use_early_stopping
@@ -304,57 +497,28 @@ class TrainLoop(DisposableContext):
         return self._valid_metric_smaller_is_better
 
     @property
-    def summary_writer(self):
-        """Get the summary writer instance."""
-        return self._summary_writer
-
-    @property
-    def summary_metric_prefix(self):
-        """Get the prefix for the metrics committed to `summary_writer`."""
-        return self._summary_metric_prefix
-
-    @property
-    def param_vars(self):
-        """Get the trainable parameter variables."""
-        return self._param_vars
-
-    @property
-    def var_groups(self):
-        """Get the variable groups."""
-        return self._var_groups
-
-    @property
-    def epoch(self):
-        """Get the epoch counter (starting from 1)."""
-        return self._epoch
-
-    @property
-    def max_epoch(self):
-        """Get or set the max value for epoch counter."""
-        return self._max_epoch
-
-    @max_epoch.setter
-    def max_epoch(self, value):
-        self._max_epoch = int(value)
-
-    @property
-    def step(self):
-        """Get the global step counter (starting from 1)."""
-        return self._step
-
-    @property
-    def max_step(self):
-        """Get or set the max value for global step counter."""
-        return self._max_step
-
-    @max_step.setter
-    def max_step(self, value):
-        self._max_step = int(value)
-
-    @property
     def best_valid_metric(self):
         """Get the best valid metric."""
         return self._best_valid_metric
+
+    def make_checkpoint(self):
+        """
+        Make a checkpoint.
+
+        This method must be called within an eopch or a step context.
+        For example::
+
+            for epoch in loop.iter_epochs():
+                for [x] in loop.iter_steps(train_data):
+                    ...
+
+                if epoch % 100 == 0:
+                    loop.make_checkpoint()
+        """
+        if not self._checkpoint_saver:
+            raise RuntimeError('Checkpoint is not configured.')
+        self._require_context()
+        self._checkpoint_saver.save(self._states.step)
 
     def iter_epochs(self):
         """
@@ -371,8 +535,8 @@ class TrainLoop(DisposableContext):
         """
         def loop_condition():
             return (
-                (self._max_epoch is None or self._epoch < self._max_epoch) and
-                (self._max_step is None or self._step < self._max_step)
+                (self._max_epoch is None or self.epoch < self._max_epoch) and
+                (self._max_step is None or self.step < self._max_step)
             )
 
         self._require_entered()
@@ -380,12 +544,21 @@ class TrainLoop(DisposableContext):
             raise RuntimeError('Another epoch loop has been opened')
         try:
             while loop_condition():
-                self._epoch += 1
+                self._states.epoch += 1
                 self._within_epoch = True
                 self._epoch_start_time = time.time()
-                yield self._epoch
+
+                self.events.fire(EventKeys.BEFORE_EPOCH, self)
+                yield self.epoch
+                self.events.reverse_fire(EventKeys.AFTER_EPOCH, self)
+
                 self._commit_epoch_stop_time()
-                self._steps_per_epoch = float(self._step) / self._epoch
+                self._steps_per_epoch = float(self.step) / self.epoch
+
+                # do checkpoint if configured
+                if self._checkpoint_epoch_freq is not None and \
+                        self.epoch % self._checkpoint_epoch_freq == 0:
+                    self.make_checkpoint()
         finally:
             self._within_epoch = False
             self._epoch_start_time = None
@@ -411,7 +584,7 @@ class TrainLoop(DisposableContext):
                 is specified.
         """
         def loop_condition():
-            return self._max_step is None or self._step < self._max_step
+            return self._max_step is None or self.step < self._max_step
 
         self._require_entered()
         if not self._within_epoch:
@@ -442,28 +615,35 @@ class TrainLoop(DisposableContext):
             while loop_condition():
                 # prepare for the step data
                 if self._data_flow is None:
-                    yield_obj = self._step + 1
+                    yield_obj = self.step + 1
+                    step_data = None
                 else:
                     try:
                         step_data = self._data_flow.next_batch()
                     except StopIteration:
                         break
-                    yield_obj = self._step + 1, step_data
+                    yield_obj = self.step + 1, step_data
 
                 # yield this step
-                self._step += 1
+                self._states.step += 1
                 self._within_step = True
+                self._step_data = step_data
                 self._step_start_time = time.time()
+
+                self.events.fire(EventKeys.BEFORE_STEP, self)
                 try:
                     yield yield_obj
                 except StopIteration:  # pragma: no cover
                     # might be caused by call to ``data_flow.next_batch()``
                     break
+                self.events.reverse_fire(EventKeys.AFTER_STEP, self)
+
                 self._commit_step_stop_time()
         finally:
             self._within_step = False
             self._step_start_time = None
             self._data_flow = None
+            self._step_data = None
 
     def _require_context(self):
         self._require_entered()
@@ -486,7 +666,8 @@ class TrainLoop(DisposableContext):
         start_time = time.time()
         yield
         duration = time.time() - start_time
-        self.collect_metrics(metrics={metric_name: duration})
+        self._collect_metrics(
+            {metric_name: duration}, EventKeys.TIME_METRICS_COLLECTED)
 
     @contextmanager
     def metric_collector(self, metric_name):
@@ -508,6 +689,35 @@ class TrainLoop(DisposableContext):
         if acc.has_value:
             self.collect_metrics(metrics={metric_name: acc.mean})
 
+    def _collect_metrics(self, metrics, event_key):
+        self._require_context()
+
+        # update the metrics
+        self._epoch_metrics.collect_metrics(metrics, global_step=self.step)
+        if self._within_step:
+            self._step_metrics.collect_metrics(metrics, global_step=self.step)
+        self.events.fire(event_key, self, metrics)
+
+        # update the validation metric
+        def update_valid_metric(d):
+            v = d.get(self.valid_metric_name)
+            if v is not None:
+                if self._best_valid_metric is None or \
+                        (self._valid_metric_smaller_is_better and
+                         v < self._best_valid_metric) or \
+                        (not self._valid_metric_smaller_is_better and
+                         v > self._best_valid_metric):
+                    self._best_valid_metric = v
+                    self._is_best_valid_metric = True
+                else:
+                    self._is_best_valid_metric = False
+                if self._early_stopping:
+                    self._early_stopping.update(v, self.step)
+
+        if self.valid_metric_name:
+            if metrics:
+                update_valid_metric(metrics)
+
     def collect_metrics(self, metrics=None, **kwargs):
         """
         Add metric values.
@@ -525,8 +735,6 @@ class TrainLoop(DisposableContext):
             metrics (dict[str, float or np.ndarray]): Metric values as dict.
             **kwargs: Metric values, specified as named arguments.
         """
-        self._require_context()
-
         if metrics is None:
             metrics = {}
         elif metrics is not None and not isinstance(metrics, dict):
@@ -534,39 +742,19 @@ class TrainLoop(DisposableContext):
         else:
             metrics = dict(metrics)
         metrics.update(kwargs)
-
-        self._epoch_metrics.collect_metrics(metrics, global_step=self.step)
-        if self._within_step:
-            self._step_metrics.collect_metrics(metrics, global_step=self.step)
-
-        def update_valid_metric(d):
-            v = d.get(self.valid_metric_name)
-            if v is not None:
-                if self._best_valid_metric is None or \
-                        (self._valid_metric_smaller_is_better and
-                         v < self._best_valid_metric) or \
-                        (not self._valid_metric_smaller_is_better and
-                         v > self._best_valid_metric):
-                    self._best_valid_metric = v
-                    self._is_best_valid_metric = True
-                else:
-                    self._is_best_valid_metric = False
-                if self._early_stopping:
-                    self._early_stopping.update(v, self.step)
-        if self.valid_metric_name:
-            if metrics:
-                update_valid_metric(metrics)
+        self._collect_metrics(metrics, EventKeys.METRICS_COLLECTED)
 
     def add_summary(self, summary):
         """
         Add a summary object, with ``self.step`` as `global_step`.
 
         Args:
-            summary (tf.summary.Summary or byes): TensorFlow summary object,
+            summary (tf.summary.Summary or bytes): TensorFlow summary object,
                 or serialized summary.
         """
         self._require_entered()
         self._summary_writer.add_summary(summary, global_step=self.step)
+        self.events.fire(EventKeys.SUMMARY_ADDED, self, summary)
 
     def println(self, message, with_tag=False):
         """
@@ -577,7 +765,6 @@ class TrainLoop(DisposableContext):
             with_tag (bool): Whether or not to add the epoch & step tag?
                 (default :obj:`False`)
         """
-        self._require_entered()
         if with_tag:
             def format_tag(v, max_v, name):
                 if max_v is not None:
@@ -589,8 +776,8 @@ class TrainLoop(DisposableContext):
                 self._require_context()
             tags = []
             if self._max_epoch != 1:
-                tags.append(format_tag(self._epoch, self._max_epoch, 'Epoch'))
-            tags.append(format_tag(self._step, self._max_step, 'Step'))
+                tags.append(format_tag(self.epoch, self._max_epoch, 'Epoch'))
+            tags.append(format_tag(self.step, self._max_step, 'Step'))
             if self._show_eta:
                 progress = self.get_progress()
                 if progress is not None:

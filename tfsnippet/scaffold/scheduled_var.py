@@ -16,7 +16,7 @@ class ScheduledVariable(TensorWrapper):
     """
 
     def __init__(self, name, initial_value, dtype=tf.float32, model_var=False,
-                 collections=None, **kwargs):
+                 collections=None):
         """
         Construct a new :class:`ScheduledVariable`.
 
@@ -29,7 +29,6 @@ class ScheduledVariable(TensorWrapper):
             collections (Iterable[str]): Add the variable to these graph
                 collections, in addition to the `MODEL_VARIABLES` and
                 `GLOBAL_VARIABLES` collections.
-            \\**kwargs: Additional named arguments passed to :meth:`_init()`.
         """
         with tf.name_scope('ScheduledVariable.init'):
             dtype = tf.as_dtype(dtype)
@@ -44,9 +43,9 @@ class ScheduledVariable(TensorWrapper):
                 collections += [tf.GraphKeys.MODEL_VARIABLES]
             collections = list(set(collections))
 
-            self._init(name, initial_value, dtype, collections, **kwargs)
+            self._init(name, initial_value, dtype, collections)
 
-    def _init(self, name, initial_value, dtype, collections, **kwargs):
+    def _init(self, name, initial_value, dtype, collections):
         """
         Actually construct the :class:`ScheduledVariable`.
 
@@ -143,22 +142,27 @@ class AnnealingVariable(ScheduledVariable):
                 collections, in addition to the `MODEL_VARIABLES` and
                 `GLOBAL_VARIABLES` collections.
         """
+        self._self_ratio = ratio
+        self._self_min_value = min_value
+
         super(AnnealingVariable, self).__init__(
             name=name, initial_value=initial_value, dtype=dtype,
-            ratio=ratio, min_value=min_value, model_var=model_var,
-            collections=collections
+            model_var=model_var, collections=collections
         )
 
-    def _init(self, name, initial_value, dtype, collections, ratio, min_value):
-        ratio = tf.convert_to_tensor(ratio)
+    def _init(self, name, initial_value, dtype, collections):
+        ratio = tf.convert_to_tensor(self._self_ratio)
         if ratio.dtype != dtype:
             ratio = tf.cast(ratio, dtype=dtype)
+        self._self_ratio = ratio
 
+        min_value = self._self_min_value
         if min_value is not None:
             min_value = tf.convert_to_tensor(min_value)
             if min_value.dtype != dtype:
                 min_value = tf.cast(min_value, dtype=dtype)
             initial_value = tf.maximum(initial_value, min_value)
+        self._self_min_value = min_value
 
         super(AnnealingVariable, self)._init(
             name, initial_value, dtype, collections)

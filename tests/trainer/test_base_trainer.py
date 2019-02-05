@@ -35,13 +35,13 @@ class BaseTrainerTestCase(tf.test.TestCase):
         t.log_after_steps(3)
         t.log_after_epochs(4)
         t.evaluate_after_steps(
-            Mock(return_value=None, __repr__=lambda o: 'eval_step'), 5)
+            Mock(return_value=None, __repr__=lambda o: 'eval'), 5)
         t.evaluate_after_epochs(
-            Mock(return_value=None, __repr__=lambda o: 'eval_epoch'), 6)
+            Mock(return_value=None, __repr__=lambda o: 'eval'), 6)
         t.anneal_after_steps(
-            Mock(return_value=None, __repr__=lambda o: 'anneal_step'), 7)
+            Mock(return_value=None, __repr__=lambda o: 'anneal'), 7)
         t.anneal_after_epochs(
-            Mock(return_value=None, __repr__=lambda o: 'anneal_epoch'), 8)
+            Mock(return_value=None, __repr__=lambda o: 'anneal'), 8)
         t.evaluate_after_steps(eval1, 9)
         t.evaluate_after_epochs(eval2, 10)
         t.anneal_after_steps(anneal1, 11)
@@ -49,66 +49,68 @@ class BaseTrainerTestCase(tf.test.TestCase):
         t.log_after(steps=13)
         t.log_after(epochs=14)
         t.evaluate_after(
-            Mock(return_value=None, __repr__=lambda o: 'eval_step2'),
+            Mock(return_value=None, __repr__=lambda o: 'eval2'),
             steps=15
         )
         t.evaluate_after(
-            Mock(return_value=None, __repr__=lambda o: 'eval_epoch2'),
+            Mock(return_value=None, __repr__=lambda o: 'eval2'),
             epochs=16
         )
         t.anneal_after(
-            Mock(return_value=None, __repr__=lambda o: 'anneal_step2'),
+            Mock(return_value=None, __repr__=lambda o: 'anneal2'),
             steps=17
         )
         t.anneal_after(
-            Mock(return_value=None, __repr__=lambda o: 'anneal_epoch2'),
+            Mock(return_value=None, __repr__=lambda o: 'anneal2'),
             epochs=18
         )
 
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_STEP_EVAL]),
-            '[eval_step:5, {!r}:9, eval_step2:15]'.format(eval1.run)
+            repr(t.events._event_handlers_map[EventKeys.STEP_EVALUATION]),
+            '[eval:step:5, {!r}:step:9, eval2:step:15]'.format(eval1.run)
         )
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_STEP_ANNEAL]),
-            '[anneal_step:7, {!r}:11, anneal_step2:17]'.format(anneal1.anneal)
+            repr(t.events._event_handlers_map[EventKeys.STEP_ANNEALING]),
+            '[anneal:step:7, {!r}:step:11, anneal2:step:17]'.
+            format(anneal1.anneal)
         )
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_STEP_LOG]),
-            '[print_logs:3, print_logs:13]'
+            repr(t.events._event_handlers_map[EventKeys.STEP_LOGGING]),
+            '[print_logs:step:3, print_logs:step:13]'
         )
 
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_EPOCH_EVAL]),
-            '[eval_epoch:6, {!r}:10, eval_epoch2:16]'.format(eval2.run)
+            repr(t.events._event_handlers_map[EventKeys.EPOCH_EVALUATION]),
+            '[eval:epoch:6, {!r}:epoch:10, eval2:epoch:16]'.format(eval2.run)
         )
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_EPOCH_ANNEAL]),
-            '[anneal_epoch:8, {!r}:12, anneal_epoch2:18]'.format(anneal2.anneal)
+            repr(t.events._event_handlers_map[EventKeys.EPOCH_ANNEALING]),
+            '[anneal:epoch:8, {!r}:epoch:12, anneal2:epoch:18]'.
+            format(anneal2.anneal)
         )
         self.assertEqual(
-            repr(t.events._event_handlers_map[EventKeys.AFTER_EPOCH_LOG]),
-            '[print_logs:4, print_logs:14]'
+            repr(t.events._event_handlers_map[EventKeys.EPOCH_LOGGING]),
+            '[print_logs:epoch:4, print_logs:epoch:14]'
         )
 
         # test remove
         t.remove_log_hooks()
         self.assertNotIn(
-            EventKeys.AFTER_STEP_LOG, t.events._event_handlers_map)
+            EventKeys.STEP_LOGGING, t.events._event_handlers_map)
         self.assertNotIn(
-            EventKeys.AFTER_EPOCH_LOG, t.events._event_handlers_map)
+            EventKeys.EPOCH_LOGGING, t.events._event_handlers_map)
 
         t.remove_validation_hooks()
         self.assertNotIn(
-            EventKeys.AFTER_STEP_EVAL, t.events._event_handlers_map)
+            EventKeys.STEP_EVALUATION, t.events._event_handlers_map)
         self.assertNotIn(
-            EventKeys.AFTER_EPOCH_EVAL, t.events._event_handlers_map)
+            EventKeys.EPOCH_EVALUATION, t.events._event_handlers_map)
 
         t.remove_annealing_hooks()
         self.assertNotIn(
-            EventKeys.AFTER_STEP_ANNEAL, t.events._event_handlers_map)
+            EventKeys.STEP_ANNEALING, t.events._event_handlers_map)
         self.assertNotIn(
-            EventKeys.AFTER_EPOCH_ANNEAL, t.events._event_handlers_map)
+            EventKeys.EPOCH_ANNEALING, t.events._event_handlers_map)
 
         # test error add
         func_list = [
@@ -137,9 +139,12 @@ class BaseTrainerTestCase(tf.test.TestCase):
         t.evaluate_after(f, steps=5)
 
         for i in range(1, 6):
-            t.events.fire(EventKeys.AFTER_STEP_EVAL, i)
-        t.events.fire(EventKeys.AFTER_STEP_EVAL, 7)
-        t.events.fire(EventKeys.AFTER_STEP_EVAL, 10)
+            t.loop.step = i
+            t.events.fire(EventKeys.STEP_EVALUATION, t)
+        t.loop.step = 7
+        t.events.fire(EventKeys.STEP_EVALUATION, t)
+        t.loop.step = 10
+        t.events.fire(EventKeys.STEP_EVALUATION, t)
 
         self.assertEqual(f.call_count, 2)
 
@@ -147,8 +152,8 @@ class BaseTrainerTestCase(tf.test.TestCase):
         with self.test_session() as session:
             df = DataFlow.arrays([np.arange(6, dtype=np.float32)], batch_size=4)
 
-            def log_event(m, *args):
-                logged_events.append((m,) + args)
+            def log_event(m, trainer):
+                logged_events.append((m, trainer))
             logged_events = []
 
             # test default loss weight and merged feed dict
@@ -158,13 +163,13 @@ class BaseTrainerTestCase(tf.test.TestCase):
                 t._iter_steps = Mock(wraps=lambda: loop.iter_steps(df))
                 for key in [EventKeys.BEFORE_EPOCH,
                             EventKeys.BEFORE_STEP,
-                            EventKeys.AFTER_STEP_ANNEAL,
-                            EventKeys.AFTER_STEP_EVAL,
-                            EventKeys.AFTER_STEP_LOG,
+                            EventKeys.STEP_ANNEALING,
+                            EventKeys.STEP_EVALUATION,
+                            EventKeys.STEP_LOGGING,
                             EventKeys.AFTER_STEP,
-                            EventKeys.AFTER_EPOCH_ANNEAL,
-                            EventKeys.AFTER_EPOCH_EVAL,
-                            EventKeys.AFTER_EPOCH_LOG,
+                            EventKeys.EPOCH_ANNEALING,
+                            EventKeys.EPOCH_EVALUATION,
+                            EventKeys.EPOCH_LOGGING,
                             EventKeys.AFTER_EPOCH]:
                     t.events.on(key, functools.partial(log_event, key))
 
@@ -184,21 +189,21 @@ class BaseTrainerTestCase(tf.test.TestCase):
                 expected_logged_events = sum(
                     [
                         [
-                            (EventKeys.BEFORE_EPOCH, epoch + 1),
+                            (EventKeys.BEFORE_EPOCH, t),
                         ] + sum([
                             [
-                                (EventKeys.BEFORE_STEP, epoch * 2 + step + 1),
-                                (EventKeys.AFTER_STEP_EVAL, epoch * 2 + step + 1),
-                                (EventKeys.AFTER_STEP_ANNEAL, epoch * 2 + step + 1),
-                                (EventKeys.AFTER_STEP_LOG, epoch * 2 + step + 1),
-                                (EventKeys.AFTER_STEP, epoch * 2 + step + 1),
+                                (EventKeys.BEFORE_STEP, t),
+                                (EventKeys.STEP_EVALUATION, t),
+                                (EventKeys.STEP_ANNEALING, t),
+                                (EventKeys.STEP_LOGGING, t),
+                                (EventKeys.AFTER_STEP, t),
                             ]
                             for step in [0, 1]
                         ], []) + [
-                            (EventKeys.AFTER_EPOCH_EVAL, epoch + 1),
-                            (EventKeys.AFTER_EPOCH_ANNEAL, epoch + 1),
-                            (EventKeys.AFTER_EPOCH_LOG, epoch + 1),
-                            (EventKeys.AFTER_EPOCH, epoch + 1)
+                            (EventKeys.EPOCH_EVALUATION, t),
+                            (EventKeys.EPOCH_ANNEALING, t),
+                            (EventKeys.EPOCH_LOGGING, t),
+                            (EventKeys.AFTER_EPOCH, t)
                         ]
                         for epoch in [0, 1]
                     ],
@@ -212,7 +217,8 @@ class BaseTrainerTestCase(tf.test.TestCase):
                 t._run_step = Mock(return_value=None)
                 t._iter_steps = Mock(wraps=lambda: loop.iter_steps(df))
 
-                def reentrant_error(step):
+                def reentrant_error(trainer):
+                    self.assertIs(trainer, t)
                     with pytest.raises(
                             RuntimeError, match=r'`run\(\)` is not re-entrant'):
                         t.run()

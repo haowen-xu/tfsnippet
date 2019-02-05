@@ -85,6 +85,16 @@ class EventSource(object):
             raise ValueError('`handler` is not a registered event handler of '
                              'event `{}`: {}'.format(event_key, handler))
 
+    def _fire(self, event_key, args, kwargs, reverse=False):
+        event_key = str(event_key)
+        if self._allowed_event_keys is not None and \
+                event_key not in self._allowed_event_keys:
+            raise KeyError('`event_key` is not allowed: {}'.format(event_key))
+        event_handlers = self._event_handlers_map.get(event_key, None)
+        if event_handlers:
+            for h in (reversed(event_handlers) if reverse else event_handlers):
+                h(*args, **kwargs)
+
     def fire(self, event_key, *args, **kwargs):
         """
         Fire an event.
@@ -97,14 +107,21 @@ class EventSource(object):
         Raises:
             KeyError: If `event_key` is not allowed.
         """
-        event_key = str(event_key)
-        if self._allowed_event_keys is not None and \
-                event_key not in self._allowed_event_keys:
-            raise KeyError('`event_key` is not allowed: {}'.format(event_key))
-        event_handlers = self._event_handlers_map.get(event_key, None)
-        if event_handlers:
-            for h in event_handlers:
-                h(*args, **kwargs)
+        return self._fire(event_key, args, kwargs, reverse=False)
+
+    def reverse_fire(self, event_key, *args, **kwargs):
+        """
+        Fire an event, call event handlers in reversed order of registration.
+
+        Args:
+            event_key (str): The event key.
+            *args: Arguments to be passed to the event handler.
+            \\**kwargs: Named arguments to be passed to the event handler.
+
+        Raises:
+            KeyError: If `event_key` is not allowed.
+        """
+        return self._fire(event_key, args, kwargs, reverse=True)
 
     def clear_event_handlers(self, event_key=None):
         """
