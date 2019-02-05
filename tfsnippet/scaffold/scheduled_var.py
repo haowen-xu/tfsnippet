@@ -66,8 +66,7 @@ class ScheduledVariable(TensorWrapper):
         self._self_read_op = tf.convert_to_tensor(self._self_var)
         self._self_assign_ph = tf.placeholder(
             dtype=dtype, shape=self._self_var.get_shape())
-        self._self_assign_op = tf.assign(
-            self._self_var, self._self_assign_ph)
+        self._self_assign_op = self._self_var.assign(self._self_assign_ph)
 
     @property
     def tensor(self):
@@ -113,8 +112,11 @@ class ScheduledVariable(TensorWrapper):
 
         Args:
             value: The value to be assigned to the variable.
+
+        Returns:
+            The new value assigned to the variable.
         """
-        get_default_session_or_error().run(
+        return get_default_session_or_error().run(
             self._self_assign_op, feed_dict={self._self_assign_ph: value})
 
 
@@ -163,17 +165,20 @@ class AnnealingVariable(ScheduledVariable):
 
         with tf.name_scope('anneal_op'):
             if min_value is not None:
-                self._self_anneal_op = tf.assign(
-                    self._self_var,
-                    tf.maximum(min_value, self._self_var * ratio)
-                )
+                self._self_anneal_op = self._self_var.assign(
+                    tf.maximum(min_value, self._self_var * ratio))
             else:
-                self._self_anneal_op = tf.assign(
-                    self._self_var, self._self_var * ratio)
+                self._self_anneal_op = \
+                    self._self_var.assign(self._self_var * ratio)
 
     def anneal(self):
-        """Anneal the value."""
-        get_default_session_or_error().run(self._self_anneal_op)
+        """
+        Anneal the value.
+
+        Returns:
+            The new value of the variable.
+        """
+        return get_default_session_or_error().run(self._self_anneal_op)
 
 
 register_tensor_wrapper_class(ScheduledVariable)
