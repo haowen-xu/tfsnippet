@@ -4,6 +4,7 @@ import copy
 import os
 import re
 import time
+import warnings
 from collections import OrderedDict
 from contextlib import contextmanager
 from logging import getLogger
@@ -13,10 +14,9 @@ import tensorflow as tf
 
 from tfsnippet.dataflows import DataFlow
 from tfsnippet.utils import (StatisticsCollector, DisposableContext,
-                             humanize_duration, ETA, deprecated,
-                             EventSource)
+                             humanize_duration, ETA, EventSource,
+                             TemporaryDirectory)
 from .checkpoint import CheckpointSavableObject, CheckpointSaver
-from .early_stopping_ import EarlyStopping
 from .event_keys import EventKeys
 from .logging_ import summarize_variables, DefaultMetricFormatter, MetricLogger
 
@@ -34,19 +34,22 @@ class TrainLoopStates(CheckpointSavableObject):
     :class:`CheckpointSaver`.
     """
 
-    def __init__(self, epoch=0, step=0):
+    def __init__(self, epoch=0, step=0, best_valid_metric=None):
         self.epoch = epoch
         self.step = step
+        self.best_valid_metric = best_valid_metric
 
     def get_state(self):
         return {
             'epoch': self.epoch,
-            'step': self.step
+            'step': self.step,
+            'best_valid_metric': self.best_valid_metric,
         }
 
     def set_state(self, state):
         self.epoch = state['epoch']
         self.step = state['step']
+        self.best_valid_metric = state['best_valid_metric']
 
 
 class TrainLoop(DisposableContext):
@@ -106,6 +109,17 @@ class TrainLoop(DisposableContext):
         # when summaries are fed into the loop by :meth:`add_summary`
         def add_summary(self, summary):
             events.fire(EventKeys.SUMMARY_ADDED, self, summary)
+
+    Warning:
+        If you use early-stopping along with checkpoint, there is one case
+        which is very dangerous: you've already successfully done a training
+        loop, and the early-stopping variables have been restored.  But you
+        then recover from the latest checkpoint and continue to train.
+        In this case, the `param_vars` (which is covered by early-stopping)
+        are restored to the best validation step, but the other variables
+        and the internal states of :class:`TrainLoop` are recovered to the
+        last step.  Then you obtain a state mismatch, and the behaviour
+        will be un-predictable after this recovery.
     """
 
     def __init__(self,
@@ -134,7 +148,6 @@ class TrainLoop(DisposableContext):
 
                  # validation and early-stopping related arguments
                  valid_metric_name='valid_loss',
-                 initial_valid_metric=None,
                  valid_metric_smaller_is_better=None,
                  early_stopping=False):
         """
@@ -193,8 +206,6 @@ class TrainLoop(DisposableContext):
                 than ``summary_commit_freqs[metric]``. (default :obj:`None`)
 
             valid_metric_name (str): Name of the validation metric.
-            initial_valid_metric (float or tf.Tensor or tf.Variable): Initial
-                value of the validation metric for early-stopping.
             valid_metric_smaller_is_better (bool): Whether or not the smaller
                 value is better for validation metric? If not specified, it
                 will be inferred according to `valid_metric_name`: metric names
@@ -203,7 +214,10 @@ class TrainLoop(DisposableContext):
             early_stopping (bool): Whether or not to do early-stopping?
                 (default :obj:`False`)  If :obj:`True`, early-stopping will be
                 applied on `param_vars`, according to the validation metric.
-                This argument cannot be used toegether with `checkpoint_dir`.
+
+                The variables will only be restored if the training loop
+                is exited without any error or interruption, including
+                the Ctrl+C KeyboardInterrupt.
         """
         # regularize the parameters
         if not isinstance(param_vars, (dict, OrderedDict)):
@@ -223,12 +237,12 @@ class TrainLoop(DisposableContext):
                     'got {}'.format(checkpoint_epoch_freq)
                 )
         if isinstance(restore_checkpoint, six.string_types):
+            if early_stopping:
+                raise ValueError(
+                    'Currently `early_stopping = True` is not supported when '
+                    'a file path is specified for `restore_checkpoint`.'
+                )
             restore_checkpoint = os.path.abspath(restore_checkpoint)
-        if checkpoint_dir is not None and early_stopping:
-            raise ValueError(
-                'Currently `early_stopping = True` is not supported when '
-                '`checkpoint_dir` is specified.'
-            )
         save_objects = dict(checkpoint_save_objects or ())
         for key in (TRAIN_LOOP_STATES_CKPT_NAME,
                     EARLY_STOPPING_STATES_CKPT_NAME):
@@ -245,8 +259,6 @@ class TrainLoop(DisposableContext):
         else:
             own_summary_writer = False
 
-        if isinstance(initial_valid_metric, (tf.Variable, tf.Tensor)):
-            initial_valid_metric = initial_valid_metric.eval()
         smaller_is_better = valid_metric_smaller_is_better
         if smaller_is_better is None:
             smaller_is_better = not (
@@ -273,7 +285,6 @@ class TrainLoop(DisposableContext):
 
         self._use_early_stopping = early_stopping
         self._valid_metric_name = valid_metric_name
-        self._initial_valid_metric = initial_valid_metric
         self._valid_metric_smaller_is_better = smaller_is_better
 
         # the event source
@@ -307,8 +318,22 @@ class TrainLoop(DisposableContext):
             self._checkpoint_saver = CheckpointSaver(
                 tf.global_variables(),
                 objects=save_objects,
-                save_dir=checkpoint_dir,
+                save_dir=os.path.join(checkpoint_dir, 'checkpoint'),
                 max_to_keep=checkpoint_max_to_keep,
+                save_meta=False
+            )
+
+        # the checkpoint saver for early stopping
+        # if checkpoint_dir is None, we postpone the initialization until
+        # enter the loop.
+        self._early_stopping_saver = None
+        self._early_stopping_temp_dir = None  # type: TemporaryDirectory
+
+        if checkpoint_dir is not None and self._use_early_stopping:
+            self._early_stopping_saver = CheckpointSaver(
+                self._param_vars,
+                save_dir=os.path.join(checkpoint_dir, 'early_stopping'),
+                max_to_keep=2,
                 save_meta=False
             )
 
@@ -316,11 +341,9 @@ class TrainLoop(DisposableContext):
         self._eta = None
         self._step_metrics = None  # type: MetricLogger
         self._epoch_metrics = None  # type: MetricLogger
-        self._early_stopping = None  # type: EarlyStopping
         self._within_epoch = False
         self._within_step = False
         self._steps_per_epoch = None  # average steps per epoch
-        self._best_valid_metric = initial_valid_metric
         self._is_best_valid_metric = False
         self._epoch_start_time = None
         self._step_start_time = None
@@ -345,14 +368,17 @@ class TrainLoop(DisposableContext):
             formatter=self._metric_formatter
         )
 
-        # open the early-stopping if required
+        # create the early-stopping saver if required
         if self._use_early_stopping:
-            self._early_stopping = EarlyStopping(
-                self._param_vars,
-                initial_metric=self._initial_valid_metric,
-                smaller_is_better=self._valid_metric_smaller_is_better
-            )
-            self._early_stopping.__enter__()
+            if self._early_stopping_saver is None:
+                self._early_stopping_temp_dir = TemporaryDirectory()
+                dir_path = self._early_stopping_temp_dir.__enter__()
+                self._early_stopping_saver = CheckpointSaver(
+                    self._param_vars,
+                    save_dir=dir_path,
+                    max_to_keep=2,
+                    save_meta=False,
+                )
 
         # restore the checkpoint
         if self._checkpoint_saver is not None:
@@ -383,12 +409,38 @@ class TrainLoop(DisposableContext):
                 self._summary_writer = None
                 self._own_summary_writer = False
 
-            # close the early-stopping context
-            if self._early_stopping is not None:
-                self._early_stopping.__exit__(exc_type, exc_val, exc_tb)
-                self._early_stopping = None
+            # restore the early-stopping variables if no error
+            if self._early_stopping_saver is not None:
+                if exc_type is None:
+                    es_latest = self._early_stopping_saver.latest_checkpoint()
+                    if es_latest is None:  # pragma: no cover
+                        warnings.warn(
+                            'Early-stopping has never been triggered! '
+                            'The variables will keep their latest values. '
+                            'Did you forget to add corresponding metric?'
+                        )
+                    else:
+                        self._early_stopping_saver.restore(es_latest)
+                    self._early_stopping_saver = None
+                else:  # pragma: no cover
+                    warnings.warn(
+                        'Early-stopping variables are not restored, because '
+                        'an error or an interruption has occurred.'
+                    )
 
         finally:
+            try:
+                if self._early_stopping_temp_dir is not None:
+                    self._early_stopping_temp_dir.__exit__(
+                        exc_type, exc_val, exc_tb
+                    )
+                    self._early_stopping_temp_dir = None
+            except Exception:
+                getLogger(__name__).warning(
+                    'Failed to cleanup early-stopping temporary directory.',
+                    exc_info=True
+                )
+
             # clear status
             self._steps_per_epoch = None
             self._eta = None
@@ -510,7 +562,7 @@ class TrainLoop(DisposableContext):
     @property
     def best_valid_metric(self):
         """Get the best valid metric."""
-        return self._best_valid_metric
+        return self._states.best_valid_metric
 
     def make_checkpoint(self):
         """
@@ -712,17 +764,20 @@ class TrainLoop(DisposableContext):
         def update_valid_metric(d):
             v = d.get(self.valid_metric_name)
             if v is not None:
-                if self._best_valid_metric is None or \
+                if self.best_valid_metric is None or \
                         (self._valid_metric_smaller_is_better and
-                         v < self._best_valid_metric) or \
+                         v < self.best_valid_metric) or \
                         (not self._valid_metric_smaller_is_better and
-                         v > self._best_valid_metric):
-                    self._best_valid_metric = v
+                         v > self.best_valid_metric):
+                    # we've met a new best metric
+                    self._states.best_valid_metric = v
                     self._is_best_valid_metric = True
+
+                    # early-stopping save variables
+                    if self._early_stopping_saver is not None:
+                        self._early_stopping_saver.save(global_step=self.step)
                 else:
                     self._is_best_valid_metric = False
-                if self._early_stopping:
-                    self._early_stopping.update(v, self.step)
 
         if self.valid_metric_name:
             if metrics:

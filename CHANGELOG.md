@@ -25,9 +25,11 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` have been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
 - `BayesianNet.add` now removes the `flow` argument.
 - The hook facility of `BaseTrainer` and `Evaluator` have been rewritten with `utils.EventSource`.
+- `TrainLoop` now supports to make checkpoints, and recover from the checkpoints.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.
 - `mathops` package has been removed.  Some of its members have been migrated to `ops`.
 - `auto_reuse_variables` has been removed.
 - `VariableSaver` has been removed.
+- `EarlyStopping` has been removed.
