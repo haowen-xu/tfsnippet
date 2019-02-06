@@ -147,8 +147,11 @@ class CacheDir(object):
         if not os.path.isfile(file_path):
             temp_file = file_path + '._downloading_'
             try:
-                desc = 'Downloading {}'.format(uri)
-                with _maybe_tqdm(tqdm_enabled=show_progress, desc=desc,
+                if not show_progress:
+                    progress_file.write('Downloading {} ... '.format(uri))
+                    progress_file.flush()
+                with _maybe_tqdm(tqdm_enabled=show_progress,
+                                 desc='Downloading {}'.format(uri),
                                  unit='B', unit_scale=True, unit_divisor=1024,
                                  miniters=1, file=progress_file) as t, \
                         open(temp_file, 'wb') as f:
@@ -173,10 +176,16 @@ class CacheDir(object):
                             if t is not None:
                                 t.update(len(chunk))
             except BaseException:
+                if not show_progress:
+                    progress_file.write('error\n')
+                    progress_file.flush()
                 if os.path.isfile(temp_file):  # pragma: no cover
                     os.remove(temp_file)
                 raise
             else:
+                if not show_progress:
+                    progress_file.write('ok\n')
+                    progress_file.flush()
                 os.rename(temp_file, file_path)
         return file_path
 
@@ -222,9 +231,8 @@ class CacheDir(object):
                       progress_file):
         if not os.path.isdir(extract_path):
             temp_path = extract_path + '._extracting_'
-            if show_progress:
-                progress_file.write('Extracting {} ... '.format(archive_file))
-                progress_file.flush()
+            progress_file.write('Extracting {} ... '.format(archive_file))
+            progress_file.flush()
             try:
                 with Extractor.open(archive_file) as extractor:
                     for name, file_obj in extractor:
@@ -235,16 +243,14 @@ class CacheDir(object):
                         with open(file_path, 'wb') as dst_obj:
                             shutil.copyfileobj(file_obj, dst_obj)
             except BaseException:
-                if show_progress:
-                    progress_file.write('error\n')
-                    progress_file.flush()
+                progress_file.write('error\n')
+                progress_file.flush()
                 if os.path.isdir(temp_path):  # pragma: no cover
                     shutil.rmtree(temp_path)
                 raise
             else:
-                if show_progress:
-                    progress_file.write('done\n')
-                    progress_file.flush()
+                progress_file.write('ok\n')
+                progress_file.flush()
                 os.rename(temp_path, extract_path)
         return extract_path
 

@@ -197,22 +197,33 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(1, server.counter[0])
 
                 # no cache, because of filename mismatch
+                out_file = LogIO()
                 path = cache_dir.download(url + 'payload.zip',
                                           filename='sub-dir/payload2.zip',
-                                          show_progress=False)
+                                          show_progress=False,
+                                          progress_file=out_file)
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'sub-dir/payload2.zip'), path)
                 self.assertTrue(os.path.isfile(path))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
                 self.assertEqual(2, server.counter[0])
+                self.assertEqual(
+                    out_file.getvalue(),
+                    'Downloading ' + url + 'payload.zip ... ok\n'
+                )
 
                 # test download error
+                out_file = LogIO()
                 with pytest.raises(Exception, match='404'):
-                    _ = cache_dir.download(
-                        url + 'not-exist.zip')
+                    _ = cache_dir.download(url + 'not-exist.zip',
+                                           progress_file=out_file)
                 path = os.path.join(cache_dir.path, 'not-exist.zip')
                 self.assertFalse(os.path.isfile(path))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
+                self.assertEqual(
+                    out_file.getvalue(),
+                    'Downloading ' + url + 'not-exist.zip ... error\n'
+                )
 
     @mock.patch('tfsnippet.utils.caching.Extractor', PatchedExtractor)
     def test_extract_file(self):
@@ -233,7 +244,7 @@ class CacheDirTestCase(unittest.TestCase):
             self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
             self.assertFalse(os.path.isdir(path + '._extracting_'))
             self.assertEqual(
-                'Extracting {} ... done\n'.format(
+                'Extracting {} ... ok\n'.format(
                     get_asset_path('payload.tar.gz')),
                 log_file.getvalue()
             )
@@ -261,7 +272,11 @@ class CacheDirTestCase(unittest.TestCase):
                 os.path.join(cache_dir.path, 'sub-dir/payload2'), path)
             self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
             self.assertFalse(os.path.isdir(path + '._extracting_'))
-            self.assertEqual('', log_file.getvalue())
+            self.assertEqual(
+                'Extracting {} ... ok\n'.format(
+                    get_asset_path('payload.tar.bz2')),
+                log_file.getvalue()
+            )
 
             # test extracting error
             err_archive = os.path.join(cache_dir.path, 'invalid.txt')
