@@ -5,6 +5,7 @@ import tensorflow as tf
 from mock import Mock
 
 from tfsnippet.scaffold import *
+from tfsnippet.scaffold.checkpoint import CHECKPOINT_VAR_NAME
 from tfsnippet.utils import ensure_variables_initialized, TemporaryDirectory
 
 
@@ -27,21 +28,24 @@ class CheckpointSaverTestCase(tf.test.TestCase):
                 set_state=Mock()
             )
 
-            saver = CheckpointSaver([v1, obj, sv, obj2, v2], tmpdir + '/1')
+            saver = CheckpointSaver([v1, sv, v2], tmpdir + '/1',
+                                    objects={'obj': obj, 'obj2': obj2})
             self.assertEqual(saver.save_dir, tmpdir + '/1')
             self.assertIsNone(saver._saver._max_to_keep)
             self.assertTrue(saver.save_meta)
             self.assertDictEqual(
                 saver._var_dict,
-                {'vars/v1': v1, 'vars/parent/v2': v2, 'vars/sv': sv.variable,
-                 'serial_var_0': saver._serial_dict[obj].variable,
-                 'serial_var_1': saver._serial_dict[obj2].variable}
+                {'v1': v1, 'parent/v2': v2, 'sv': sv.variable,
+                 CHECKPOINT_VAR_NAME: saver._serial_var.variable}
             )
             self.assertIsInstance(saver.saver, tf.train.Saver)
 
             saver = CheckpointSaver(
-                {'vv1': v1, 'v22': v2, 'svv': sv, 'oobj': obj, 'obj2': obj2},
-                tmpdir + '/2', 'variables.dat', max_to_keep=3, save_meta=False
+                {'vv1': v1, 'v22': v2, 'svv': sv},
+                tmpdir + '/2',
+                objects={'oobj': obj, 'obj2': obj2},
+                filename='variables.dat',
+                max_to_keep=3, save_meta=False
             )
             self.assertEqual(saver.save_dir, tmpdir + '/2')
             self.assertEqual(saver._saver._max_to_keep, 3)
@@ -49,15 +53,38 @@ class CheckpointSaverTestCase(tf.test.TestCase):
             self.assertDictEqual(
                 saver._var_dict,
                 {'vv1': v1, 'v22': v2, 'svv': sv.variable,
-                 'oobj': saver._serial_dict[obj].variable,
-                 'obj2': saver._serial_dict[obj2].variable}
+                 CHECKPOINT_VAR_NAME: saver._serial_var.variable}
             )
             self.assertIsInstance(saver.saver, tf.train.Saver)
 
-            with pytest.raises(TypeError, match='is not a savable object'):
+            with pytest.raises(TypeError, match='Not a variable'):
                 _ = CheckpointSaver([object()], tmpdir)
-            with pytest.raises(TypeError, match='is not a savable object'):
+            with pytest.raises(TypeError, match='Not a variable'):
                 _ = CheckpointSaver([tf.constant(123.)], tmpdir)
+
+            with pytest.raises(TypeError, match='Not a savable object'):
+                _ = CheckpointSaver([], tmpdir, {'obj': object()})
+            with pytest.raises(TypeError, match='Not a savable object'):
+                _ = CheckpointSaver([], tmpdir, {'obj': tf.constant(0.)})
+
+            with pytest.raises(KeyError,
+                               match='Name is reserved for `variables`'):
+                _ = CheckpointSaver(
+                    [tf.get_variable(CHECKPOINT_VAR_NAME, dtype=tf.int32,
+                                     initializer=0)],
+                    tmpdir
+                )
+            with pytest.raises(KeyError,
+                               match='Name is reserved for `variables`'):
+                _ = CheckpointSaver(
+                    {CHECKPOINT_VAR_NAME: tf.get_variable(
+                        'a', dtype=tf.int32, initializer=0)},
+                    tmpdir
+                )
+
+            with pytest.raises(KeyError,
+                               match='Name is reserved for `objects`'):
+                _ = CheckpointSaver([], tmpdir, {CHECKPOINT_VAR_NAME: obj})
 
     def test_save_restore(self):
         class MyObject(CheckpointSavableObject):
@@ -81,10 +108,12 @@ class CheckpointSaverTestCase(tf.test.TestCase):
             v = tf.get_variable('v', dtype=tf.int32, initializer=12)
             sv = ScheduledVariable('sv', dtype=tf.float32, initial_value=34)
             obj = MyObject(56)
+            obj2 = MyObject(90)
             ensure_variables_initialized()
 
             # test construct a saver upon empty directory
-            saver = CheckpointSaver([v, sv, obj], save_dir)
+            saver = CheckpointSaver([v, sv], save_dir,
+                                    objects={'obj': obj, 'obj2': obj2})
             self.assertIsNone(saver.latest_checkpoint())
 
             with pytest.raises(IOError, match='No checkpoint file is found'):
@@ -100,11 +129,13 @@ class CheckpointSaverTestCase(tf.test.TestCase):
             sv.set(3434)
             obj.value = 5656
             obj.value2 = 7878
+            obj2.value = 9090
             ckpt_1 = saver.save(1, session=sess)
             self.assertEqual(saver.latest_checkpoint(), ckpt_1)
 
             # construct a saver on existing checkpoint directory
-            saver = CheckpointSaver([v, sv, obj], save_dir)
+            saver = CheckpointSaver([v, sv], save_dir,
+                                    objects={'obj': obj, 'obj2': obj2})
             self.assertEqual(saver.latest_checkpoint(), ckpt_1)
 
             # restore the latest checkpoint
@@ -112,9 +143,25 @@ class CheckpointSaverTestCase(tf.test.TestCase):
             self.assertListEqual(sess.run([v, sv]), [1212, 3434])
             self.assertEqual(obj.value, 5656)
             self.assertEqual(obj.value2, 7878)
+            self.assertEqual(obj2.value, 9090)
 
             # restore a previous checkpoint
             saver.restore(ckpt_0, sess)
             self.assertListEqual(sess.run([v, sv]), [12, 34])
             self.assertEqual(obj.value, 56)
             self.assertFalse(hasattr(obj, 'value2'))
+            self.assertEqual(obj2.value, 90)
+
+            # try to restore only a partial of the variables and objects
+            saver = CheckpointSaver([v], save_dir, objects={'obj': obj})
+            saver.restore_latest()
+            self.assertListEqual(sess.run([v, sv]), [1212, 34])
+            self.assertEqual(obj.value, 5656)
+            self.assertEqual(obj.value2, 7878)
+            self.assertEqual(obj2.value, 90)
+
+            # try to restore a non-exist object
+            saver = CheckpointSaver([v], save_dir, objects={'obj3': obj})
+            with pytest.raises(KeyError, match='Object `obj3` not found in the '
+                                               'checkpoint'):
+                saver.restore_latest()

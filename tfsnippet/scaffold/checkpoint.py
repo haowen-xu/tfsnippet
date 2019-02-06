@@ -1,5 +1,6 @@
+import copy
 import os
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 
 import six
 import tensorflow as tf
@@ -16,11 +17,8 @@ else:
 
 __all__ = ['CheckpointSavableObject', 'CheckpointSaver']
 
-
-CheckpointSaverSerialVar = namedtuple(
-    'CheckpointSaverSerialVar',
-    ['variable', 'read_op', 'assign_op', 'assign_ph']
-)
+CHECKPOINT_VAR_NAME = 'tfsnippet_checkpoint_pickle_variable_' \
+                      'd2a4b5a2c0ca48b9855bce2953bc11d5'
 
 
 class CheckpointSavableObject(object):
@@ -49,6 +47,30 @@ class CheckpointSavableObject(object):
         raise NotImplementedError()
 
 
+class CheckpointSerialVar(object):
+
+    def __init__(self):
+        self._variable = tf.get_variable(
+            CHECKPOINT_VAR_NAME, initializer='', dtype=tf.string,
+            trainable=False, collections=[]
+        )
+        self._read_op = tf.convert_to_tensor(self._variable)
+        self._assign_ph = tf.placeholder(dtype=tf.string, shape=())
+        self._assign_op = tf.assign(self._variable, self._assign_ph)
+
+    @property
+    def variable(self):
+        return self._variable
+
+    def get(self, session=None):
+        session = session or get_default_session_or_error()
+        return session.run(self._read_op)
+
+    def set(self, value, session=None):
+        session = session or get_default_session_or_error()
+        session.run(self._assign_op, feed_dict={self._assign_ph: value})
+
+
 class CheckpointSaver(VarScopeObject):
     """
     Save and restore :class:`tf.Variable`, :class:`ScheduledVariable` and
@@ -56,39 +78,67 @@ class CheckpointSaver(VarScopeObject):
     """
 
     @add_name_and_scope_arg_doc
-    def __init__(self, objects, save_dir, filename='checkpoint.dat',
-                 max_to_keep=None, save_meta=True, name=None, scope=None):
+    def __init__(self, variables, save_dir, objects=None,
+                 filename='checkpoint.dat', max_to_keep=None, save_meta=True,
+                 name=None, scope=None):
         """
         Construct a new :class:`CheckpointSaver`.
 
         Args:
-            objects: A list of savable objects, or a dict of
-                `(name -> savable object)`.  A :class:`tf.Variable` is savable,
-                a :class:`ScheduledVariable` is savable, and any object that
-                supports the pickle protocol is savable.
+            variables: A list of variables, or a dict `(name -> variable)`.
+                A variable might be a :class:`tf.Variable` or a
+                :class:`ScheduledVariable`.
             save_dir (str): The directory, where to place the checkpoint files.
                 This directory must be solely owned by this saver.
+            objects (dict[str, CheckpointSavableObject]): A dict
+                `(name -> savable object)`.
             filename (str): Name of the checkpoint files.
             max_to_keep (int or None): Maximum number of versions to keep.
                 If :obj:`None` or `0`, keep all versions.
             save_meta (bool): Whether or not to save the graph meta in
                  checkpoint files?
         """
-        def check_obj(obj):
-            if not isinstance(obj, (tf.Variable,
-                                    ScheduledVariable,
-                                    CheckpointSavableObject)):
-                raise TypeError('{!r} is not a savable object.'.format(obj))
+        # check the argument `variables`
+        def check_var(var):
+            if not isinstance(var, (tf.Variable, ScheduledVariable)):
+                raise TypeError('Not a variable: {!r}'.format(var))
+            if isinstance(var, ScheduledVariable):
+                var = var.variable
+            return var
 
-        if isinstance(objects, (dict, OrderedDict)):
-            objects = dict(objects)
-            for key, value in six.iteritems(objects):
-                check_obj(value)
+        def normalize_var_name(var):
+            name = var.name
+            if name.endswith(':0'):
+                name = name[:-2]
+            return name
+
+        if isinstance(variables, (dict, OrderedDict)):
+            variables = {
+                k: check_var(v)
+                for k, v in six.iteritems(variables)
+            }
         else:
-            objects = list(objects)
-            for value in objects:
-                check_obj(value)
+            variables = {
+                normalize_var_name(v): v
+                for v in map(check_var, variables)
+            }
+        if CHECKPOINT_VAR_NAME in variables:
+            raise KeyError('Name is reserved for `variables`: {}'.
+                           format(CHECKPOINT_VAR_NAME))
 
+        # check the arguments `objects`
+        def check_obj(obj):
+            if not isinstance(obj, CheckpointSavableObject):
+                raise TypeError('Not a savable object: {!r}'.format(obj))
+            return obj
+
+        objects = {k: check_obj(v) for k, v in six.iteritems(objects or {})}
+        if CHECKPOINT_VAR_NAME in objects:
+            raise KeyError('Name is reserved for `objects`: {}'.
+                           format(CHECKPOINT_VAR_NAME))
+
+        self._variables = variables
+        self._objects = objects
         self._save_dir = os.path.abspath(save_dir)
         self._filename = str(filename)
         self._save_meta = bool(save_meta)
@@ -96,64 +146,20 @@ class CheckpointSaver(VarScopeObject):
         super(CheckpointSaver, self).__init__(name=name, scope=scope)
 
         with reopen_variable_scope(self.variable_scope):
-            serial_dict = {}  # type: dict[CheckpointSavableObject, CheckpointSaverSerialVar]
+            # build the variable for serialization
+            self._serial_var = None
+            if self._objects:
+                self._serial_var = CheckpointSerialVar()
 
-            # dict[str, tf.Variable]: the variable dict
-            var_dict = {}
-
-            # build the above two dict from `objects`
-            def build_var_op_ph(obj, var_idx):
-                var_name = 'serial_var_{}'.format(var_idx)
-                serial_var = tf.get_variable(
-                    name=var_name, initializer='', dtype=tf.string,
-                    trainable=False, collections=[]
-                )
-                read_op = tf.identity(serial_var,
-                                      name='read_{}'.format(var_idx))
-                assign_ph = tf.placeholder(dtype=tf.string, shape=(),
-                                           name='assign_ph_{}'.format(var_idx))
-                assign_op = tf.assign(serial_var, assign_ph,
-                                      name='assign_op_{}'.format(var_idx))
-                serial_dict[obj] = CheckpointSaverSerialVar(
-                    variable=serial_var, read_op=read_op, assign_op=assign_op,
-                    assign_ph=assign_ph
-                )
-                return serial_var
-
-            def normalize_var_name(var):
-                name = var.name
-                if name.endswith(':0'):
-                    name = name[:-2]
-                return name
-
-            if isinstance(objects, dict):
-                for key, value in six.iteritems(objects):
-                    if isinstance(value, ScheduledVariable):
-                        var_dict[key] = value.variable
-                    elif isinstance(value, tf.Variable):
-                        var_dict[key] = value
-                    else:
-                        var_idx = len(serial_dict)
-                        var_dict[key] = build_var_op_ph(value, var_idx)
-            else:
-                for value in objects:
-                    if isinstance(value, ScheduledVariable):
-                        key = 'vars/' + normalize_var_name(value.variable)
-                        var_dict[key] = value.variable
-                    elif isinstance(value, tf.Variable):
-                        key = 'vars/' + normalize_var_name(value)
-                        var_dict[key] = value
-                    else:
-                        var_idx = len(serial_dict)
-                        key = 'serial_var_{}'.format(var_idx)
-                        var_dict[key] = build_var_op_ph(value, var_idx)
-
-            self._serial_dict = serial_dict
+            # add the serial var to var_dict
+            var_dict = copy.copy(variables)
+            if self._objects:
+                var_dict[CHECKPOINT_VAR_NAME] = self._serial_var.variable
             self._var_dict = var_dict
 
             # now build the saver
             self._saver = tf.train.Saver(
-                var_list=self._var_dict,
+                var_list=var_dict,
                 max_to_keep=max_to_keep
             )
 
@@ -230,18 +236,21 @@ class CheckpointSaver(VarScopeObject):
             session (tf.Session): Restore the variables into this session.
                 If not specified, restore into the default session.
         """
-        if session is None:
-            session = get_default_session_or_error()
+        session = session or get_default_session_or_error()
 
         # restore the variables
         self._saver.restore(session, save_path)
 
         # restore the states of savable objects
-        objects = list(self._serial_dict)
-        obj_values = session.run(
-            [self._serial_dict[o].read_op for o in objects])
-        for obj, val in zip(objects, obj_values):
-            obj.set_state(pkl.loads(val))
+        if self._objects:
+            object_states = pkl.loads(self._serial_var.get(session))
+            assert(isinstance(object_states, dict))
+
+            for key, obj in six.iteritems(self._objects):
+                if key not in object_states:
+                    raise KeyError('Object `{}` not found in the checkpoint: '
+                                   '{}'.format(key, save_path))
+                obj.set_state(object_states[key])
 
     def save(self, global_step=None, session=None):
         """
@@ -255,20 +264,17 @@ class CheckpointSaver(VarScopeObject):
         Returns:
             str: The path of the saved checkpoint file.
         """
-        if session is None:
-            session = get_default_session_or_error()
+        session = session or get_default_session_or_error()
 
-        # save the states of savable objects into variables
-        objects = list(self._serial_dict)
-        op_list, feed_dict = [], {}
+        # save the states of savable objects into serial var
+        if self._objects:
+            object_states = {}
+            for key, obj in six.iteritems(self._objects):
+                object_states[key] = obj.get_state()
 
-        for obj in objects:
-            obj_serial = self._serial_dict[obj]
-            op_list.append(obj_serial.assign_op)
-            feed_dict[obj_serial.assign_ph] = pkl.dumps(
-                obj.get_state(), protocol=pkl.HIGHEST_PROTOCOL)
-
-        session.run(op_list, feed_dict=feed_dict)
+            serialized_states = pkl.dumps(
+                object_states, protocol=pkl.HIGHEST_PROTOCOL)
+            self._serial_var.set(serialized_states)
 
         # now save the variables to checkpoint file
         if not os.path.isdir(self.save_dir):

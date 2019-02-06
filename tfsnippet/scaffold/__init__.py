@@ -9,6 +9,5 @@ __all__ = [
     'AnnealingVariable', 'CheckpointSavableObject', 'CheckpointSaver',
     'DefaultMetricFormatter', 'EarlyStopping', 'EarlyStoppingContext',
     'EventKeys', 'MetricFormatter', 'MetricLogger', 'ScheduledVariable',
-    'TrainLoop', 'TrainLoopContext', 'early_stopping', 'summarize_variables',
-    'train_loop',
+    'TrainLoop', 'early_stopping', 'summarize_variables',
 ]

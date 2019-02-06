@@ -7,10 +7,13 @@ from collections import OrderedDict
 import pytest
 import numpy as np
 import tensorflow as tf
+from mock import Mock
 
 from tfsnippet.dataflows import DataFlow
 from tfsnippet.scaffold import (TrainLoop, CheckpointSavableObject,
                                 ScheduledVariable)
+from tfsnippet.scaffold.train_loop_ import TRAIN_LOOP_STATES_CKPT_NAME, \
+    EARLY_STOPPING_STATES_CKPT_NAME
 from tfsnippet.utils import (TemporaryDirectory,
                              ensure_variables_initialized,
                              get_default_session_or_error)
@@ -523,7 +526,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             with TrainLoop([var.variable],
                            checkpoint_dir=tempdir,
-                           checkpoint_save_objects=[o]) as loop:
+                           checkpoint_save_objects={'o': o}) as loop:
                 loop.make_checkpoint()
 
             # test restore_checkpoint == True
@@ -534,7 +537,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             with TrainLoop([var.variable],
                            checkpoint_dir=tempdir,
-                           checkpoint_save_objects=[o]):
+                           checkpoint_save_objects={'o': o}):
                 self.assertEqual(loop.epoch, 0)
                 self.assertEqual(loop.step, 0)
                 self.assertEqual(o.value, 123)
@@ -546,7 +549,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
             with TrainLoop([var.variable],
                            checkpoint_dir=tempdir,
-                           checkpoint_save_objects=[o],
+                           checkpoint_save_objects={'o': o},
                            checkpoint_epoch_freq=2,
                            restore_checkpoint=False,
                            max_epoch=8) as loop:
@@ -565,7 +568,7 @@ class TrainLoopTestCase(tf.test.TestCase):
             # restore from latest
             with TrainLoop([var.variable],
                            checkpoint_dir=tempdir,
-                           checkpoint_save_objects=[o]) as loop:
+                           checkpoint_save_objects={'o': o}) as loop:
                 self.assertEqual(loop.epoch, 8)
                 self.assertEqual(loop.step, 16)
                 self.assertEqual(o.value, 9128)
@@ -578,7 +581,7 @@ class TrainLoopTestCase(tf.test.TestCase):
 
                 with TrainLoop([var.variable],
                                checkpoint_dir=tempdir,
-                               checkpoint_save_objects=[o],
+                               checkpoint_save_objects={'o': o},
                                restore_checkpoint=restore_checkpoint) as loop:
                     self.assertEqual(loop.epoch, epoch)
                     self.assertEqual(loop.step, epoch * 2)
@@ -618,6 +621,28 @@ class TrainLoopTestCase(tf.test.TestCase):
                                                    'not configured'):
                 with TrainLoop([]) as loop:
                     loop.make_checkpoint()
+
+            obj = Mock(
+                spec=CheckpointSavableObject,
+                get_state=Mock(return_value={}),
+                set_state=Mock()
+            )
+
+            with pytest.raises(KeyError, match='Name is reserved for '
+                                               '`checkpoint_save_objects`'):
+                with TrainLoop([], checkpoint_dir=tempdir,
+                               checkpoint_save_objects={
+                                   TRAIN_LOOP_STATES_CKPT_NAME: obj
+                               }):
+                    pass
+
+            with pytest.raises(KeyError, match='Name is reserved for '
+                                               '`checkpoint_save_objects`'):
+                with TrainLoop([], checkpoint_dir=tempdir,
+                               checkpoint_save_objects={
+                                   EARLY_STOPPING_STATES_CKPT_NAME: obj
+                               }):
+                    pass
 
         with pytest.raises(
                 RuntimeError, match='Another epoch loop has been opened'):

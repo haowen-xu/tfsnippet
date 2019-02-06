@@ -20,12 +20,12 @@ from .early_stopping_ import EarlyStopping
 from .event_keys import EventKeys
 from .logging_ import summarize_variables, DefaultMetricFormatter, MetricLogger
 
-__all__ = [
-    'TrainLoop', 'TrainLoopContext', 'train_loop',
-]
+__all__ = ['TrainLoop']
 
 EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
+TRAIN_LOOP_STATES_CKPT_NAME = '$$/tfsnippet_train_loop_states_variable'
+EARLY_STOPPING_STATES_CKPT_NAME = '$$/tfsnippet_early_stopping_states_variable'
 
 
 class TrainLoopStates(CheckpointSavableObject):
@@ -169,7 +169,7 @@ class TrainLoop(DisposableContext):
                 you must call :meth:`make_checkpoint()` manually.
             checkpoint_max_to_keep (int or None): Maximum number of checkpoint
                 versions to keep. If :obj:`None` or `0`, keep all versions.
-            checkpoint_save_objects (Iterable[CheckpointSavableObject]): If
+            checkpoint_save_objects (dict[str, CheckpointSavableObject]): If
                 specified, will save and restore the states of these objects.
             restore_checkpoint (bool or str): If :obj:`True`, will restore
                 the latest checkpoint.  If a str, it should be the path of
@@ -229,7 +229,12 @@ class TrainLoop(DisposableContext):
                 'Currently `early_stopping = True` is not supported when '
                 '`checkpoint_dir` is specified.'
             )
-        save_objects = list(checkpoint_save_objects or ())
+        save_objects = dict(checkpoint_save_objects or ())
+        for key in (TRAIN_LOOP_STATES_CKPT_NAME,
+                    EARLY_STOPPING_STATES_CKPT_NAME):
+            if key in save_objects:
+                raise KeyError('Name is reserved for `checkpoint_save_objects`'
+                               ': {}'.format(key))
 
         if summary_writer is not None:
             summary_dir = None
@@ -298,8 +303,10 @@ class TrainLoop(DisposableContext):
                 'Global variables to save at checkpoints: %s',
                 tf.global_variables()
             )
+            save_objects[TRAIN_LOOP_STATES_CKPT_NAME] = self._states
             self._checkpoint_saver = CheckpointSaver(
-                tf.global_variables() + [self._states] + save_objects,
+                tf.global_variables(),
+                objects=save_objects,
                 save_dir=checkpoint_dir,
                 max_to_keep=checkpoint_max_to_keep,
                 save_meta=False
@@ -838,11 +845,3 @@ class TrainLoop(DisposableContext):
         self.println(metrics.format_logs() + best_mark, with_tag=True)
         self._is_best_valid_metric = False
         metrics.clear()
-
-
-TrainLoopContext = TrainLoop  # legacy alias for TrainLoop
-
-
-@deprecated('use :class:`TrainLoop` instead.', version='0.1')
-def train_loop(*args, **kwargs):  # pragma: no cover
-    return TrainLoop(*args, **kwargs)
