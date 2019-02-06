@@ -388,11 +388,11 @@ class TrainLoop(DisposableContext):
             elif self._restore_checkpoint:
                 checkpoint_file = self._checkpoint_saver.latest_checkpoint()
             if checkpoint_file:
-                self.println('Resume training from checkpoint: {}'.
-                             format(checkpoint_file))
                 self._checkpoint_saver.restore(checkpoint_file)
-                self.println('Resumed at epoch {}, step {}'.
-                             format(self.epoch, self.step))
+                self.println(
+                    'Resume training: epoch {}, step{}, from checkpoint {}'.
+                    format(self.epoch, self.step, checkpoint_file)
+                )
 
         # initialize the eta flags
         self._eta = ETA()
