@@ -42,11 +42,11 @@ class Evaluator(object):
     The event schedule of an :class:`Evaluator` can be briefly described as
     follows::
 
-        events.fire(EventKeys.BEFORE_EVALUATION)
+        events.fire(EventKeys.BEFORE_EXECUTION, self)
 
         ...  # actually run the evaluation
 
-        events.fire(EventKeys.AFTER_EVALUATION)
+        events.reverse_fire(EventKeys.AFTER_EXECUTION, self)
     """
 
     def __init__(self, loop, metrics, inputs, data_flow, feed_dict=None,
@@ -95,8 +95,8 @@ class Evaluator(object):
 
         self._loop = loop
         self._events = EventSource([
-            EventKeys.BEFORE_EVALUATION,
-            EventKeys.AFTER_EVALUATION,
+            EventKeys.BEFORE_EXECUTION,
+            EventKeys.AFTER_EXECUTION,
         ])
         self._metrics = metrics
         self._inputs = list(inputs or ())
@@ -214,7 +214,7 @@ class Evaluator(object):
 
         with timeit():
             # trigger before evaluation event
-            self.events.fire(EventKeys.BEFORE_EVALUATION)
+            self.events.fire(EventKeys.BEFORE_EXECUTION, self)
 
             for batch_data in self.data_flow:
                 # prepare for the batch feed dict
@@ -259,4 +259,4 @@ class Evaluator(object):
                 self.loop.collect_metrics(metrics_dict)
 
             # trigger after evaluation event
-            self.events.fire(EventKeys.AFTER_EVALUATION)
+            self.events.reverse_fire(EventKeys.AFTER_EXECUTION, self)

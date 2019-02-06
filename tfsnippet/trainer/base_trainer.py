@@ -16,17 +16,18 @@ def check_epochs_and_steps_arg(epochs=None, steps=None):
 
 
 class OnEveryFewCalls(object):
-    def __init__(self, freq, callback):
+    def __init__(self, key, freq, callback):
         assert(callable(callback))
+        self.key = key
         self.freq = freq
         self.callback = callback
 
-    def __call__(self, counter__, *args, **kwargs):
-        if counter__ % self.freq == 0:
-            return self.callback(*args, **kwargs)
+    def __call__(self, trainer):
+        if getattr(trainer.loop, self.key) % self.freq == 0:
+            return self.callback()
 
     def __repr__(self):  # for `test_base_trainer.py`
-        return '{}:{}'.format(self.callback, self.freq)
+        return '{}:{}:{}'.format(self.callback, self.key, self.freq)
 
 
 @DocInherit
@@ -42,28 +43,32 @@ class BaseTrainer(object):
     responsibility to derive his training operation from a certain TensorFlow
     optimizer, and pass it to a proper trainer.
 
-    The event schedule of a :class:`BaseTrainer` can be briefly described as
-    follows::
+    The event schedule of a :class:`BaseTrainer` can be briefly described as::
+
+
+        events.fire(EventKeys.BEFORE_EXECUTION, self)
 
         for epoch in epochs:
-            events.fire(EventKeys.BEFORE_EPOCH, epoch)
+            events.fire(EventKeys.BEFORE_EPOCH, self)
 
             for step in steps:
-                events.fire(EventKeys.BEFORE_STEP, step)
+                events.fire(EventKeys.BEFORE_STEP, self)
 
                 ...  # actually train for a step
 
-                events.fire(EventKeys.AFTER_STEP_EVAL, step)
-                events.fire(EventKeys.AFTER_STEP_ANNEAL, step)
-                events.fire(EventKeys.AFTER_STEP_LOG, step)
-                events.fire(EventKeys.AFTER_STEP, step)
+                events.fire(EventKeys.STEP_EVALUATION, self)
+                events.fire(EventKeys.STEP_ANNEALING, self)
+                events.fire(EventKeys.STEP_LOGGING, self)
+                events.reverse_fire(EventKeys.AFTER_STEP, self)
 
-            events.fire(EventKeys.AFTER_EPOCH_EVAL, epoch)
-            events.fire(EventKeys.AFTER_EPOCH_ANNEAL, epoch)
-            events.fire(EventKeys.AFTER_EPOCH_LOG, epoch)
-            events.fire(EventKeys.AFTER_EPOCH, epoch)
+            events.fire(EventKeys.EPOCH_EVALUATION, self)
+            events.fire(EventKeys.EPOCH_ANNEALING, self)
+            events.fire(EventKeys.EPOCH_LOGGING, self)
+            events.reverse_fire(EventKeys.AFTER_EPOCH, self)
 
-    Using `trainer.events.on(EventKeys.AFTER_EPOCH, lambda epoch: ...)` can
+        events.reverse_fire(EventKeys.AFTER_EXECUTION, self)
+
+    Using `trainer.events.on(EventKeys.AFTER_EPOCH, lambda trainer: ...)` can
     register an after-epoch event handler.  Handlers for other events can be
     registered in a similar way.
 
@@ -84,15 +89,17 @@ class BaseTrainer(object):
         """
         self._loop = loop
         self._events = EventSource([
+            EventKeys.BEFORE_EXECUTION,
+            EventKeys.AFTER_EXECUTION,
             EventKeys.BEFORE_EPOCH,
-            EventKeys.AFTER_EPOCH_EVAL,
-            EventKeys.AFTER_EPOCH_ANNEAL,
-            EventKeys.AFTER_EPOCH_LOG,
+            EventKeys.EPOCH_EVALUATION,
+            EventKeys.EPOCH_ANNEALING,
+            EventKeys.EPOCH_LOGGING,
             EventKeys.AFTER_EPOCH,
             EventKeys.BEFORE_STEP,
-            EventKeys.AFTER_STEP_EVAL,
-            EventKeys.AFTER_STEP_ANNEAL,
-            EventKeys.AFTER_STEP_LOG,
+            EventKeys.STEP_EVALUATION,
+            EventKeys.STEP_ANNEALING,
+            EventKeys.STEP_LOGGING,
             EventKeys.AFTER_STEP,
         ])
         self._is_fitting = False
@@ -123,38 +130,40 @@ class BaseTrainer(object):
             raise RuntimeError('`run()` is not re-entrant.')
         self._is_fitting = True
         try:
+            # trigger the before execution event
+            self.events.fire(EventKeys.BEFORE_EXECUTION, self)
+
             # initialize global training status
             session = get_default_session_or_error()
             ensure_variables_initialized()
             self.loop.print_training_summary()
 
             for _ in self.loop.iter_epochs():
-                epoch = int(self.loop.epoch)
-
                 # trigger before epoch event
-                self.events.fire(EventKeys.BEFORE_EPOCH, epoch)
+                self.events.fire(EventKeys.BEFORE_EPOCH, self)
 
                 # run steps of this epoch
                 for payload in self._iter_steps():
-                    step = int(self.loop.step)
-
                     # trigger before step event
-                    self.events.fire(EventKeys.BEFORE_STEP, step)
+                    self.events.fire(EventKeys.BEFORE_STEP, self)
 
                     # run the step
                     self._run_step(session, payload)
 
                     # trigger after step events
-                    self.events.fire(EventKeys.AFTER_STEP_EVAL, step)
-                    self.events.fire(EventKeys.AFTER_STEP_ANNEAL, step)
-                    self.events.fire(EventKeys.AFTER_STEP_LOG, step)
-                    self.events.fire(EventKeys.AFTER_STEP, step)
+                    self.events.fire(EventKeys.STEP_EVALUATION, self)
+                    self.events.fire(EventKeys.STEP_ANNEALING, self)
+                    self.events.fire(EventKeys.STEP_LOGGING, self)
+                    self.events.reverse_fire(EventKeys.AFTER_STEP, self)
 
                 # trigger after epoch events
-                self.events.fire(EventKeys.AFTER_EPOCH_EVAL, epoch)
-                self.events.fire(EventKeys.AFTER_EPOCH_ANNEAL, epoch)
-                self.events.fire(EventKeys.AFTER_EPOCH_LOG, epoch)
-                self.events.fire(EventKeys.AFTER_EPOCH, epoch)
+                self.events.fire(EventKeys.EPOCH_EVALUATION, self)
+                self.events.fire(EventKeys.EPOCH_ANNEALING, self)
+                self.events.fire(EventKeys.EPOCH_LOGGING, self)
+                self.events.reverse_fire(EventKeys.AFTER_EPOCH, self)
+
+            # trigger the after execution event
+            self.events.reverse_fire(EventKeys.AFTER_EXECUTION, self)
         finally:
             self._is_fitting = False
 
@@ -192,8 +201,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this logging hook to run.
         """
         self.events.on(
-            EventKeys.AFTER_STEP_LOG,
-            OnEveryFewCalls(freq, self.loop.print_logs)
+            EventKeys.STEP_LOGGING,
+            OnEveryFewCalls('step', freq, self.loop.print_logs)
         )
 
     def log_after_epochs(self, freq):
@@ -204,8 +213,8 @@ class BaseTrainer(object):
             freq (int): The frequency for this logging hook to run.
         """
         self.events.on(
-            EventKeys.AFTER_EPOCH_LOG,
-            OnEveryFewCalls(freq, self.loop.print_logs)
+            EventKeys.EPOCH_LOGGING,
+            OnEveryFewCalls('epoch', freq, self.loop.print_logs)
         )
 
     def log_after(self, epochs=None, steps=None):
@@ -233,8 +242,8 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        self.events.clear_event_handlers(EventKeys.AFTER_STEP_LOG)
-        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_LOG)
+        self.events.clear_event_handlers(EventKeys.STEP_LOGGING)
+        self.events.clear_event_handlers(EventKeys.EPOCH_LOGGING)
 
     def evaluate_after_steps(self, evaluator, freq):
         """
@@ -247,7 +256,9 @@ class BaseTrainer(object):
         """
         callback = evaluator if callable(evaluator) else evaluator.run
         self.events.on(
-            EventKeys.AFTER_STEP_EVAL, OnEveryFewCalls(freq, callback))
+            EventKeys.STEP_EVALUATION,
+            OnEveryFewCalls('step', freq, callback)
+        )
 
     def evaluate_after_epochs(self, evaluator, freq):
         """
@@ -260,7 +271,9 @@ class BaseTrainer(object):
         """
         callback = evaluator if callable(evaluator) else evaluator.run
         self.events.on(
-            EventKeys.AFTER_EPOCH_EVAL, OnEveryFewCalls(freq, callback))
+            EventKeys.EPOCH_EVALUATION,
+            OnEveryFewCalls('epoch', freq, callback)
+        )
 
     def evaluate_after(self, evaluator, epochs=None, steps=None):
         """
@@ -289,8 +302,8 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        self.events.clear_event_handlers(EventKeys.AFTER_STEP_EVAL)
-        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_EVAL)
+        self.events.clear_event_handlers(EventKeys.STEP_EVALUATION)
+        self.events.clear_event_handlers(EventKeys.EPOCH_EVALUATION)
 
     # legacy names for evaluation
     validate_after_steps = evaluate_after_steps
@@ -309,7 +322,9 @@ class BaseTrainer(object):
         """
         callback = value if callable(value) else value.anneal
         self.events.on(
-            EventKeys.AFTER_STEP_ANNEAL, OnEveryFewCalls(freq, callback))
+            EventKeys.STEP_ANNEALING,
+            OnEveryFewCalls('step', freq, callback)
+        )
 
     def anneal_after_epochs(self, value, freq):
         """
@@ -322,7 +337,9 @@ class BaseTrainer(object):
         """
         callback = value if callable(value) else value.anneal
         self.events.on(
-            EventKeys.AFTER_EPOCH_ANNEAL, OnEveryFewCalls(freq, callback))
+            EventKeys.EPOCH_ANNEALING,
+            OnEveryFewCalls('epoch', freq, callback)
+        )
 
     def anneal_after(self, value, epochs=None, steps=None):
         """
@@ -351,5 +368,5 @@ class BaseTrainer(object):
         Returns:
             int: The number of removed hooks.
         """
-        self.events.clear_event_handlers(EventKeys.AFTER_STEP_ANNEAL)
-        self.events.clear_event_handlers(EventKeys.AFTER_EPOCH_ANNEAL)
+        self.events.clear_event_handlers(EventKeys.STEP_ANNEALING)
+        self.events.clear_event_handlers(EventKeys.EPOCH_ANNEALING)
