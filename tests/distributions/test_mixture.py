@@ -65,6 +65,24 @@ class MixtureTestCase(tf.test.TestCase):
             )
             _ = m.sample(1, is_reparameterized=True)
 
+        with pytest.raises(ValueError,
+                           match='Batch shape of `categorical` does not '
+                                 'agree with the first component'):
+            _ = Mixture(
+                Categorical(logits=tf.zeros([1, 3, 2])),
+                [Normal(mean=tf.zeros([3]), logstd=0.),
+                 Normal(mean=tf.zeros([3]), logstd=0.)]
+            )
+
+        with pytest.raises(ValueError,
+                           match='Batch shape of the 1-th component does not '
+                                 'agree with the first component'):
+            _ = Mixture(
+                Categorical(logits=tf.zeros([3, 2])),
+                [Normal(mean=tf.zeros([3]), logstd=0.),
+                 Normal(mean=tf.zeros([4]), logstd=0.)]
+            )
+
     def do_check_mixture(self, component_factory, value_ndims, batch_shape,
                          is_continuous, dtype, logits_dtype,
                          is_reparameterized):

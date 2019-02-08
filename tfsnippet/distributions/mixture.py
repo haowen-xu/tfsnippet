@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.ops import log_sum_exp
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.utils import is_tensor_object, concat_shapes, get_shape
+from tfsnippet.utils import (is_tensor_object, concat_shapes, get_shape,
+                             settings, assert_deps)
 from .base import Distribution
 from .univariate import Categorical
 from .utils import reduce_group_ndims, compute_density_immediately
@@ -83,18 +84,74 @@ class Mixture(Distribution):
                         format(attr, i, c_val, first_val)
                     )
 
-        # TODO: check the batch_shape of components, ensure they are equal
-        # assert(all component.batch_shape is equal)
-        # assert(categorical.batch_shape == components.batch_shape)
-        # ^ the above assertion must hold, otherwise n_samples != None will
-        #   not work
+        # check the batch_shape of components, ensure they are equal
+        batch_shape = components[0].batch_shape
+        batch_static_shape = components[0].get_batch_shape()
+
+        def is_static_batch_shape_match(c, batch_static_shape):
+            batch_static_shape = batch_static_shape.as_list()
+            c_batch_static_shape = c.get_batch_shape().as_list()
+            equal = True
+
+            if len(batch_static_shape) != len(c_batch_static_shape):
+                equal = False
+            else:
+                for a, b in zip(batch_static_shape, c_batch_static_shape):
+                    if a is not None and b is not None and a != b:
+                        equal = False
+                        break
+
+            return equal
+
+        if not is_static_batch_shape_match(categorical, batch_static_shape):
+            raise ValueError(
+                'Batch shape of `categorical` does not agree with '
+                'the first component: {} vs {}'.
+                format(categorical.get_batch_shape(), batch_static_shape)
+            )
+
+        for i, c in enumerate(components[1:], 1):
+            if not is_static_batch_shape_match(c, batch_static_shape):
+                raise ValueError(
+                    'Batch shape of the {}-th component does not agree with '
+                    'the first component: {} vs {}'.
+                    format(i, c.get_batch_shape(), batch_static_shape)
+                )
+
+        def assert_batch_shape(c, batch_shape):
+            c_batch_shape = c.batch_shape
+            with assert_deps([
+                        tf.assert_equal(
+                            tf.reduce_all(
+                                tf.equal(
+                                    tf.concat([batch_shape, c_batch_shape], 0),
+                                    tf.concat([c_batch_shape, batch_shape], 0)
+                                )
+                            ),
+                            True
+                        )
+                    ]) as asserted:
+                if asserted:  # pragma: no cover
+                    batch_shape = tf.identity(batch_shape)
+            return batch_shape
+
+        if settings.enable_assertions:
+            with tf.name_scope('Mixture.init'):
+                batch_shape = assert_batch_shape(categorical, batch_shape)
+                for c in components[1:]:
+                    batch_shape = assert_batch_shape(c, batch_shape)
 
         self._categorical = categorical
         self._components = components
-        self._dtype = components[0].dtype
-        self._is_continuous = components[0].is_continuous
-        self._value_ndims = components[0].value_ndims
-        self._is_reparameterized = is_reparameterized
+
+        super(Mixture, self).__init__(
+            dtype=components[0].dtype,
+            is_continuous=components[0].is_continuous,
+            is_reparameterized=is_reparameterized,
+            batch_shape=components[0].batch_shape,
+            batch_static_shape=components[0].get_batch_shape(),
+            value_ndims=components[0].value_ndims,
+        )
 
     @property
     def categorical(self):
@@ -125,23 +182,6 @@ class Mixture(Distribution):
             int: The number of mixture components.
         """
         return len(self._components)
-
-    @property
-    def dtype(self):
-        return self._dtype
-
-    @property
-    def is_continuous(self):
-        return self._is_continuous
-
-    @property
-    def is_reparameterized(self):
-        # mixture should always be non-reparameterized
-        return self._is_reparameterized
-
-    @property
-    def value_ndims(self):
-        return self._value_ndims
 
     def _cat_prob(self, log_softmax):
         softmax_fn = tf.nn.log_softmax if log_softmax else tf.nn.softmax

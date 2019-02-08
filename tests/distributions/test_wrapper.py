@@ -4,7 +4,7 @@ import tensorflow as tf
 import zhusuan.distributions as zd
 from mock import Mock
 
-from tfsnippet.distributions import Distribution, as_distribution
+from tfsnippet.distributions import Distribution, as_distribution, Normal
 from tfsnippet.distributions.wrapper import ZhuSuanDistribution
 from tfsnippet.stochastic import StochasticTensor
 
@@ -12,7 +12,7 @@ from tfsnippet.stochastic import StochasticTensor
 class AsDistributionTestCase(tf.test.TestCase):
 
     def test_distribution(self):
-        d = Distribution()
+        d = Normal(mean=0., std=1.)
         distrib = as_distribution(d)
         self.assertIs(distrib, d)
 
@@ -40,7 +40,8 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
 
     def test_repr(self):
         distrib = ZhuSuanDistribution(Mock(
-            spec=zd.Distribution,
+            spec=zd.Normal,
+            wraps=zd.Normal(mean=0., std=1.),
             __repr__=Mock(return_value='repr_output')
         ))
         self.assertEqual(repr(distrib), 'Distribution(repr_output)')
@@ -56,6 +57,20 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
                 getattr(distrib, attr),
                 msg='Attribute `{}` does not equal'.format(attr)
             )
+        for meth in ['get_batch_shape']:
+            self.assertEqual(
+                getattr(zs_distrib, meth)(),
+                getattr(distrib, meth)(),
+                msg='Output of method `{}` does not equal'.format(meth)
+            )
+        with self.test_session():
+            for attr in ['batch_shape']:
+                np.testing.assert_equal(
+                    getattr(zs_distrib, attr).eval(),
+                    getattr(distrib, attr).eval(),
+                    err_msg='Value of attribute `{}` does not equal'.
+                            format(attr)
+                )
         # for meth in ['get_value_shape', 'get_batch_shape']:
         #     self.assertEqual(
         #         getattr(zs_distrib, meth)(),
@@ -77,14 +92,20 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
         with pytest.raises(RuntimeError,
                            match='Distribution is not re-parameterized'):
             d = ZhuSuanDistribution(
-                Mock(spec=zd.Distribution, is_reparameterized=False))
+                Mock(
+                    spec=zd.Normal,
+                    wraps=zd.Normal(mean=0., std=1.),
+                    is_reparameterized=False
+                )
+            )
             self.assertFalse(d.is_reparameterized)
             _ = d.sample(is_reparameterized=True)
 
         # test sampling with default is_reparameterized = True
         samples = tf.constant(12345678.)
         d = ZhuSuanDistribution(Mock(
-            spec=zd.Distribution,
+            spec=zd.Normal,
+            wraps=zd.Normal(mean=0., std=1.),
             is_reparameterized=True,
             sample=Mock(return_value=samples)
         ))
@@ -98,7 +119,8 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
 
         # test sampling with default is_reparameterized = False
         self.assertFalse(ZhuSuanDistribution(Mock(
-            spec=zd.Distribution,
+            spec=zd.Normal,
+            wraps=zd.Normal(mean=0., std=1.),
             is_reparameterized=False,
             sample=Mock(return_value=samples)
         )).sample().is_reparameterized)
