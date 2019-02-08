@@ -173,6 +173,10 @@ class Distribution(object):
         """
         return self._batch_static_shape
 
+    def _validate_sample_is_reparameterized_arg(self, is_reparameterized):
+        if is_reparameterized and not self.is_reparameterized:
+            raise RuntimeError('{} is not re-parameterized.'.format(self))
+
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
         """

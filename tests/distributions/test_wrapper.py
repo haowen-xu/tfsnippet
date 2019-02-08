@@ -90,7 +90,7 @@ class ZhuSuanDistributionTestCase(tf.test.TestCase):
         # sample re-parameterized samples from a non-reparameterized
         # distribution should cause an error
         with pytest.raises(RuntimeError,
-                           match='Distribution is not re-parameterized'):
+                           match='.* is not re-parameterized'):
             d = ZhuSuanDistribution(
                 Mock(
                     spec=zd.Normal,

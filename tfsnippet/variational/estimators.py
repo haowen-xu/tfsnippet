@@ -3,7 +3,8 @@ from contextlib import contextmanager
 import tensorflow as tf
 
 from tfsnippet.ops import log_mean_exp
-from tfsnippet.utils import add_name_arg_doc, get_static_shape
+from tfsnippet.utils import (add_name_arg_doc, get_static_shape,
+                             convert_to_tensor_and_cast)
 from .utils import _require_multi_samples
 
 __all__ = [
@@ -190,9 +191,7 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
                     trainable=False, dtype=dtype
                 )
 
-                decay = tf.convert_to_tensor(1. - decay)
-                if decay.dtype != dtype:  # pragma: no cover
-                    decay = tf.cast(decay, dtype)
+                decay = convert_to_tensor_and_cast(1. - decay, dtype)
                 moving_mean = moving_mean.assign(
                     moving_mean - (moving_mean - batch_center) * decay)
                 l_signal = l_signal - moving_mean

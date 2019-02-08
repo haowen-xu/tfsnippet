@@ -92,9 +92,9 @@ class ZhuSuanDistribution(Distribution):
                compute_density=None, name=None):
         from tfsnippet.stochastic import StochasticTensor
 
-        if is_reparameterized and not self.is_reparameterized:
-            raise RuntimeError('Distribution is not re-parameterized')
-        elif is_reparameterized is False and self.is_reparameterized:
+        self._validate_sample_is_reparameterized_arg(is_reparameterized)
+
+        if is_reparameterized is False and self.is_reparameterized:
             @contextlib.contextmanager
             def set_is_reparameterized():
                 try:

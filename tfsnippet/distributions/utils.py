@@ -61,3 +61,24 @@ def compute_density_immediately(t):
     with tf.name_scope('compute_density_immediately'):
         log_p = t.log_prob()
         t._self_prob = tf.exp(log_p)
+
+
+def maybe_clip_value(x, min_val=None, max_val=None):
+    """
+    Maybe clip the elements of `x`.
+
+    Args:
+        x: The tensor maybe to be clipped.
+        min_val: The minimum value.
+        max_val: The maximum value.
+
+    Returns:
+        tf.Tensor: The clipped tensor.
+    """
+    if min_val is not None and max_val is not None:
+        x = tf.clip_by_value(x, min_val, max_val, name='maybe_clip_value')
+    elif min_val is not None:
+        x = tf.maximum(x, min_val, name='maybe_clip_value')
+    elif max_val is not None:
+        x = tf.minimum(x, max_val, name='maybe_clip_value')
+    return x

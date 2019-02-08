@@ -190,8 +190,7 @@ class Mixture(Distribution):
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
-        if is_reparameterized and not self.is_reparameterized:
-            raise RuntimeError('{} is not re-parameterized.'.format(self))
+        self._validate_sample_is_reparameterized_arg(is_reparameterized)
 
         #######################################################################
         # slow routine: generate the mixture by one_hot * stack([c.sample()]) #

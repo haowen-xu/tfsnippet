@@ -10,7 +10,7 @@ from .reuse import VarScopeObject
 from .scope import reopen_variable_scope
 from .tensor_spec import InputSpec
 from .tfver import is_tensorflow_version_higher_or_equal
-from .type_utils import is_integer
+from .type_utils import is_integer, convert_to_tensor_and_cast
 
 __all__ = ['PermutationMatrix', 'InvertibleMatrix']
 
@@ -314,15 +314,13 @@ class InvertibleMatrix(VarScopeObject):
                     # low versions of TensorFlow does not have a gradient op
                     # for `slogdet`, thus we have to derive it as follows:
                     with tf.name_scope('log_det', values=[self._matrix]):
-                        m = self._matrix
-                        if dtype != tf.float64:
-                            m = tf.cast(m, dtype=tf.float64)
+                        m = convert_to_tensor_and_cast(self._matrix, tf.float64)
                         self._log_det = tf.log(
                             tf.maximum(tf.abs(tf.matrix_determinant(m)),
                                        epsilon)
                         )
-                        if self._log_det.dtype != dtype:
-                            self._log_det = tf.cast(self._log_det, dtype=dtype)
+                        self._log_det = \
+                            convert_to_tensor_and_cast(self._log_det, dtype)
 
                 self._log_det = check_tensor(self._log_det, 'log_det')
 
