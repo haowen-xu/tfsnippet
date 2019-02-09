@@ -143,7 +143,8 @@ class CacheDir(object):
         with FileLock(lock_file):
             yield
 
-    def _download(self, uri, file_path, show_progress, progress_file):
+    def _download(self, uri, file_path, show_progress, progress_file,
+                  hasher=None, expected_hash=None):
         if not os.path.isfile(file_path):
             temp_file = file_path + '._downloading_'
             try:
@@ -173,8 +174,20 @@ class CacheDir(object):
                     for chunk in req.iter_content(8192):
                         if chunk:
                             f.write(chunk)
+                            if hasher is not None:
+                                hasher.update(chunk)
                             if t is not None:
                                 t.update(len(chunk))
+
+                    if hasher is not None:
+                        got_hash = hasher.hexdigest()
+                        if got_hash != expected_hash:
+                            raise IOError(
+                                'Hash not match for file downloaded from {}: '
+                                '{} vs expected {}'.
+                                format(uri, got_hash, expected_hash)
+                            )
+
             except BaseException:
                 if not show_progress:
                     progress_file.write('error\n')
@@ -190,7 +203,7 @@ class CacheDir(object):
         return file_path
 
     def download(self, uri, filename=None, show_progress=None,
-                 progress_file=sys.stderr):
+                 progress_file=sys.stderr, hasher=None, expected_hash=None):
         """
         Download a file into this :class:`CacheDir`.
 
@@ -206,6 +219,10 @@ class CacheDir(object):
                 if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
+            hasher: A hasher algorithm instance from `hashlib`.
+                If specified, will compute the hash of downloaded content,
+                and validate against `expected_hash`.
+            expected_hash (str): The expected hash of downloaded content.
 
         Returns:
             str: The absolute path of the downloaded file.
@@ -224,7 +241,8 @@ class CacheDir(object):
         with self._lock_file(file_path):
             return self._download(
                 uri, file_path, show_progress=show_progress,
-                progress_file=progress_file
+                progress_file=progress_file, hasher=hasher,
+                expected_hash=expected_hash
             )
 
     def _extract_file(self, archive_file, extract_path, show_progress,
@@ -295,7 +313,8 @@ class CacheDir(object):
             )
 
     def download_and_extract(self, uri, filename=None, extract_dir=None,
-                             show_progress=None, progress_file=sys.stderr):
+                             show_progress=None, progress_file=sys.stderr,
+                             hasher=None, expected_hash=None):
         """
         Download a file into this :class:`CacheDir`, and extract it.
 
@@ -315,6 +334,10 @@ class CacheDir(object):
                 if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
+            hasher: A hasher algorithm instance from `hashlib`.
+                If specified, will compute the hash of downloaded content,
+                and validate against `expected_hash`.
+            expected_hash (str): The expected hash of downloaded content.
 
         Returns:
             str: The absolute path of the extracted directory.
@@ -338,7 +361,8 @@ class CacheDir(object):
             if not os.path.isdir(extract_path):
                 archive_file = self._download(
                     uri, file_path, show_progress=show_progress,
-                    progress_file=progress_file
+                    progress_file=progress_file, hasher=hasher,
+                    expected_hash=expected_hash
                 )
                 self._extract_file(
                     archive_file, extract_path, show_progress=show_progress,

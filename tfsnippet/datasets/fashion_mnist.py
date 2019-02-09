@@ -6,22 +6,22 @@ import idx2numpy
 
 from tfsnippet.utils import CacheDir
 
-__all__ = ['load_mnist']
+__all__ = ['load_fashion_mnist']
 
 
-TRAIN_X_URI = 'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz'
-TRAIN_X_MD5 = 'f68b3c2dcbeaaa9fbdd348bbdeb94873'
-TRAIN_Y_URI = 'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz'
-TRAIN_Y_MD5 = 'd53e105ee54ea40749a09fcbcd1e9432'
-TEST_X_URI = 'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz'
-TEST_X_MD5 = '9fb629c4189551a2d022fa330f9573f3'
-TEST_Y_URI = 'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz'
-TEST_Y_MD5 = 'ec29112dd5afa0611ce80d1b7f02629c'
+TRAIN_X_URI = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz'
+TRAIN_X_MD5 = '8d4fb7e6c68d591d4c3dfef9ec88bf0d'
+TRAIN_Y_URI = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz'
+TRAIN_Y_MD5 = '25c81989df183df01b3e8a0aad5dffbe'
+TEST_X_URI = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz'
+TEST_X_MD5 = 'bef4ecab320f06d8554ea6380940ec79'
+TEST_Y_URI = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz'
+TEST_Y_MD5 = 'bb300cfdad3c16e7a12a480ee83cd310'
 
 
 def _fetch_array(uri, md5):
     """Fetch an MNIST array from the `uri` with cache."""
-    path = CacheDir('mnist').download(
+    path = CacheDir('fashion_mnist').download(
         uri, hasher=hashlib.md5(), expected_hash=md5)
     with gzip.open(path, 'rb') as f:
         return idx2numpy.convert_from_file(f)
@@ -35,10 +35,12 @@ def _validate_x_shape(x_shape):
     return x_shape
 
 
-def load_mnist(x_shape=(784,), x_dtype=np.float32, y_dtype=np.int32,
+def load_fashion_mnist(x_shape=(784,), x_dtype=np.float32, y_dtype=np.int32,
                normalize_x=False):
     """
-    Load the MNIST dataset as NumPy arrays.
+    Load the Fashion MNIST dataset as NumPy arrays.
+
+    Homepage: https://github.com/zalandoresearch/fashion-mnist
 
     Args:
         x_shape: Reshape each digit into this shape.  Default ``(784,)``.

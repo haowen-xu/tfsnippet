@@ -1,3 +1,4 @@
+import hashlib
 import mimetypes
 import os
 import shutil
@@ -224,6 +225,52 @@ class CacheDirTestCase(unittest.TestCase):
                     out_file.getvalue(),
                     'Downloading ' + url + 'not-exist.zip ... error\n'
                 )
+
+    def test_download_validate_hash(self):
+        def compute_hash(hasher, path):
+            with open(path, 'rb') as f:
+                hasher.update(f.read())
+            return hasher.hexdigest()
+
+        with TemporaryDirectory() as tmpdir:
+            cache_dir = CacheDir('sub-dir', cache_root=tmpdir)
+            payload_zip_md5 = compute_hash(
+                hashlib.md5(), get_asset_path('payload.zip'))
+            payload_tar_sha1 = compute_hash(
+                hashlib.sha1(), get_asset_path('payload.tar'))
+
+            with assets_server() as (server, url):
+                # test md5 okay
+                path = cache_dir.download(url + 'payload.zip',
+                                          show_progress=True,
+                                          hasher=hashlib.md5(),
+                                          expected_hash=payload_zip_md5)
+                cache_path = os.path.join(cache_dir.path, 'payload.zip')
+                self.assertEqual(path, cache_path)
+                self.assertTrue(os.path.isfile(cache_path))
+                self.assertEqual(compute_hash(hashlib.md5(), cache_path),
+                                 payload_zip_md5)
+
+                # test md5 mismatch
+                with pytest.raises(IOError,
+                                   match='Hash not match for file downloaded '
+                                         'from {}payload.tar'.format(url)):
+                    _ = cache_dir.download(url + 'payload.tar',
+                                           show_progress=True,
+                                           hasher=hashlib.md5(),
+                                           expected_hash=payload_tar_sha1)
+                cache_path = os.path.join(cache_dir.path, 'payload.tar')
+                self.assertFalse(os.path.isfile(cache_path))
+
+                # test sha1 okay
+                path = cache_dir.download(url + 'payload.tar',
+                                          show_progress=True,
+                                          hasher=hashlib.sha1(),
+                                          expected_hash=payload_tar_sha1)
+                self.assertEqual(path, cache_path)
+                self.assertTrue(os.path.isfile(cache_path))
+                self.assertEqual(compute_hash(hashlib.sha1(), cache_path),
+                                 payload_tar_sha1)
 
     @mock.patch('tfsnippet.utils.caching.Extractor', PatchedExtractor)
     def test_extract_file(self):
