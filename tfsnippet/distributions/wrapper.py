@@ -61,29 +61,18 @@ class ZhuSuanDistribution(Distribution):
         if not isinstance(distribution, zhusuan.distributions.Distribution):
             raise TypeError('`distribution` is not an instance of `zhusuan.'
                             'distributions.Distribution`')
-        super(ZhuSuanDistribution, self).__init__()
         self._distribution = distribution
+        super(ZhuSuanDistribution, self).__init__(
+            dtype=distribution.dtype,
+            is_continuous=distribution.is_continuous,
+            is_reparameterized=distribution.is_reparameterized,
+            batch_shape=distribution.batch_shape,
+            batch_static_shape=distribution.get_batch_shape(),
+            value_ndims=distribution.get_value_shape().ndims
+        )
 
     def __repr__(self):
         return 'Distribution({!r})'.format(self._distribution)
-
-    @property
-    def dtype(self):
-        return self._distribution.dtype
-
-    @property
-    def is_continuous(self):
-        return self._distribution.is_continuous
-
-    @property
-    def is_reparameterized(self):
-        return self._distribution.is_reparameterized
-
-    @property
-    def value_ndims(self):
-        value_shape = self._distribution.get_value_shape()
-        assert(value_shape.ndims is not None)
-        return int(value_shape.ndims)
 
     # @property
     # def value_shape(self):
@@ -103,9 +92,9 @@ class ZhuSuanDistribution(Distribution):
                compute_density=None, name=None):
         from tfsnippet.stochastic import StochasticTensor
 
-        if is_reparameterized and not self.is_reparameterized:
-            raise RuntimeError('Distribution is not re-parameterized')
-        elif is_reparameterized is False and self.is_reparameterized:
+        self._validate_sample_is_reparameterized_arg(is_reparameterized)
+
+        if is_reparameterized is False and self.is_reparameterized:
             @contextlib.contextmanager
             def set_is_reparameterized():
                 try:

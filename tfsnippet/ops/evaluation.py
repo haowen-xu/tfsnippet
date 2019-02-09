@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
+from tfsnippet.utils import convert_to_tensor_and_cast
+
 __all__ = ['bits_per_dimension']
 
 
@@ -29,9 +31,7 @@ def bits_per_dimension(log_p, value_size, scale=256., name=None):
 
     with tf.name_scope(name, default_name='bits_per_dimension', values=[log_p]):
         if scale is not None:
-            scale = tf.convert_to_tensor(scale)
-            if scale.dtype != dtype:
-                scale = tf.cast(scale, dtype=dtype)
+            scale = convert_to_tensor_and_cast(scale, dtype)
             nll = tf.log(scale) * value_size - log_p
         else:
             nll = -log_p

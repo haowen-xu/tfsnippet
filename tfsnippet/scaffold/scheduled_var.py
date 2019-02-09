@@ -3,7 +3,8 @@ import tensorflow as tf
 from tfsnippet.utils import (DocInherit,
                              TensorWrapper,
                              register_tensor_wrapper_class,
-                             get_default_session_or_error)
+                             get_default_session_or_error,
+                             convert_to_tensor_and_cast)
 
 __all__ = ['ScheduledVariable', 'AnnealingVariable']
 
@@ -33,9 +34,7 @@ class ScheduledVariable(TensorWrapper):
         with tf.name_scope('ScheduledVariable.init'):
             dtype = tf.as_dtype(dtype)
 
-            initial_value = tf.convert_to_tensor(initial_value)
-            if initial_value.dtype != dtype:
-                initial_value = tf.cast(initial_value, dtype=dtype)
+            initial_value = convert_to_tensor_and_cast(initial_value, dtype)
 
             collections = list(collections or ())
             collections += [tf.GraphKeys.GLOBAL_VARIABLES]
@@ -151,16 +150,12 @@ class AnnealingVariable(ScheduledVariable):
         )
 
     def _init(self, name, initial_value, dtype, collections):
-        ratio = tf.convert_to_tensor(self._self_ratio)
-        if ratio.dtype != dtype:
-            ratio = tf.cast(ratio, dtype=dtype)
+        ratio = convert_to_tensor_and_cast(self._self_ratio, dtype)
         self._self_ratio = ratio
 
         min_value = self._self_min_value
         if min_value is not None:
-            min_value = tf.convert_to_tensor(min_value)
-            if min_value.dtype != dtype:
-                min_value = tf.cast(min_value, dtype=dtype)
+            min_value = convert_to_tensor_and_cast(min_value, dtype)
             initial_value = tf.maximum(initial_value, min_value)
         self._self_min_value = min_value
 

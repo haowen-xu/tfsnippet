@@ -13,7 +13,7 @@ class FlowDistributionTestCase(tf.test.TestCase):
 
     def test_errors(self):
         # errors in constructor
-        normal = Normal(mean=0., std=1.)
+        normal = Normal(mean=tf.zeros([3]), std=1.)
         with pytest.raises(TypeError, match='`flow` is not an instance of '
                                             '`BaseFlow`: 123'):
             _ = FlowDistribution(normal, 123)

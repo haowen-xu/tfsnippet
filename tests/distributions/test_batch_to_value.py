@@ -21,27 +21,44 @@ class BatchToValueDistributionTestCase(tf.test.TestCase):
                            match='`ndims` must be non-negative integers'):
             _ = normal.expand_value_ndims(-1)
 
+    def test_ndims_exceed_limit(self):
+        normal = Normal(mean=tf.zeros([3, 4]), logstd=0.)
+
+        with pytest.raises(ValueError, match='`distribution.batch_shape.ndims` '
+                                             'is less then `ndims`'):
+            _ = normal.expand_value_ndims(3)
+
     def test_transform_on_transformed(self):
-        normal = Normal(mean=tf.zeros([3, 4, 5]), logstd=0.)
-        self.assertEqual(normal.value_ndims, 0)
+        with self.test_session() as sess:
+            normal = Normal(mean=tf.zeros([3, 4, 5]), logstd=0.)
+            self.assertEqual(normal.value_ndims, 0)
+            self.assertEqual(normal.get_batch_shape().as_list(), [3, 4, 5])
+            self.assertEqual(list(sess.run(normal.batch_shape)), [3, 4, 5])
 
-        distrib = normal.batch_ndims_to_value(0)
-        self.assertIs(distrib, normal)
+            distrib = normal.batch_ndims_to_value(0)
+            self.assertIs(distrib, normal)
 
-        distrib = normal.batch_ndims_to_value(1)
-        self.assertIsInstance(distrib, BatchToValueDistribution)
-        self.assertEqual(distrib.value_ndims, 1)
-        self.assertIs(distrib.base_distribution, normal)
+            distrib = normal.batch_ndims_to_value(1)
+            self.assertIsInstance(distrib, BatchToValueDistribution)
+            self.assertEqual(distrib.value_ndims, 1)
+            self.assertEqual(distrib.get_batch_shape().as_list(), [3, 4])
+            self.assertEqual(list(sess.run(distrib.batch_shape)), [3, 4])
+            self.assertIs(distrib.base_distribution, normal)
 
-        distrib2 = distrib.expand_value_ndims(1)
-        self.assertIsInstance(distrib2, BatchToValueDistribution)
-        self.assertEqual(distrib2.value_ndims, 2)
-        self.assertIs(distrib.base_distribution, normal)
+            distrib2 = distrib.expand_value_ndims(1)
+            self.assertIsInstance(distrib2, BatchToValueDistribution)
+            self.assertEqual(distrib2.value_ndims, 2)
+            self.assertEqual(distrib2.get_batch_shape().as_list(), [3])
+            self.assertEqual(list(sess.run(distrib2.batch_shape)), [3])
+            self.assertIs(distrib.base_distribution, normal)
 
-        distrib2 = distrib.expand_value_ndims(0)
-        self.assertIs(distrib2, distrib)
-        self.assertEqual(distrib2.value_ndims, 1)
-        self.assertIs(distrib.base_distribution, normal)
+            distrib2 = distrib.expand_value_ndims(0)
+            self.assertIs(distrib2, distrib)
+            self.assertEqual(distrib2.value_ndims, 1)
+            self.assertEqual(distrib.value_ndims, 1)
+            self.assertEqual(distrib2.get_batch_shape().as_list(), [3, 4])
+            self.assertEqual(list(sess.run(distrib2.batch_shape)), [3, 4])
+            self.assertIs(distrib.base_distribution, normal)
 
     def test_with_normal(self):
         mean = np.random.normal(size=[4, 5]).astype(np.float64)
@@ -54,6 +71,8 @@ class BatchToValueDistributionTestCase(tf.test.TestCase):
 
             self.assertIsInstance(distrib, BatchToValueDistribution)
             self.assertEqual(distrib.value_ndims, 1)
+            self.assertEqual(distrib.get_batch_shape().as_list(), [4])
+            self.assertEqual(list(sess.run(distrib.batch_shape)), [4])
             self.assertEqual(distrib.dtype, tf.float64)
             self.assertTrue(distrib.is_continuous)
             self.assertTrue(distrib.is_reparameterized)
@@ -99,6 +118,8 @@ class BatchToValueDistributionTestCase(tf.test.TestCase):
 
             self.assertIsInstance(distrib, BatchToValueDistribution)
             self.assertEqual(distrib.value_ndims, 2)
+            self.assertEqual(distrib.get_batch_shape().as_list(), [4])
+            self.assertEqual(list(sess.run(distrib.batch_shape)), [4])
             self.assertEqual(distrib.dtype, tf.int32)
             self.assertFalse(distrib.is_continuous)
             self.assertFalse(distrib.is_reparameterized)

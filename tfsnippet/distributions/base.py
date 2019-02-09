@@ -40,6 +40,24 @@ class Distribution(object):
     individual sample resulting in an individual density value.
     """
 
+    def __init__(self, dtype, is_continuous, is_reparameterized, batch_shape,
+                 batch_static_shape, value_ndims):
+        assert(isinstance(batch_static_shape, tf.TensorShape))
+        # currently we do not support non-deterministic ndims
+        assert(batch_static_shape.ndims is not None)
+        # assert(isinstance(value_static_shape, tf.TensorShape))
+        # value_ndims = value_static_shape.ndims
+        assert(value_ndims is not None)
+
+        self._dtype = dtype
+        self._is_continuous = is_continuous
+        self._is_reparameterized = is_reparameterized
+        self._batch_shape = batch_shape
+        self._batch_static_shape = batch_static_shape
+        # self._value_shape = value_shape
+        # self._value_static_shape = value_static_shape
+        self._value_ndims = value_ndims
+
     @property
     def dtype(self):
         """
@@ -48,7 +66,7 @@ class Distribution(object):
         Returns:
             tf.DType: Data type of the samples.
         """
-        raise NotImplementedError()
+        return self._dtype
 
     @property
     def is_continuous(self):
@@ -58,7 +76,7 @@ class Distribution(object):
         Returns:
             bool: A boolean indicating whether it is continuous.
         """
-        raise NotImplementedError()
+        return self._is_continuous
 
     @property
     def is_reparameterized(self):
@@ -74,7 +92,7 @@ class Distribution(object):
         Returns:
             bool: A boolean indicating whether it is re-parameterized.
         """
-        raise NotImplementedError()
+        return self._is_reparameterized
 
     @property
     def value_ndims(self):
@@ -84,7 +102,7 @@ class Distribution(object):
         Returns:
             int: The number of value dimensions in samples.
         """
-        raise NotImplementedError()
+        return self._value_ndims
 
     def expand_value_ndims(self, ndims):
         """
@@ -115,16 +133,7 @@ class Distribution(object):
 
     batch_ndims_to_value = expand_value_ndims
 
-    # These four properties represent important concepts of a Distribution,
-    # however, we temporarily comment out them, because:
-    #
-    # 1. At the moment, they are not necessary for other utilities of TFSnippet.
-    # 2. We borrow the concepts of these properties from ZhuSuan, however, their
-    #    implementation is terrible.  For example, `value_shape` is a property,
-    #    but in ZhuSuan, it is not cached, and will add TensorFlow graph nodes
-    #    every time you call it.  This disobeys the conventions of a property.
-    # 3. As for `FlowDistribution`, it requires more careful discussion about
-    #    what these properties should represent.
+    # TODO: implement value_shape and get_value_shape()
 
     # @property
     # def value_shape(self):
@@ -134,7 +143,7 @@ class Distribution(object):
     #     Returns:
     #         tf.Tensor: The value shape as tensor.
     #     """
-    #     raise NotImplementedError()
+    #     return self._value_shape
     #
     # def get_value_shape(self):
     #     """
@@ -143,26 +152,30 @@ class Distribution(object):
     #     Returns:
     #         tf.TensorShape: The static value shape.
     #     """
-    #     raise NotImplementedError()
-    #
-    # @property
-    # def batch_shape(self):
-    #     """
-    #     Get the batch shape of the samples.
-    #
-    #     Returns:
-    #         tf.Tensor: The batch shape as tensor.
-    #     """
-    #     raise NotImplementedError()
-    #
-    # def get_batch_shape(self):
-    #     """
-    #     Get the static batch shape of the samples.
-    #
-    #     Returns:
-    #         tf.TensorShape: The batch shape.
-    #     """
-    #     raise NotImplementedError()
+    #     return self._value_static_shape
+
+    @property
+    def batch_shape(self):
+        """
+        Get the batch shape of the samples.
+
+        Returns:
+            tf.Tensor: The batch shape as tensor.
+        """
+        return self._batch_shape
+
+    def get_batch_shape(self):
+        """
+        Get the static batch shape of the samples.
+
+        Returns:
+            tf.TensorShape: The batch shape.
+        """
+        return self._batch_static_shape
+
+    def _validate_sample_is_reparameterized_arg(self, is_reparameterized):
+        if is_reparameterized and not self.is_reparameterized:
+            raise RuntimeError('{} is not re-parameterized.'.format(self))
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):

@@ -46,6 +46,17 @@ class FlowDistribution(Distribution):
         self._flow = flow
         self._distribution = distribution
 
+        tmp_distrib = distribution.expand_value_ndims(
+            flow.x_value_ndims - distribution.value_ndims)
+        super(FlowDistribution, self).__init__(
+            dtype=distribution.dtype,
+            is_continuous=distribution.is_continuous,
+            is_reparameterized=distribution.is_reparameterized,
+            batch_shape=tmp_distrib.batch_shape,
+            batch_static_shape=tmp_distrib.get_batch_shape(),
+            value_ndims=flow.y_value_ndims,
+        )
+
     @property
     def flow(self):
         """
@@ -65,22 +76,6 @@ class FlowDistribution(Distribution):
             Distribution: The base distribution to transform from.
         """
         return self._distribution
-
-    @property
-    def dtype(self):
-        return self._distribution.dtype
-
-    @property
-    def is_continuous(self):
-        return self._distribution.is_continuous
-
-    @property
-    def is_reparameterized(self):
-        return self._distribution.is_reparameterized
-
-    @property
-    def value_ndims(self):
-        return self._flow.y_value_ndims
 
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
