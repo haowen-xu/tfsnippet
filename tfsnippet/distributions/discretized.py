@@ -2,7 +2,8 @@ import tensorflow as tf
 
 from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.utils import (convert_to_tensor_and_cast, is_tensor_object,
-                             maybe_check_numerics)
+                             maybe_check_numerics, broadcast_to_shape,
+                             get_shape)
 from .base import Distribution
 from .utils import (compute_density_immediately, maybe_clip_value,
                     reduce_group_ndims)
@@ -15,15 +16,46 @@ def is_integer_number(n):
 
 
 class DiscretizedLogistic(Distribution):
-    """"""
+    """
+    Discretized logistic distribution (Kingma et. al, 2016).
+
+    For discrete value `x` with equal intervals::
+
+        p(x) = sigmoid((x - mean + bin_size * 0.5) / scale) -
+            sigmoid((x - mean - bin_size * 0.5) / scale)
+
+    where `delta` is the interval between two possible values of `x`.
+
+    The `min_val` and `max_val` specifies the minimum and maximum possible
+    value of `x`.  It should constraint the generated samples, and if
+    `biased_edges` is True, then::
+
+        p(x_min) = sigmoid((x_min - mean + bin_size * 0.5) / scale)
+        p(x_max) = 1 - sigmoid((x_max - mean - bin_size * 0.5) / scale)
+    """
 
     def __init__(self, mean, log_scale, bin_size, min_val=None, max_val=None,
                  dtype=tf.float32, biased_edges=True, epsilon=1e-7):
+        """
+        Construct a new :class:`DiscretizedLogistic`.
+
+        Args:
+            mean: A Tensor, the `mean`.
+            log_scale: A Tensor, the `log(scale)`.
+            bin_size: A scalar, the `bin_size`.
+            min_val: A scalar, the minimum possible value of `x`.
+            max_val: A scalar, the maximum possible value of `x`.
+            dtype: The data type of `x`.
+            biased_edges: Whether or not to use bias density for edge values?
+                See above.
+            epsilon: Small float to avoid dividing by zero or taking
+                logarithm of zero.
+        """
         # check the arguments
         mean = tf.convert_to_tensor(mean)
+        param_dtype = mean.dtype
         log_scale = tf.convert_to_tensor(log_scale)
         dtype = tf.as_dtype(dtype)
-        param_dtype = mean.dtype
 
         if not is_integer_number(bin_size) and not dtype.is_floating:
             raise ValueError(
@@ -59,12 +91,18 @@ class DiscretizedLogistic(Distribution):
                                                      tf.shape(log_scale))
 
         # memorize the arguments and call parent constructor
+        bin_size = convert_to_tensor_and_cast(bin_size, param_dtype)
+        if min_val is not None:
+            min_val = convert_to_tensor_and_cast(min_val, param_dtype)
+        if max_val is not None:
+            max_val = convert_to_tensor_and_cast(max_val, param_dtype)
+
         self._mean = mean
         self._log_scale = log_scale
         self._param_dtype = param_dtype
-        self._bin_size = convert_to_tensor_and_cast(bin_size, param_dtype)
-        self._min_val = convert_to_tensor_and_cast(min_val, param_dtype)
-        self._max_val = convert_to_tensor_and_cast(max_val, param_dtype)
+        self._bin_size = bin_size
+        self._min_val = min_val
+        self._max_val = max_val
         self._biased_edges = bool(biased_edges)
         self._epsilon = epsilon
 
@@ -102,6 +140,11 @@ class DiscretizedLogistic(Distribution):
         """Get the maximum value."""
         return self._max_val
 
+    @property
+    def biased_edges(self):
+        """Whether or not to use biased density for edge values?"""
+        return self._biased_edges
+
     def sample(self, n_samples=None, group_ndims=0, is_reparameterized=None,
                compute_density=None, name=None):
         self._validate_sample_is_reparameterized_arg(is_reparameterized)
@@ -116,15 +159,14 @@ class DiscretizedLogistic(Distribution):
                     [None if is_tensor_object(n_samples) else n_samples]). \
                     concatenate(static_sample_shape)
 
-            u = tf.random_uniform(shape=sample_shape, dtype=self._param_dtype)
+            u = tf.random_uniform(
+                shape=sample_shape, minval=self._epsilon,
+                maxval=1. - self._epsilon, dtype=self._param_dtype)
             u.set_shape(static_sample_shape)
 
             # inverse CDF of the logistic
             inverse_logistic_cdf = maybe_check_numerics(
-                tf.log(tf.maximum(u, self._epsilon)) -
-                tf.log(tf.maximum(1. - u, self._epsilon)),
-                'inverse_logistic_cdf'
-            )
+                tf.log(u) - tf.log(1. - u), 'inverse_logistic_cdf')
 
             # obtain the actual sample
             scale = maybe_check_numerics(
@@ -188,23 +230,28 @@ class DiscretizedLogistic(Distribution):
                 # the mean value theorem for integration.
                 x_mid + log_delta - 2. * tf.nn.softplus(x_mid)
             )
-            log_prob = middle_bins_pdf
+            log_prob = maybe_check_numerics(middle_bins_pdf, 'middle_bins_pdf')
+
+            # broadcasted given, shape == x_mid
+            broadcast_given = broadcast_to_shape(given, get_shape(x_mid))
 
             # the left-edge bin case
             #   log(sigmoid(x_high) - sigmoid(-infinity))
             if self._biased_edges and self.min_val is not None:
                 left_edge = self._min_val + half_bin
-                left_edge_pdf = -tf.nn.softplus(-x_high)
+                left_edge_pdf = maybe_check_numerics(
+                    -tf.nn.softplus(-x_high), 'left_edge_pdf')
                 log_prob = tf.where(
-                    given < left_edge, left_edge_pdf, log_prob)
+                    broadcast_given < left_edge, left_edge_pdf, log_prob)
 
             # the right-edge bin case
             #   log(sigmoid(infinity) - sigmoid(x_low))
             if self._biased_edges and self.max_val is not None:
                 right_edge = self._max_val - half_bin
-                right_edge_pdf = -tf.nn.softplus(x_low)
+                right_edge_pdf = maybe_check_numerics(
+                    -tf.nn.softplus(x_low), 'right_edge_pdf')
                 log_prob = tf.where(
-                    given >= right_edge, right_edge_pdf, log_prob)
+                    broadcast_given >= right_edge, right_edge_pdf, log_prob)
 
             # now reduce the group_ndims
             log_prob = reduce_group_ndims(tf.reduce_sum, log_prob, group_ndims)
