@@ -35,8 +35,8 @@ def _validate_x_shape(x_shape):
     return x_shape
 
 
-def load_fashion_mnist(x_shape=(784,), x_dtype=np.float32, y_dtype=np.int32,
-               normalize_x=False):
+def load_fashion_mnist(x_shape=(28, 28), x_dtype=np.float32,
+                       y_dtype=np.int32, normalize_x=False):
     """
     Load the Fashion MNIST dataset as NumPy arrays.
 

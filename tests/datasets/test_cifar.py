@@ -3,11 +3,13 @@ import unittest
 import numpy as np
 import pytest
 
+from tests.datasets.helper import skipUnlessRunDatasetsTests
 from tfsnippet.datasets import *
 
 
 class CifarTestCase(unittest.TestCase):
 
+    @skipUnlessRunDatasetsTests()
     def test_fetch_cifar10(self):
         # test channels_last = True, normalize_x = False
         (train_x, train_y), (test_x, test_y) = load_cifar10()
@@ -38,6 +40,7 @@ class CifarTestCase(unittest.TestCase):
                            match='`x_shape` does not product to 3072'):
             _ = load_cifar10(x_shape=(1, 2, 3))
 
+    @skipUnlessRunDatasetsTests()
     def test_fetch_cifar100(self):
         # test channels_last = True, normalize_x = False
         (train_x, train_y), (test_x, test_y) = load_cifar100()

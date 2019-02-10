@@ -35,13 +35,13 @@ def _validate_x_shape(x_shape):
     return x_shape
 
 
-def load_mnist(x_shape=(784,), x_dtype=np.float32, y_dtype=np.int32,
+def load_mnist(x_shape=(28, 28), x_dtype=np.float32, y_dtype=np.int32,
                normalize_x=False):
     """
     Load the MNIST dataset as NumPy arrays.
 
     Args:
-        x_shape: Reshape each digit into this shape.  Default ``(784,)``.
+        x_shape: Reshape each digit into this shape.  Default ``(28, 28, 1)``.
         x_dtype: Cast each digit into this data type.  Default `np.float32`.
         y_dtype: Cast each label into this data type.  Default `np.int32`.
         normalize_x (bool): Whether or not to normalize x into ``[0, 1]``,
