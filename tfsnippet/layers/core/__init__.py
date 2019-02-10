@@ -1,5 +1,6 @@
 from .dense_ import *
+from .gated import *
 
 __all__ = [
-    'dense',
+    'as_gated', 'dense', 'gated_dense',
 ]

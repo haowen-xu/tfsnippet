@@ -10,11 +10,12 @@ from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
                              add_name_and_scope_arg_doc, model_variable,
                              maybe_check_numerics, maybe_add_histogram)
 from .utils import *
+from ..core import as_gated
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
 __all__ = [
-    'conv2d', 'deconv2d',
+    'conv2d', 'deconv2d', 'gated_conv2d', 'gated_deconv2d',
 ]
 
 
@@ -440,3 +441,91 @@ def deconv2d(input,
         output = maybe_check_numerics(output, 'output')
 
     return output
+
+
+@add_arg_scope
+@add_name_and_scope_arg_doc
+def gated_conv2d(input,
+                 out_channels,
+                 kernel_size,
+                 sigmoid_bias=2.,
+                 activation_fn=None,
+                 **kwargs):
+    """
+    Gated 2D convolutional layer.
+
+    In brief::
+
+        gated_dense = lambda x: (
+            sigmoid(sigmoid_bias + conv2d(x, out_channels, kernel_size)) *
+            conv2d(x, out_channels, kernel_size, activation_fn=activation_fn)
+        )
+
+    See :func:`conv2d` for more details about the arguments.
+
+    Args:
+        input (Tensor): The input tensor, at least 4-d.
+        out_channels (int): The channel numbers of the deconvolution output.
+        kernel_size (int or (int, int)): Kernel size over spatial dimensions.
+        sigmoid_bias: The constant bias added to the `gate` before
+            applying the sigmoid activation.
+        activation_fn: The activation function.
+        \\**kwargs: Other named arguments to be passed to :func:`conv2d`.
+
+    Returns:
+        tf.Tensor: The output tensor.
+    """
+    if 'kernel' in kwargs or 'bias' in kwargs:
+        raise ValueError('The `kernel` and `bias` argument are not supported.')
+
+    return as_gated(conv2d, sigmoid_bias=sigmoid_bias)(
+        input=input,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        activation_fn=activation_fn,
+        **kwargs
+    )
+
+
+@add_arg_scope
+@add_name_and_scope_arg_doc
+def gated_deconv2d(input,
+                   out_channels,
+                   kernel_size,
+                   sigmoid_bias=2.,
+                   activation_fn=None,
+                   **kwargs):
+    """
+    Gated 2D deconvolutional layer.
+
+    In brief::
+
+        gated_dense = lambda x: (
+            sigmoid(sigmoid_bias + deconv2d(x, out_channels, kernel_size)) *
+            deconv2d(x, out_channels, kernel_size, activation_fn=activation_fn)
+        )
+
+    See :func:`deonv2d` for more details about the arguments.
+
+    Args:
+        input (Tensor): The input tensor, at least 4-d.
+        out_channels (int): The channel numbers of the deconvolution output.
+        kernel_size (int or (int, int)): Kernel size over spatial dimensions.
+        sigmoid_bias: The constant bias added to the `gate` before
+            applying the sigmoid activation.
+        activation_fn: The activation function.
+        \\**kwargs: Other named arguments to be passed to :func:`deconv2d`.
+
+    Returns:
+        tf.Tensor: The output tensor.
+    """
+    if 'kernel' in kwargs or 'bias' in kwargs:
+        raise ValueError('The `kernel` and `bias` argument are not supported.')
+
+    return as_gated(deconv2d, sigmoid_bias=sigmoid_bias)(
+        input=input,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        activation_fn=activation_fn,
+        **kwargs
+    )

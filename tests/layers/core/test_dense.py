@@ -1,9 +1,11 @@
 import numpy as np
+import pytest
 import tensorflow as tf
+from mock import Mock, mock
 
 from tests.helper import assert_variables
 from tests.layers.helper import l2_normalize
-from tfsnippet.layers import dense
+from tfsnippet.layers import dense, as_gated, gated_dense, l2_regularizer
 from tfsnippet.utils import get_static_shape
 
 
@@ -153,3 +155,35 @@ class DenseTestCase(tf.test.TestCase):
                 ans,
                 rtol=1e-5
             )
+
+
+class GatedDenseTestCase(tf.test.TestCase):
+
+    def test_gated_dense(self):
+        as_gated_ret = [None]
+
+        def patched_as_gated(*args, **kwargs):
+            as_gated_ret[0] = Mock(wraps=as_gated(*args, **kwargs))
+            return as_gated_ret[0]
+
+        with mock.patch('tfsnippet.layers.core.dense_.as_gated',
+                        Mock(wraps=patched_as_gated)) as m:
+            x = tf.zeros([7, 3])
+            kernel_regularizer = l2_regularizer(0.001)
+            y = gated_dense(
+                x, 5, sigmoid_bias=1., activation_fn=tf.nn.relu,
+                kernel_regularizer=kernel_regularizer
+            )
+            self.assertEqual(y.get_shape().as_list(), [7, 5])
+            self.assertEqual(m.call_args, ((dense,), {'sigmoid_bias': 1.}))
+            self.assertEqual(as_gated_ret[0].call_args, ((), {
+                'input': x,
+                'units': 5,
+                'activation_fn': tf.nn.relu,
+                'kernel_regularizer': kernel_regularizer,
+            }))
+
+            with pytest.raises(ValueError,
+                               match='The `kernel` and `bias` argument are '
+                                     'not supported'):
+                _ = gated_dense(x, 5, kernel=tf.zeros([3, 5]))

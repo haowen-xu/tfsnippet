@@ -2,10 +2,11 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import *
+from .gated import as_gated
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
-__all__ = ['dense']
+__all__ = ['dense', 'gated_dense']
 
 
 @add_arg_scope
@@ -151,3 +152,41 @@ def dense(input, units,
         output = maybe_check_numerics(output, 'output')
 
     return output
+
+
+@add_arg_scope
+@add_name_and_scope_arg_doc
+def gated_dense(input, units, sigmoid_bias=2., activation_fn=None,
+                **kwargs):
+    """
+    Gated fully-connected layer.
+
+    In brief::
+
+        gated_dense = lambda x: (
+            sigmoid(sigmoid_bias + dense(x)) *
+            dense(x, activation_fn=activation_fn)
+        )
+
+    See :func:`dense` for more details about the arguments.
+
+    Args:
+        input (Tensor): The input tensor, at least 2-d.
+        units (int): Number of output units.
+        sigmoid_bias: The constant bias added to the `gate` before
+            applying the sigmoid activation.
+        activation_fn: The activation function.
+        \\**kwargs: Other named arguments to be passed to :func:`dense`.
+
+    Returns:
+        tf.Tensor: The output tensor.
+    """
+    if 'kernel' in kwargs or 'bias' in kwargs:
+        raise ValueError('The `kernel` and `bias` argument are not supported.')
+
+    return as_gated(dense, sigmoid_bias=sigmoid_bias)(
+        input=input,
+        units=units,
+        activation_fn=activation_fn,
+        **kwargs
+    )

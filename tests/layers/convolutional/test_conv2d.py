@@ -3,7 +3,7 @@ import functools
 import numpy as np
 import pytest
 import tensorflow as tf
-from mock import mock
+from mock import mock, Mock
 
 from tests.helper import assert_variables
 from tests.layers.convolutional.helper import *
@@ -527,3 +527,70 @@ class Deconv2dTestCase(tf.test.TestCase):
             assert_variables(['kernel'], trainable=True, scope='deconv2d',
                              collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['bias'], exist=False, scope='deconv2d')
+
+
+class GatedConv2dTestCase(tf.test.TestCase):
+
+    def test_gated_conv2d(self):
+        as_gated_ret = [None]
+
+        def patched_as_gated(*args, **kwargs):
+            as_gated_ret[0] = Mock(wraps=as_gated(*args, **kwargs))
+            return as_gated_ret[0]
+
+        with mock.patch('tfsnippet.layers.convolutional.conv2d_.as_gated',
+                        Mock(wraps=patched_as_gated)) as m:
+            x = tf.zeros([11, 7, 5, 3])
+            kernel_regularizer = l2_regularizer(0.001)
+            y = gated_conv2d(
+                x, 9, 1, sigmoid_bias=1.5, activation_fn=tf.nn.relu,
+                kernel_regularizer=kernel_regularizer
+            )
+            self.assertEqual(y.get_shape().as_list(), [11, 7, 5, 9])
+            self.assertEqual(m.call_args, ((conv2d,), {'sigmoid_bias': 1.5}))
+            self.assertEqual(as_gated_ret[0].call_args, ((), {
+                'input': x,
+                'out_channels': 9,
+                'kernel_size': 1,
+                'activation_fn': tf.nn.relu,
+                'kernel_regularizer': kernel_regularizer,
+            }))
+
+            with pytest.raises(ValueError,
+                               match='The `kernel` and `bias` argument are '
+                                     'not supported'):
+                _ = gated_conv2d(x, 9, 1, kernel=tf.zeros([3, 5]))
+
+
+class GatedDeconv2dTestCase(tf.test.TestCase):
+
+    def test_gated_deconv2d(self):
+        as_gated_ret = [None]
+
+        def patched_as_gated(*args, **kwargs):
+            as_gated_ret[0] = Mock(wraps=as_gated(*args, **kwargs))
+            return as_gated_ret[0]
+
+        with mock.patch('tfsnippet.layers.convolutional.conv2d_.as_gated',
+                        Mock(wraps=patched_as_gated)) as m:
+            x = tf.zeros([11, 7, 5, 3])
+            kernel_regularizer = l2_regularizer(0.001)
+            y = gated_deconv2d(
+                x, 9, 1, sigmoid_bias=1.5, activation_fn=tf.nn.relu,
+                kernel_regularizer=kernel_regularizer
+            )
+            self.assertEqual(y.get_shape().as_list(), [11, 7, 5, 9])
+            self.assertEqual(m.call_args, ((deconv2d,), {'sigmoid_bias': 1.5}))
+            self.assertEqual(as_gated_ret[0].call_args, ((), {
+                'input': x,
+                'out_channels': 9,
+                'kernel_size': 1,
+                'activation_fn': tf.nn.relu,
+                'kernel_regularizer': kernel_regularizer,
+            }))
+
+            with pytest.raises(ValueError,
+                               match='The `kernel` and `bias` argument are '
+                                     'not supported'):
+                _ = gated_deconv2d(x, 9, 1, kernel=tf.zeros([3, 5]))
+
