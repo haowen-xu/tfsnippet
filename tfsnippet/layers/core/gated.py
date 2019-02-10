@@ -51,7 +51,7 @@ def as_gated(layer_fn, sigmoid_bias=2., default_name=None):
         scope = kwargs.pop('scope', None)
         activation_fn = kwargs.pop('activation_fn', None)
 
-        with tf.name_scope(scope, default_name=name or default_name):
+        with tf.variable_scope(scope, default_name=name or default_name):
             # the gate branch
             gate_kwargs = copy.copy(kwargs)
             gate_kwargs['scope'] = 'gate'
