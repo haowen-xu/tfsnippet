@@ -85,7 +85,7 @@ def main():
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = \
-        spt.datasets.load_mnist(normalize_x=True)
+        spt.datasets.load_mnist(x_shape=[784], normalize_x=True)
     train_flow = spt.DataFlow.arrays([x_train, y_train], config.batch_size,
                                      shuffle=True, skip_incomplete=True)
     test_flow = spt.DataFlow.arrays([x_test, y_test], config.test_batch_size)

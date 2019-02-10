@@ -299,7 +299,8 @@ def main():
             results.update_metrics(cls_metrics)
 
     # prepare for training and testing data
-    (x_train, y_train), (x_test, y_test) = spt.datasets.load_mnist()
+    (x_train, y_train), (x_test, y_test) = \
+        spt.datasets.load_mnist(x_shape=[784])
     train_flow = bernoulli_flow(
         x_train, config.batch_size, shuffle=True, skip_incomplete=True)
     test_flow = bernoulli_flow(
