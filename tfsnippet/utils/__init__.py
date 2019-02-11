@@ -20,6 +20,7 @@ from .session import *
 from .settings_ import *
 from .shape_utils import *
 from .statistics import *
+from .summary_collector import *
 from .tensor_spec import *
 from .tensor_wrapper import *
 from .tfver import *
@@ -32,19 +33,19 @@ __all__ = [
     'Extractor', 'FloatConfigValidator', 'GraphKeys', 'InputSpec',
     'IntConfigValidator', 'InvertibleMatrix', 'NoReentrantContext',
     'ParamSpec', 'PermutationMatrix', 'RarExtractor', 'StatisticsCollector',
-    'StrConfigValidator', 'TFSnippetConfig', 'TarExtractor',
-    'TemporaryDirectory', 'TensorArgValidator', 'TensorWrapper',
-    'VarScopeObject', 'VarScopeRandomState', 'ZipExtractor',
-    'add_name_and_scope_arg_doc', 'add_name_arg_doc', 'append_arg_to_doc',
-    'append_to_doc', 'assert_deps', 'broadcast_to_shape',
-    'broadcast_to_shape_strict', 'camel_to_underscore', 'concat_shapes',
-    'convert_to_tensor_and_cast', 'create_session', 'deprecated',
-    'deprecated_arg', 'ensure_variables_initialized', 'flatten_to_ndims',
-    'get_batch_size', 'get_cache_root', 'get_config_defaults',
-    'get_config_validator', 'get_default_scope_name',
-    'get_default_session_or_error', 'get_dimension_size',
-    'get_dimensions_size', 'get_model_variables', 'get_rank',
-    'get_reuse_stack_top', 'get_shape', 'get_static_shape',
+    'StrConfigValidator', 'SummaryCollector', 'TFSnippetConfig',
+    'TarExtractor', 'TemporaryDirectory', 'TensorArgValidator',
+    'TensorWrapper', 'VarScopeObject', 'VarScopeRandomState', 'ZipExtractor',
+    'add_histogram', 'add_name_and_scope_arg_doc', 'add_name_arg_doc',
+    'add_summary', 'append_arg_to_doc', 'append_to_doc', 'assert_deps',
+    'broadcast_to_shape', 'broadcast_to_shape_strict', 'camel_to_underscore',
+    'concat_shapes', 'convert_to_tensor_and_cast', 'create_session',
+    'default_summary_collector', 'deprecated', 'deprecated_arg',
+    'ensure_variables_initialized', 'flatten_to_ndims', 'get_batch_size',
+    'get_cache_root', 'get_config_defaults', 'get_config_validator',
+    'get_default_scope_name', 'get_default_session_or_error',
+    'get_dimension_size', 'get_dimensions_size', 'get_model_variables',
+    'get_rank', 'get_reuse_stack_top', 'get_shape', 'get_static_shape',
     'get_uninitialized_variables', 'get_variable_ddi', 'get_variables_as_dict',
     'global_reuse', 'humanize_duration', 'instance_reuse', 'is_float',
     'is_integer', 'is_shape_equal', 'is_tensor_object',

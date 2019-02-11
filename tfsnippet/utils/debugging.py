@@ -61,35 +61,32 @@ def assert_deps(assert_ops):
 
 
 @add_name_arg_doc
-def maybe_add_histogram(tensor, summary_name=None, collections=None,
-                        strip_scope=False, name=None):
+def maybe_add_histogram(tensor, summary_name=None, strip_scope=False,
+                        collections=None, name=None):
     """
     If ``tfsnippet.settings.auto_histogram == True``, add the histogram
-    of `tensor` to `collections`.  Otherwise do nothing.
+    of `tensor` via :func:`tfsnippet.add_histogram`.  Otherwise do nothing.
 
     Args:
         tensor: Take histogram of this tensor.
         summary_name: Specify the summary name for `tensor`.
-        collections: Add the histogram to these collections. Defaults to
-            `[tfsnippet.GraphKeys.AUTO_HISTOGRAM]`.
         strip_scope: If :obj:`True`, strip the name scope from `tensor.name`
             when adding the histogram.
+        collections: Add the histogram to these collections. Defaults to
+            `[tfsnippet.GraphKeys.AUTO_HISTOGRAM]`.
 
     Returns:
-        The serialized histogram of tensor.
+        The serialized histogram tensor of `tensor`.
+
+    See Also:
+        :func:`tfsnippet.add_histogram`
     """
     from .settings_ import settings
+    from .summary_collector import add_histogram
     if settings.auto_histogram:
-        tensor = tf.convert_to_tensor(tensor)
-        with tf.name_scope(name, default_name='maybe_add_histogram',
-                           values=[tensor]):
-            collections = tuple(collections or (GraphKeys.AUTO_HISTOGRAM,))
-            if summary_name is None:
-                summary_name = tensor.name
-                summary_name = summary_name.replace(':', '_')
-                if summary_name.endswith('_0'):
-                    summary_name = summary_name[:-2]
-                if strip_scope:
-                    summary_name = summary_name.rsplit('/', 1)[-1]
-            return tf.summary.histogram(
-                summary_name, tensor, collections=collections)
+        if collections is None:
+            collections = (GraphKeys.AUTO_HISTOGRAM,)
+        return add_histogram(
+            tensor, summary_name=summary_name, collections=collections,
+            strip_scope=strip_scope, name=name or 'maybe_add_histogram'
+        )

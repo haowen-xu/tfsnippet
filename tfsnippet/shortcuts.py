@@ -9,6 +9,8 @@ from .utils.graph_keys import GraphKeys
 from .utils.model_vars import model_variable, get_model_variables
 from .utils.reuse import instance_reuse, global_reuse, VarScopeObject
 from .utils.settings_ import settings
+from .utils.summary_collector import (SummaryCollector, add_histogram,
+                                      add_summary, default_summary_collector)
 
 __all__ = [
     # from tfsnippet.dataflows
@@ -29,4 +31,8 @@ __all__ = [
 
     # from tfsnippet.utils.settings_
     'settings',
+
+    # from tfsnippet.utils.summary_collector
+    'SummaryCollector', 'add_histogram', 'add_summary',
+    'default_summary_collector',
 ]
