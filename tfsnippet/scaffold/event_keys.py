@@ -15,6 +15,12 @@ class EventKeys(object):
     # (TrainLoop) When time metrics have been collected.
     TIME_METRICS_COLLECTED = 'time_metrics_collected'
 
+    # (TrainLoop) When metric statistics have been printed.
+    METRIC_STATS_PRINTED = 'metric_stats_printed'
+
+    # (TrainLoop) When time metric statistics have been printed.
+    TIME_METRIC_STATS_PRINTED = 'time_metric_stats_printed'
+
     # (TrainLoop) When TensorFlow summary has been added.
     SUMMARY_ADDED = 'summary_added'
 

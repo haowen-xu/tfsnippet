@@ -110,6 +110,7 @@ class MetricLoggerTestCase(tf.test.TestCase):
         v = ScheduledVariable('v', 1.)
 
         logger = MetricLogger()
+        self.assertIsInstance(logger.metrics, dict)
         self.assertEqual(logger.format_logs(), '')
 
         with self.test_session() as sess:

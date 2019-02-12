@@ -24,6 +24,7 @@ __all__ = ['TrainLoop']
 
 EPOCH_TIME_METRIC = 'epoch_time'
 STEP_TIME_METRIC = 'step_time'
+TIME_METRIC_PATTERN = re.compile(r'.*(time|timer)$')
 TRAIN_LOOP_STATES_CKPT_NAME = '$$/tfsnippet_train_loop_states_variable'
 EARLY_STOPPING_STATES_CKPT_NAME = '$$/tfsnippet_early_stopping_states_variable'
 
@@ -109,6 +110,13 @@ class TrainLoop(DisposableContext):
         # when summaries are fed into the loop by :meth:`add_summary`
         def add_summary(self, summary):
             events.fire(EventKeys.SUMMARY_ADDED, self, summary)
+
+        # when metric statistics have been printed as log
+        def print_logs(self):
+            ...
+            events.fire(EventKeys.METRIC_STATS_PRINTED, self, metric_stats)
+            events.fire(EventKeys.TIME_METRIC_STATS_PRINTED, self,
+                        time_metric_stats)
 
     Warning:
         If you use early-stopping along with checkpoint, there is one case
@@ -297,6 +305,8 @@ class TrainLoop(DisposableContext):
             EventKeys.AFTER_STEP,
             EventKeys.METRICS_COLLECTED,
             EventKeys.TIME_METRICS_COLLECTED,
+            EventKeys.METRIC_STATS_PRINTED,
+            EventKeys.TIME_METRIC_STATS_PRINTED,
             EventKeys.SUMMARY_ADDED,
         ])
 
@@ -901,4 +911,22 @@ class TrainLoop(DisposableContext):
         best_mark = ' (*)' if self._is_best_valid_metric else ''
         self.println(metrics.format_logs() + best_mark, with_tag=True)
         self._is_best_valid_metric = False
+
+        # fire the metric stats printed events
+        metric_stats = {
+            key: val for key, val in six.iteritems(metrics.metrics)
+            if not TIME_METRIC_PATTERN.match(key)
+        }
+        time_metric_stats = {
+            key: val for key, val in six.iteritems(metrics.metrics)
+            if TIME_METRIC_PATTERN.match(key)
+        }
+
+        if metric_stats:
+            self.events.fire(
+                EventKeys.METRIC_STATS_PRINTED, self, metric_stats)
+        if time_metric_stats:
+            self.events.fire(
+                EventKeys.TIME_METRIC_STATS_PRINTED, self, time_metric_stats)
+
         metrics.clear()

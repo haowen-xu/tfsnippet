@@ -169,6 +169,16 @@ class MetricLogger(object):
         self._metrics_skip_counter = {}
         self.clear()
 
+    @property
+    def metrics(self):
+        """
+        Get the dict of metric collectors.
+
+        Returns:
+            dict[str, StatisticsCollector]: The metric collectors.
+        """
+        return self._metrics
+
     def clear(self):
         """Clear all the metric statistics."""
         # Instead of calling ``self._metrics.clear()``, we reset every
