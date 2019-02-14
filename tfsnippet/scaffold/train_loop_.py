@@ -833,6 +833,17 @@ class TrainLoop(DisposableContext):
         self._summary_writer.add_summary(summary, global_step=self.step)
         self.events.fire(EventKeys.SUMMARY_ADDED, self, summary)
 
+    def format_eta(self):
+        """
+        Format the estimated time ahead (ETA).
+
+        Returns:
+            str or None: The estimated time ahead, or None if not available.
+        """
+        progress = self.get_progress()
+        if progress is not None:
+            return self._eta.get_eta(progress)
+
     def println(self, message, with_tag=False):
         """
         Print `message` via `print_function`.
@@ -856,11 +867,9 @@ class TrainLoop(DisposableContext):
                 tags.append(format_tag(self.epoch, self._max_epoch, 'Epoch'))
             tags.append(format_tag(self.step, self._max_step, 'Step'))
             if self._show_eta:
-                progress = self.get_progress()
-                if progress is not None:
-                    eta = self._eta.get_eta(progress)
-                    if eta is not None:
-                        tags.append('ETA {}'.format(humanize_duration(eta)))
+                eta = self.format_eta()
+                if eta is not None:
+                    tags.append('ETA {}'.format(humanize_duration(eta)))
             message = '[{}] {}'.format(', '.join(tags), message)
         self._print_func(message)
 
