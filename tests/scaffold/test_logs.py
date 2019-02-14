@@ -120,14 +120,23 @@ class MetricLoggerTestCase(tf.test.TestCase):
         logger.collect_metrics(dict(loss=4., valid_acc=5., train_time=0.2))
         logger.collect_metrics(dict(loss=6., valid_acc=7., train_time=0.3))
         logger.collect_metrics(dict(other_metric=5.))
+        # self.assertEqual(
+        #     logger.format_logs(),
+        #     'train time: 0.25s (±0.05s); '
+        #     'valid timer: 0.1s; '
+        #     'other metric: 5; '
+        #     'loss: 3.25 (±1.92029); '
+        #     'valid loss: 3; '
+        #     'valid acc: 6 (±1)'
+        # )
         self.assertEqual(
             logger.format_logs(),
             'train time: 0.25s (±0.05s); '
             'valid timer: 0.1s; '
-            'other metric: 5; '
             'loss: 3.25 (±1.92029); '
-            'valid loss: 3; '
-            'valid acc: 6 (±1)'
+            'other metric: 5; '
+            'valid acc: 6 (±1); '
+            'valid loss: 3'
         )
 
         logger.clear()

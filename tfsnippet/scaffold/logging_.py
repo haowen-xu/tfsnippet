@@ -62,32 +62,16 @@ class DefaultMetricFormatter(MetricFormatter):
     """
     Default training metric formatter.
 
-    This class sorts the metrics as follows:
-
-    1.  The metrics are first divided into groups according to the suffices
-        of their names as follows:
-
-        1.  Names ending with "time" or "timer" should come the first;
-
-        2.  Other metrics should come the second;
-
-        3.  Names ending with "loss" or "cost" should come the third;
-
-        4.  Names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
-            should come the fourth.
-
-    2.  The metrics are then sorted according to their names, within each group.
-
+    The time metrics (names ending with "time" or "timer") should be placed
+    before all other metrics.
     The values of the metrics would be formatted into 6-digit real numbers,
     except for metrics with "time" or "timer" as suffices in their names,
     which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
-    METRIC_ORDERS = (
-        (-1, re.compile(r'.*timer?$')),
-        (998, re.compile(r'.*(loss|cost)$')),
-        (999, re.compile(r'(.*(acc(uracy)?|lower_bound))|((^|.*_)(nll|lb))$')),
-    )
+    METRIC_ORDERS = [
+        (-1, re.compile(r'.*timer?$'))
+    ]
 
     def sort_metrics(self, names):
         def sort_key(name):
