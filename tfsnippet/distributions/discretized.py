@@ -1,12 +1,12 @@
 import tensorflow as tf
 
+from tfsnippet.ops import maybe_clip_value
 from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.utils import (convert_to_tensor_and_cast, is_tensor_object,
                              maybe_check_numerics, broadcast_to_shape,
                              get_shape)
 from .base import Distribution
-from .utils import (compute_density_immediately, maybe_clip_value,
-                    reduce_group_ndims)
+from .utils import compute_density_immediately, reduce_group_ndims
 
 __all__ = ['DiscretizedLogistic']
 
