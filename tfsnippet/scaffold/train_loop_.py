@@ -576,6 +576,16 @@ class TrainLoop(DisposableContext):
         """Get the best valid metric."""
         return self._states.best_valid_metric
 
+    @property
+    def within_epoch(self):
+        """Whether or not an epoch is open?"""
+        return self._within_epoch
+
+    @property
+    def within_step(self):
+        """Whether or not a step is open?"""
+        return self._within_step
+
     def make_checkpoint(self):
         """
         Make a checkpoint.

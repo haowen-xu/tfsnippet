@@ -43,6 +43,8 @@ class TrainLoopTestCase(tf.test.TestCase):
             self.assertEqual(loop.step, 0)
             self.assertIsNone(loop.max_epoch)
             self.assertIsNone(loop.max_step)
+            self.assertFalse(loop.within_epoch)
+            self.assertFalse(loop.within_step)
 
         with TrainLoop([], max_epoch=2, max_step=10,
                        summary_metric_prefix='123/') as loop:
@@ -62,9 +64,12 @@ class TrainLoopTestCase(tf.test.TestCase):
             for epoch in loop.iter_epochs():
                 epoch_counter += 1
                 self.assertEqual(epoch, epoch_counter)
+                self.assertTrue(loop.within_epoch)
+                self.assertFalse(loop.within_step)
                 x_ans = 0
                 for step, [x] in \
                         loop.iter_steps(DataFlow.arrays([np.arange(4)], 1)):
+                    self.assertTrue(loop.within_step)
                     self.assertEqual(step, loop.step)
                     self.assertEqual(epoch, loop.epoch)
                     self.assertEqual(x, x_ans)
