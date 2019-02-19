@@ -80,7 +80,10 @@ class Trainer(BaseTrainer):
                 in `inputs`.
             feed_dict: The feed dict for training.  It will be merged with
                 the arrays provided by `data_flow` in each step.
-                (default :obj:`None`)
+
+                Dynamic values can be specified, e.g., a callable function
+                or a :class:`ScheduledVariable`, which will be resolved
+                by :func:`resolve_feed_dict` at each step.
             metrics (dict[str, tf.Tensor]): Metrics to be computed along with
                 `train_op`.  The keys are the names of metrics.
             summaries (tf.Tensor or Iterable[tf.Tensor]): A tensor or a list

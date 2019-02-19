@@ -45,7 +45,6 @@ class BaseTrainer(object):
 
     The event schedule of a :class:`BaseTrainer` can be briefly described as::
 
-
         events.fire(EventKeys.BEFORE_EXECUTION, self)
 
         for epoch in epochs:
