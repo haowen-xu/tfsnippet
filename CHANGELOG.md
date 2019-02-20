@@ -22,7 +22,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `flows` package now moved to `layers.flows`, and all its contents
   can be directly found under `layers` namespace.  The interface of flows has been re-designed.
 - Some utilities in `utils` have been migrated to `ops`.
-- `DynamicValue`, `SimpleDynamicValue` and `AnnealingDynamicValue` have been replaced by `ScheduledVariable` and `AnnealingScheduledVariable`.
+- Added `ScheduledVariable` and `AnnealingScheduledVariable`, to replace `SimpleDynamicValue` and `AnnealingDynamicValue`.  `DynamicValue` is still reserved.
 - `BayesianNet.add` now removes the `flow` argument.
 - The hook facility of `BaseTrainer` and `Evaluator` have been rewritten with `utils.EventSource`.
 - `TrainLoop` now supports to make checkpoints, and recover from the checkpoints.
