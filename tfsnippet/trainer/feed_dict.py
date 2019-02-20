@@ -1,5 +1,5 @@
 from tfsnippet.scaffold import ScheduledVariable
-from .dynamic_value import DynamicValue
+from .dynamic_values import DynamicValue
 
 __all__ = ['resolve_feed_dict', 'merge_feed_dict']
 
