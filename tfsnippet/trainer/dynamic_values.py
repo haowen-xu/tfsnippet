@@ -117,18 +117,30 @@ class AnnealingScalar(DynamicValue):
         self._min_value = min_value
         self._max_value = max_value
 
+        self._cache_value = None
+        self._cache_epoch = None
+        self._cache_step = None
+
     def get(self):
-        if self._epochs is not None:
-            freq_count = int(max(self._loop.epoch - 1, 0) // self._epochs)
-        else:
-            freq_count = int(max(self._loop.step - 1, 0) // self._steps)
+        if (self._epochs is not None and
+            self._cache_epoch != self._loop.epoch) or \
+                (self._steps is not None and
+                 self._cache_step != self._loop.step):
+            if self._epochs is not None:
+                freq_count = int(max(self._loop.epoch - 1, 0) // self._epochs)
+            else:
+                freq_count = int(max(self._loop.step - 1, 0) // self._steps)
 
-        scale = self._ratio ** freq_count
-        value = self._initial_value * scale
+            scale = self._ratio ** freq_count
+            value = self._initial_value * scale
 
-        if self._max_value is not None:
-            value = min(self._max_value, value)
-        if self._min_value is not None:
-            value = max(self._min_value, value)
+            if self._max_value is not None:
+                value = min(self._max_value, value)
+            if self._min_value is not None:
+                value = max(self._min_value, value)
 
-        return value
+            self._cache_value = value
+            self._cache_epoch = self._loop.epoch
+            self._cache_step = self._loop.step
+
+        return self._cache_value

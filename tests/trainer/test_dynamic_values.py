@@ -36,6 +36,9 @@ class AnnealingScalarTestCase(unittest.TestCase):
         loop.epoch = 3
         self.assertEqual(v.get(), .25)
 
+        # test cache
+        self.assertEqual(v.get(), .25)
+
     def test_freq_3(self):
         loop = Mock(epochs=100)
 
@@ -59,6 +62,9 @@ class AnnealingScalarTestCase(unittest.TestCase):
         loop.step = 7
         self.assertEqual(v.get(), .25)
 
+        # test cache
+        self.assertEqual(v.get(), .25)
+
     def test_min_value(self):
         loop = Mock(steps=100)
 
@@ -77,6 +83,9 @@ class AnnealingScalarTestCase(unittest.TestCase):
         loop.epoch = 5
         self.assertEqual(v.get(), .1)
 
+        # test cache
+        self.assertEqual(v.get(), .1)
+
     def test_max_value(self):
         loop = Mock(epochs=100)
 
@@ -91,6 +100,9 @@ class AnnealingScalarTestCase(unittest.TestCase):
         loop.step = 3
         self.assertEqual(v.get(), 2.25)
         loop.step = 4
+        self.assertEqual(v.get(), 3.)
+
+        # test cache
         self.assertEqual(v.get(), 3.)
 
     def test_errors(self):
