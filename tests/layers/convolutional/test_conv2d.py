@@ -262,6 +262,24 @@ class Conv2dTestCase(tf.test.TestCase):
                                 activation_fn=activation_fn)
             )
 
+    def test_kernel_mask(self):
+        with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
+                self.test_session() as sess:
+            np.random.seed(1234)
+
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+            kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
+            mask = np.random.binomial(n=1, p=.5, size=kernel.shape). \
+                astype(np.float32)
+            bias = np.random.random(size=[7]).astype(np.float32)
+
+            # test strides 1, skip 1, same padding, NHWC
+            np.testing.assert_allclose(
+                self.run_conv2d(x, 7, (3, 4), 'same', kernel, bias, 1, 1,
+                                channels_last=True, kernel_mask=mask),
+                self.conv2d_ans(x, 'same', kernel * mask, bias, 1, 1)
+            )
+
 
 def patched_conv2d_transpose(value, filter, output_shape, strides, padding,
                              data_format):

@@ -24,6 +24,7 @@ def resnet_general_block(conv_fn,
                          kernel_size,
                          strides=1,
                          shortcut_kernel_size=1,
+                         shortcut_force_conv=False,
                          resize_at_exit=False,
                          activation_fn=None,
                          normalizer_fn=None,
@@ -40,7 +41,7 @@ def resnet_general_block(conv_fn,
     .. code-block:: python
 
         shortcut = input
-        if strides != 1 or in_channels != out_channels:
+        if strides != 1 or in_channels != out_channels or shortcut_force_conv:
             shortcut = conv_fn(
                 input=shortcut,
                 out_channels=out_channels,
@@ -81,6 +82,9 @@ def resnet_general_block(conv_fn,
             for all three convolutional layers.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
             dimensions, for the "shortcut" convolutional layer.
+        shortcut_force_conv (bool): If :obj:`True`, force to apply a linear
+            convolution transformation on the shortcut path.
+            Otherwise (by default) only apply the transformation if necessary.
         resize_at_exit (bool): If :obj:`True`, resize the spatial dimensions
             at the "conv_1" convolutional layer.  If :obj:`False`, resize at
             the "conv" convolutional layer. (see above)
@@ -136,7 +140,8 @@ def resnet_general_block(conv_fn,
 
     with tf.variable_scope(scope, default_name=name or 'resnet_general_block'):
         # build the shortcut path
-        if has_non_unit_item(strides) or in_channels != out_channels:
+        if has_non_unit_item(strides) or in_channels != out_channels or \
+                shortcut_force_conv:
             shortcut = resize_conv(
                 input, shortcut_kernel_size, scope='shortcut')
         else:
@@ -181,6 +186,7 @@ def resnet_conv2d_block(input,
                         kernel_size,
                         strides=(1, 1),
                         shortcut_kernel_size=(1, 1),
+                        shortcut_force_conv=False,
                         channels_last=True,
                         resize_at_exit=True,
                         activation_fn=None,
@@ -209,6 +215,9 @@ def resnet_conv2d_block(input,
             for all three convolutional layers.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
             dimensions, for the "shortcut" convolutional layer.
+        shortcut_force_conv (bool): If :obj:`True`, force to apply a linear
+            convolution transformation on the shortcut path.
+            Otherwise (by default) only apply the transformation if necessary.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
         resize_at_exit (bool): See :func:`resnet_general_block`.
@@ -273,6 +282,7 @@ def resnet_conv2d_block(input,
         kernel_size=kernel_size,
         strides=strides,
         shortcut_kernel_size=shortcut_kernel_size,
+        shortcut_force_conv=shortcut_force_conv,
         resize_at_exit=resize_at_exit,
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,
@@ -289,6 +299,7 @@ def resnet_deconv2d_block(input,
                           kernel_size,
                           strides=(1, 1),
                           shortcut_kernel_size=(1, 1),
+                          shortcut_force_conv=False,
                           channels_last=True,
                           output_shape=None,
                           resize_at_exit=False,
@@ -318,6 +329,9 @@ def resnet_deconv2d_block(input,
             for all three deconvolutional layers.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
             dimensions, for the "shortcut" deconvolutional layer.
+        shortcut_force_conv (bool): If :obj:`True`, force to apply a linear
+            convolution transformation on the shortcut path.
+            Otherwise (by default) only apply the transformation if necessary.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
         output_shape: If specified, use this as the shape of the
@@ -409,6 +423,7 @@ def resnet_deconv2d_block(input,
         kernel_size=kernel_size,
         strides=strides,
         shortcut_kernel_size=shortcut_kernel_size,
+        shortcut_force_conv=shortcut_force_conv,
         resize_at_exit=resize_at_exit,
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,

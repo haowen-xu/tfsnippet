@@ -32,6 +32,7 @@ def conv2d(input,
            normalizer_fn=None,
            weight_norm=False,
            kernel=None,
+           kernel_mask=None,
            kernel_initializer=None,
            kernel_regularizer=None,
            kernel_constraint=None,
@@ -67,6 +68,8 @@ def conv2d(input,
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
+        kernel_mask (Tensor): If specified, multiply this mask onto `kernel`,
+            i.e., the actual kernel to use will be `kernel * kernel_mask`.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
         kernel_regularizer: The regularizer for `kernel`.
@@ -117,6 +120,9 @@ def conv2d(input,
     if kernel is not None:
         kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
         kernel = kernel_spec.validate('kernel', kernel)
+    if kernel_mask is not None:
+        kernel_mask_spec = InputSpec(dtype=dtype)
+        kernel_mask = kernel_mask_spec.validate('kernel_mask', kernel_mask)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
@@ -139,6 +145,8 @@ def conv2d(input,
 
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
+        if kernel_mask is not None:
+            kernel = kernel * kernel_mask
 
         maybe_add_histogram(kernel, 'kernel')
         kernel = maybe_check_numerics(kernel, 'kernel')

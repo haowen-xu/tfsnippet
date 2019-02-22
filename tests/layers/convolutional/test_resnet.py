@@ -19,6 +19,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                          kernel_size,
                          strides,
                          shortcut_kernel_size,
+                         shortcut_force_conv,
                          activation_fn,
                          normalizer_fn,
                          dropout_fn):
@@ -29,12 +30,14 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 self.kernel_size = kernel_size
                 self.strides = strides
                 self.shortcut_kernel_size = shortcut_kernel_size
+                self.shortcut_force_conv = shortcut_force_conv
                 self.activation_fn = activation_fn
                 self.normalizer_fn = normalizer_fn
                 self.dropout_fn = dropout_fn
                 self.apply_shortcut = (
                         (strides != 1 and strides != (1, 1)) or
-                        in_channels != out_channels
+                        in_channels != out_channels or
+                        shortcut_force_conv
                 )
 
                 def apply_fn(fn, x):
@@ -68,6 +71,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                         kernel_size=self.kernel_size,
                         strides=self.strides,
                         shortcut_kernel_size=self.shortcut_kernel_size,
+                        shortcut_force_conv=self.shortcut_force_conv,
                         resize_at_exit=self.resize_at_exit,
                         activation_fn=self.activation_fn,
                         normalizer_fn=self.normalizer_fn,
@@ -129,6 +133,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=1,
             shortcut_kernel_size=1,
+            shortcut_force_conv=False,
             activation_fn=None,
             normalizer_fn=None,
             dropout_fn=None).doTest()
@@ -140,6 +145,33 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=(1, 1),
             shortcut_kernel_size=1,
+            shortcut_force_conv=False,
+            activation_fn=None,
+            normalizer_fn=None,
+            dropout_fn=None).doTest()
+
+        # test conv shortcut because of force conv, w/o norm, act, dropout
+        TestHelper(
+            self,
+            resize_at_exit=True,
+            in_channels=5,
+            out_channels=5,
+            kernel_size=3,
+            strides=1,
+            shortcut_kernel_size=1,
+            shortcut_force_conv=True,
+            activation_fn=None,
+            normalizer_fn=None,
+            dropout_fn=None).doTest()
+        TestHelper(
+            self,
+            resize_at_exit=False,
+            in_channels=5,
+            out_channels=5,
+            kernel_size=3,
+            strides=(1, 1),
+            shortcut_kernel_size=1,
+            shortcut_force_conv=True,
             activation_fn=None,
             normalizer_fn=None,
             dropout_fn=None).doTest()
@@ -153,6 +185,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=1,
             shortcut_kernel_size=11,
+            shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
             dropout_fn=dropout_fn).doTest()
@@ -164,6 +197,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=(1, 1),
             shortcut_kernel_size=11,
+            shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
             dropout_fn=dropout_fn).doTest()
@@ -177,6 +211,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=2,
             shortcut_kernel_size=11,
+            shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
             dropout_fn=dropout_fn).doTest()
@@ -188,6 +223,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
             kernel_size=3,
             strides=(2, 1),
             shortcut_kernel_size=11,
+            shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
             dropout_fn=dropout_fn).doTest()
@@ -217,6 +253,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'kernel_size': 3,
                 'strides': (1, 1),
                 'shortcut_kernel_size': (1, 1),
+                'shortcut_force_conv': False,
                 'resize_at_exit': True,
                 'activation_fn': None,
                 'normalizer_fn': None,
@@ -235,6 +272,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 strides=2,
                 channels_last=False,
                 resize_at_exit=False,
+                shortcut_force_conv=True,
                 activation_fn=activation_fn,
                 normalizer_fn=normalizer_fn,
                 dropout_fn=dropout_fn,
@@ -248,6 +286,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'kernel_size': (3, 3),
                 'strides': 2,
                 'shortcut_kernel_size': (1, 1),
+                'shortcut_force_conv': True,
                 'resize_at_exit': False,
                 'activation_fn': activation_fn,
                 'normalizer_fn': normalizer_fn,
@@ -281,6 +320,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'kernel_size': 3,
                 'strides': (1, 1),
                 'shortcut_kernel_size': (1, 1),
+                'shortcut_force_conv': False,
                 'resize_at_exit': False,
                 'activation_fn': None,
                 'normalizer_fn': None,
@@ -298,6 +338,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 kernel_size=(3, 3),
                 strides=2,
                 channels_last=False,
+                shortcut_force_conv=True,
                 resize_at_exit=True,
                 activation_fn=activation_fn,
                 normalizer_fn=normalizer_fn,
@@ -312,6 +353,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'kernel_size': (3, 3),
                 'strides': 2,
                 'shortcut_kernel_size': (1, 1),
+                'shortcut_force_conv': True,
                 'resize_at_exit': True,
                 'activation_fn': activation_fn,
                 'normalizer_fn': normalizer_fn,
