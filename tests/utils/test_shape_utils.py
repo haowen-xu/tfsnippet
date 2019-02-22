@@ -33,6 +33,37 @@ class ResolveNegativeAxisTestCase(tf.test.TestCase):
             _ = resolve_negative_axis(4, (0, -4))
 
 
+class PrependDimsTestCase(tf.test.TestCase):
+
+    def test_prepend_dims(self):
+        with pytest.raises(ValueError, match='`ndims` must be >= 0: got -1'):
+            _ = prepend_dims(tf.constant(0.), ndims=-1)
+
+        x = tf.zeros([2, 3])
+        self.assertIs(prepend_dims(x, ndims=0), x)
+
+        with self.test_session() as sess:
+            # test static shape
+            x = np.random.normal(size=[2, 3])
+            y = prepend_dims(x, ndims=1)
+            self.assertEqual(get_static_shape(y), (1, 2, 3))
+            np.testing.assert_allclose(sess.run(y), x.reshape([1, 2, 3]))
+
+            # test partially dynamic shape
+            t = tf.placeholder(shape=[2, None], dtype=tf.float64)
+            y = prepend_dims(t, ndims=2)
+            self.assertEqual(get_static_shape(y), (1, 1, 2, None))
+            np.testing.assert_allclose(
+                sess.run(y, feed_dict={t: x}),  x.reshape([1, 1, 2, 3]))
+
+            # test fully dynamic shape
+            t = tf.placeholder(shape=None, dtype=tf.float64)
+            y = prepend_dims(t, ndims=3)
+            self.assertEqual(get_static_shape(y), None)
+            np.testing.assert_allclose(
+                sess.run(y, feed_dict={t: x}), x.reshape([1, 1, 1, 2, 3]))
+
+
 class FlattenUnflattenTestCase(tf.test.TestCase):
 
     def test_flatten_and_unflatten(self):
@@ -541,6 +572,107 @@ class BroadcastTestCase(tf.test.TestCase):
             check(x, (1, 1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
             check(x, (1, 1, 1), x_ph=x_ph, shape_ph=shape_ph)
             check(x, (1, 1), x_ph=x_ph, shape_ph=shape_ph)
+
+
+class BroadcastConcatTestCase(tf.test.TestCase):
+
+    def test_broadcast_concat(self):
+        a_ph = tf.placeholder(dtype=tf.float32, shape=[None, 3, 1, None, 1])
+        b_ph = tf.placeholder(dtype=tf.float32, shape=[6, None, 1, 5, 7, None])
+        ph = tf.placeholder(dtype=tf.float32, shape=None)
+
+        def check(x, y, axis, static_shape):
+            ndims = max(len(x.shape), len(y.shape))
+            xx = np.reshape(x, [1] * (ndims - len(x.shape)) + list(x.shape))
+            yy = np.reshape(y, [1] * (ndims - len(y.shape)) + list(y.shape))
+            if axis < 0:
+                axis += ndims
+            b_shape = [1] * ndims
+            for i in range(ndims):
+                if i != axis:
+                    b_shape[i] = max(xx.shape[i], yy.shape[i])
+
+            xx = xx * np.ones(b_shape)
+            yy = yy * np.ones(b_shape)
+            ans = np.concatenate([xx, yy], axis=axis)
+
+            out = broadcast_concat(a_ph, b_ph, axis=axis)
+            self.assertEqual(get_static_shape(out), static_shape)
+
+            np.testing.assert_allclose(
+                sess.run(out, feed_dict={a_ph: x, b_ph: y}),
+                ans
+            )
+
+        with self.test_session() as sess:
+            # test can broadcast
+            static_shapes = [
+                (7, None, 3, 5, 7, None),
+                (6, None, 3, 5, 7, None),
+                (6, None, 4, 5, 7, None),
+                (6, None, 3, 6, 7, None),
+                (6, None, 3, 5, None, None),
+                (6, None, 3, 5, 7, None)
+            ] * 2
+
+            for axis, static_shape in zip(
+                    [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5], static_shapes):
+                check(
+                    np.random.normal(size=[4, 3, 1, 7, 1]),
+                    np.random.normal(size=[6, 4, 1, 5, 7, 8]),
+                    axis=axis,
+                    static_shape=static_shape
+                )
+
+            for axis in [-5, 1]:
+                check(
+                    np.random.normal(size=[1, 3, 1, 7, 1]),
+                    np.random.normal(size=[6, 4, 1, 5, 7, 8]),
+                    axis=axis,
+                    static_shape=(6, None, 3, 5, 7, None)
+                )
+
+            for axis in [-2, 4]:
+                check(
+                    np.random.normal(size=[4, 3, 1, 1, 1]),
+                    np.random.normal(size=[6, 4, 1, 5, 7, 8]),
+                    axis=axis,
+                    static_shape=(6, None, 3, 5, None, None)
+                )
+
+            for axis in [-1, 5]:
+                check(
+                    np.random.normal(size=[4, 3, 1, 7, 1]),
+                    np.random.normal(size=[6, 4, 1, 5, 7, 1]),
+                    axis=axis,
+                    static_shape=(6, None, 3, 5, 7, None)
+                )
+
+            # test cannot broadcast
+            with pytest.raises(ValueError, match='`x` with non-deterministic '
+                                                 'shape is not supported'):
+                _ = broadcast_concat(ph, b_ph, axis=0)
+            with pytest.raises(ValueError, match='`y` with non-deterministic '
+                                                 'shape is not supported'):
+                _ = broadcast_concat(a_ph, ph, axis=0)
+            with pytest.raises(ValueError, match='Invalid axis: must >= -6 and '
+                                                 '<= 5, got -7'):
+                _ = broadcast_concat(a_ph, b_ph, axis=-7)
+            with pytest.raises(ValueError, match='Invalid axis: must >= -6 and '
+                                                 '<= 5, got 6'):
+                _ = broadcast_concat(a_ph, b_ph, axis=6)
+            with pytest.raises(ValueError, match='`x` and `y` cannot be '
+                                                 'broadcast concat'):
+                _ = broadcast_concat(tf.zeros([2, 2]), tf.zeros([3, 3]), axis=0)
+
+            # runtime check
+            t = broadcast_concat(a_ph, b_ph, axis=-1)
+            with pytest.raises(Exception, match='`x` and `y` cannot be '
+                                                'broadcast concat'):
+                _ = sess.run(t, feed_dict={
+                    a_ph: np.random.normal(size=[3, 3, 1, 7, 1]),
+                    b_ph: np.random.normal(size=[6, 4, 1, 5, 7, 8]),
+                })
 
 
 class TransposeConv2dAxisTestCase(tf.test.TestCase):

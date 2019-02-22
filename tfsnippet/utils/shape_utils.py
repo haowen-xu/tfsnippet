@@ -9,10 +9,10 @@ from .type_utils import is_tensor_object
 
 __all__ = [
     'get_static_shape', 'get_batch_size', 'get_rank', 'get_shape',
-    'get_dimension_size', 'get_dimensions_size',
+    'get_dimension_size', 'get_dimensions_size', 'prepend_dims',
     'flatten_to_ndims', 'unflatten_from_ndims',
     'resolve_negative_axis',  'concat_shapes', 'is_shape_equal',
-    'broadcast_to_shape', 'broadcast_to_shape_strict',
+    'broadcast_to_shape', 'broadcast_to_shape_strict', 'broadcast_concat',
     'transpose_conv2d_axis', 'transpose_conv2d_channels_last_to_x',
     'transpose_conv2d_channels_x_to_last',
     'reshape_tail',
@@ -72,6 +72,43 @@ def resolve_negative_axis(ndims, axis):
                          'negative axis: ndims {}, axis {}.'.
                          format(ndims, axis))
     return tuple(ret)
+
+
+@add_name_arg_doc
+def prepend_dims(x, ndims=1, name=None):
+    """
+    Prepend `[1] * ndims` to the beginning of the shape of `x`.
+
+    Args:
+        x: The tensor `x`.
+        ndims: Number of `1` to prepend.
+
+    Returns:
+        tf.Tensor: The tensor with prepended dimensions.
+    """
+    ndims = int(ndims)
+    if ndims < 0:
+        raise ValueError('`ndims` must be >= 0: got {}'.format(ndims))
+
+    x = tf.convert_to_tensor(x)
+    if ndims == 0:
+        return x
+
+    with tf.name_scope(name, default_name='prepend_dims', values=[x]):
+        static_shape = get_static_shape(x)
+        if static_shape is not None:
+            static_shape = tf.TensorShape([1] * ndims + list(static_shape))
+
+        dynamic_shape = concat_shapes([
+            [1] * ndims,
+            get_shape(x)
+        ])
+
+        y = tf.reshape(x, dynamic_shape)
+        if static_shape is not None:
+            y.set_shape(static_shape)
+
+        return y
 
 
 @add_name_arg_doc
@@ -591,6 +628,143 @@ def broadcast_to_shape_strict(x, shape, name=None):
 
         # do broadcast
         return broadcast_to_shape(x, shape)
+
+
+@add_name_arg_doc
+def broadcast_concat(x, y, axis, name=None):
+    """
+    Broadcast `x` and `y`, then concat them along `axis`.
+
+    This method cannot deal with all possible situations yet.
+    `x` and `y` must have known number of dimensions, and only the deterministic
+    axes will be broadcasted.  You must ensure the non-deterministic axes are
+    properly broadcasted by yourself.
+
+    Args:
+        x: The tensor `x`.
+        y: The tensor `y`.
+        axis: The axis to be concatenated.
+
+    Returns:
+        tf.Tensor: The broadcast and concatenated tensor.
+    """
+    x = tf.convert_to_tensor(x)
+    y = tf.convert_to_tensor(y)
+
+    # check the arguments
+    x_static_shape = get_static_shape(x)
+    if x_static_shape is None:
+        raise ValueError('`x` with non-deterministic shape is not supported.')
+    y_static_shape = get_static_shape(y)
+    if y_static_shape is None:
+        raise ValueError('`y` with non-deterministic shape is not supported.')
+
+    x_rank = len(x_static_shape)
+    y_rank = len(y_static_shape)
+    out_ndims = max(x_rank, y_rank)
+    min_axis = -out_ndims
+    max_axis = out_ndims - 1
+
+    if axis < min_axis or axis > max_axis:
+        raise ValueError('Invalid axis: must >= {} and <= {}, got {}'.
+                         format(min_axis, max_axis, axis))
+    if axis >= 0:
+        axis = axis - out_ndims
+
+    # compute the broadcast shape
+    out_static_shape = [None] * out_ndims
+
+    x_tile = [1] * out_ndims
+    y_tile = [1] * out_ndims
+    assertions = []
+
+    dynamic_shape_cache = {}
+
+    def get_dynamic_shape(t):
+        if t not in dynamic_shape_cache:
+            dynamic_shape_cache[t] = get_shape(t)
+        return dynamic_shape_cache[t]
+
+    def broadcast_axis(i, a, b, a_tile, b_tile, a_tensor, b_tensor):
+        err_msg = ('`x` and `y` cannot be broadcast concat: {} vs {}'.
+                   format(x, y))
+
+        # validate whether or not a == b or can be broadcasted
+        if a is None and b is None:
+            # both dynamic, must be equal
+            a = get_dynamic_shape(a_tensor)[i]
+            b = get_dynamic_shape(b_tensor)[i]
+            assertions.append(tf.assert_equal(a, b, message=err_msg))
+
+        elif a is not None and b is not None:
+            # both static, check immediately
+            if a != 1 and b != 1 and a != b:
+                raise ValueError(err_msg)
+
+            if a == 1:
+                a_tile[i] = b
+            elif b == 1:
+                b_tile[i] = a
+
+            out_static_shape[i] = max(a, b)
+
+        elif a is None:
+            # a dynamic, b can be 1 or equal to a
+            a = get_dynamic_shape(a_tensor)[i]
+            if b == 1:
+                b_tile[i] = a
+            else:
+                assertions.append(tf.assert_equal(a, b, message=err_msg))
+                out_static_shape[i] = b
+
+        else:
+            broadcast_axis(i, b, a, b_tile, a_tile, b_tensor, a_tensor)
+
+    def maybe_prepend_dims(t, rank, name):
+        if rank < out_ndims:
+            t = prepend_dims(t, out_ndims - rank, name=name)
+        return t
+
+    def maybe_tile(t, tile, name):
+        if any(s != 1 for s in tile):
+            if any(is_tensor_object(s) for s in tile):
+                tile = tf.stack(tile, axis=0)
+            t = tf.tile(t, tile, name=name)
+        return t
+
+    with tf.name_scope(name, default_name='broadcast_concat', values=[x, y]):
+        # infer the configurations
+        for i in range(-1, -out_ndims - 1, -1):
+            a = x_static_shape[i] if i >= -x_rank else 1
+            b = y_static_shape[i] if i >= -y_rank else 1
+
+            if i != axis:
+                broadcast_axis(i, a, b, x_tile, y_tile, x, y)
+            else:
+                if a is not None and b is not None:
+                    out_static_shape[i] = a + b
+
+        # do broadcast
+        x = maybe_tile(
+            maybe_prepend_dims(x, x_rank, name='prepend_dims_to_x'),
+            x_tile,
+            name='tile_x'
+        )
+        y = maybe_tile(
+            maybe_prepend_dims(y, y_rank, name='prepend_dims_to_y'),
+            y_tile,
+            name='tile_y'
+        )
+
+        with assert_deps(assertions) as asserted:
+            if asserted:
+                x = tf.identity(x)
+                y = tf.identity(y)
+
+        # do concat
+        ret = tf.concat([x, y], axis=axis)
+        ret.set_shape(tf.TensorShape(out_static_shape))
+        return ret
 
 
 @add_name_arg_doc
