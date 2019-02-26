@@ -2,12 +2,51 @@ import tensorflow as tf
 
 from tfsnippet.stochastic import StochasticTensor
 from tfsnippet.layers import BaseFlow
-from tfsnippet.utils import validate_group_ndims_arg
+from tfsnippet.utils import (validate_group_ndims_arg,
+                             get_default_scope_name,
+                             TensorWrapper,
+                             register_tensor_wrapper_class)
 from .base import Distribution
 from .utils import reduce_group_ndims
 from .wrapper import as_distribution
 
-__all__ = ['FlowDistribution']
+__all__ = ['FlowDistributionDerivedTensor', 'FlowDistribution']
+
+
+class FlowDistributionDerivedTensor(TensorWrapper):
+    """
+    A combination of a :class:`FlowDistribution` derived tensor, and its
+    original stochastic tensor from the base distribution.
+    """
+
+    def __init__(self, tensor, flow_origin):
+        """
+        Construct a new :class:`FlowDistributionDerivedTensor`.
+
+        Args:
+            tensor (tf.Tensor): The :class:`FlowDistribution` derived tensor.
+            flow_origin (StochasticTensor): The original stochastic tensor
+                from the base distribution.
+        """
+        self._self_tensor = tensor
+        self._self_flow_origin = flow_origin
+
+    @property
+    def flow_origin(self):
+        """
+        Get the original stochastic tensor from the base distribution.
+
+        Returns:
+            StochasticTensor: The original stochastic tensor.
+        """
+        return self._self_flow_origin
+
+    @property
+    def tensor(self):
+        return self._self_tensor
+
+
+register_tensor_wrapper_class(FlowDistributionDerivedTensor)
 
 
 class FlowDistribution(Distribution):
@@ -115,7 +154,11 @@ class FlowDistribution(Distribution):
                 n_samples=n_samples,
                 group_ndims=group_ndims,
                 is_reparameterized=is_reparameterized,
-                log_prob=log_py
+                log_prob=FlowDistributionDerivedTensor(
+                    tensor=log_py,
+                    flow_origin=x
+                ),
+                flow_origin=x
             )
 
     def log_prob(self, given, group_ndims=0, name=None):
@@ -137,4 +180,16 @@ class FlowDistribution(Distribution):
             log_py = reduce_group_ndims(
                 tf.reduce_sum, log_px + log_det, group_ndims)
 
-            return log_py
+        return FlowDistributionDerivedTensor(
+            tensor=log_py,
+            flow_origin=StochasticTensor(
+                distribution=self.base_distribution, tensor=x)
+        )
+
+    def prob(self, given, group_ndims=0, name=None):
+        with tf.name_scope(
+                name, default_name=get_default_scope_name('prob', self)):
+            log_p = self.log_prob(given, group_ndims=group_ndims)
+            p = tf.exp(log_p)
+        return FlowDistributionDerivedTensor(
+            tensor=p, flow_origin=log_p.flow_origin)

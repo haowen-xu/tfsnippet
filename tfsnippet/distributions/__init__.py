@@ -11,6 +11,6 @@ from .wrapper import *
 __all__ = [
     'BatchToValueDistribution', 'Bernoulli', 'Categorical', 'Concrete',
     'Discrete', 'DiscretizedLogistic', 'Distribution', 'ExpConcrete',
-    'FlowDistribution', 'Mixture', 'Normal', 'OnehotCategorical', 'Uniform',
-    'as_distribution', 'reduce_group_ndims',
+    'FlowDistribution', 'FlowDistributionDerivedTensor', 'Mixture', 'Normal',
+    'OnehotCategorical', 'Uniform', 'as_distribution', 'reduce_group_ndims',
 ]

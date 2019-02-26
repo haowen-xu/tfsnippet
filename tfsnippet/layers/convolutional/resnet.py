@@ -23,6 +23,7 @@ def resnet_general_block(conv_fn,
                          out_channels,
                          kernel_size,
                          strides=1,
+                         shortcut_conv_fn=None,
                          shortcut_kernel_size=1,
                          shortcut_force_conv=False,
                          resize_at_exit=False,
@@ -70,7 +71,7 @@ def resnet_general_block(conv_fn,
         output = shortcut + residual
 
     Args:
-        conv_fn: The convolution function for "shortcut", "conv" and "conv_1"
+        conv_fn: The convolution function for "conv" and "conv_1"
             convolutional layers.  It must accept, and only expect, 5 named
             arguments ``(input, out_channels, kernel_size, strides, scope)``.
         input (Tensor): The input tensor.
@@ -80,6 +81,10 @@ def resnet_general_block(conv_fn,
             for "conv" and "conv_1" convolutional layers.
         strides (int or tuple[int]): Strides over spatial dimensions,
             for all three convolutional layers.
+        shortcut_conv_fn: The convolution function for the "shortcut"
+            convolutional layer. It must accept, and only expect, 5 named
+            arguments ``(input, out_channels, kernel_size, strides, scope)``.
+            If not specified, use `conv_fn`.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
             dimensions, for the "shortcut" convolutional layer.
         shortcut_force_conv (bool): If :obj:`True`, force to apply a linear
@@ -119,9 +124,12 @@ def resnet_general_block(conv_fn,
     shortcut_kernel_size = validate_size_tuple(
         'shortcut_kernel_size', shortcut_kernel_size)
 
+    if shortcut_conv_fn is None:
+        shortcut_conv_fn = conv_fn
+
     # define two types of convolution operations: resizing conv, and
     # size keeping conv
-    def resize_conv(input, kernel_size, scope):
+    def resize_conv(input, kernel_size, scope, conv_fn=conv_fn):
         return conv_fn(input=input, out_channels=out_channels,
                        kernel_size=kernel_size, strides=strides,
                        scope=scope)
@@ -143,7 +151,9 @@ def resnet_general_block(conv_fn,
         if has_non_unit_item(strides) or in_channels != out_channels or \
                 shortcut_force_conv:
             shortcut = resize_conv(
-                input, shortcut_kernel_size, scope='shortcut')
+                input, shortcut_kernel_size, scope='shortcut',
+                conv_fn=shortcut_conv_fn
+            )
         else:
             shortcut = input
 

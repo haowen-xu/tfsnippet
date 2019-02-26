@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from mock import Mock
 
+from tfsnippet import StochasticTensor, FlowDistributionDerivedTensor
 from tfsnippet.distributions import Normal, Categorical, FlowDistribution
 from tfsnippet.layers import ReshapeFlow
 from tfsnippet.utils import get_static_shape
@@ -83,17 +84,33 @@ class FlowDistributionTestCase(tf.test.TestCase):
         # test ordinary sample, is_reparameterized = None
         y = distrib.sample(n_samples=5)
         self.assertTrue(y.is_reparameterized)
+        self.assertIsInstance(y.flow_origin, StochasticTensor)
+        self.assertIs(y.flow_origin.distribution, normal)
+
         grad = tf.gradients(y * 1., mean)[0]
         self.assertIsNotNone(grad)
         self.assertEqual(get_static_shape(y), (5, 3))
         self.assertIsNotNone(y._self_log_prob)
 
+        log_prob = y.log_prob()
+        self.assertIsInstance(log_prob, FlowDistributionDerivedTensor)
+        self.assertIs(log_prob.flow_origin, y.flow_origin)
+
+        prob = y.prob()
+        self.assertIsInstance(prob, FlowDistributionDerivedTensor)
+        self.assertIs(prob.flow_origin, y.flow_origin)
+
         x, log_det = flow.inverse_transform(y)
         log_py = normal.log_prob(x) + log_det
+        py = tf.exp(log_py)
 
         with self.test_session() as sess:
             np.testing.assert_allclose(
-                *sess.run([log_py, y.log_prob()]), rtol=1e-5)
+                *sess.run([y.flow_origin, x]), rtol=1e-5)
+            np.testing.assert_allclose(
+                *sess.run([log_py, log_prob]), rtol=1e-5)
+            np.testing.assert_allclose(
+                *sess.run([py, prob]), rtol=1e-5)
 
         # test stop gradient sample, is_reparameterized = False
         y = distrib.sample(n_samples=5, is_reparameterized=False)
@@ -164,10 +181,25 @@ class FlowDistributionTestCase(tf.test.TestCase):
         y = tf.constant([1., -1., 2.], dtype=tf.float64)
         x, log_det = flow.inverse_transform(y)
         log_py = normal.log_prob(x) + log_det
+        py = tf.exp(log_py)
+
+        log_prob = distrib.log_prob(y)
+        self.assertIsInstance(log_prob, FlowDistributionDerivedTensor)
+        self.assertIsInstance(log_prob.flow_origin, StochasticTensor)
+        self.assertIs(log_prob.flow_origin.distribution, normal)
+
+        prob = distrib.prob(y)
+        self.assertIsInstance(prob, FlowDistributionDerivedTensor)
+        self.assertIsInstance(prob.flow_origin, StochasticTensor)
+        self.assertIs(prob.flow_origin.distribution, normal)
 
         with self.test_session() as sess:
             np.testing.assert_allclose(
-                *sess.run([log_py, distrib.log_prob(y)]), rtol=1e-5)
+                *sess.run([log_prob.flow_origin, x]), rtol=1e-5)
+            np.testing.assert_allclose(
+                *sess.run([log_py, log_prob]), rtol=1e-5)
+            np.testing.assert_allclose(
+                *sess.run([py, prob]), rtol=1e-5)
 
     def test_log_prob_value_and_group_ndims(self):
         tf.set_random_seed(123456)

@@ -63,6 +63,10 @@ class ResNetBlockTestCase(tf.test.TestCase):
 
             def doTest(self):
                 with mock.patch('tensorflow.convert_to_tensor', (lambda x: x)):
+                    def shortcut_conv(*args, **kwargs):
+                        return self(*args, **kwargs)
+
+                    shortcut_conv = Mock(wraps=shortcut_conv)
                     output = resnet_general_block(
                         conv_fn=self,
                         input='input',
@@ -72,11 +76,13 @@ class ResNetBlockTestCase(tf.test.TestCase):
                         strides=self.strides,
                         shortcut_kernel_size=self.shortcut_kernel_size,
                         shortcut_force_conv=self.shortcut_force_conv,
+                        shortcut_conv_fn=shortcut_conv,
                         resize_at_exit=self.resize_at_exit,
                         activation_fn=self.activation_fn,
                         normalizer_fn=self.normalizer_fn,
                         dropout_fn=self.dropout_fn
                     )
+                    self.assertEqual(shortcut_conv.called, self.apply_shortcut)
                     self.assertEqual(output, self.final_out)
 
             def assertEqual(self, *args, **kwargs):

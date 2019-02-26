@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfsnippet.utils import (TensorWrapper, register_tensor_wrapper_class,
-                             validate_n_samples_arg)
+                             validate_n_samples_arg, is_tensor_object)
 
 __all__ = ['StochasticTensor']
 
@@ -20,7 +20,8 @@ class StochasticTensor(TensorWrapper):
     """
 
     def __init__(self, distribution, tensor, n_samples=None,
-                 group_ndims=0, is_reparameterized=None, log_prob=None):
+                 group_ndims=0, is_reparameterized=None,
+                 flow_origin=None, log_prob=None):
         """
         Construct the :class:`StochasticTensor`.
 
@@ -37,14 +38,17 @@ class StochasticTensor(TensorWrapper):
             is_reparameterized (bool): Whether or not the samples are
                 re-parameterized?  If not specified, will inherit from
                 :attr:`tfsnippet.distributions.Distribution.is_reparameterized`.
-            log_prob (tf.Tensor or None): Pre-computed log-density of `tensor`,
+            log_prob (Tensor or None): Pre-computed log-density of `tensor`,
                 given `group_ndims`.
+            flow_origin (StochasticTensor): The original stochastic tensor
+                from the base distribution of a
+                :class:`tfsnippet.FlowDistribution`.
         """
         from tfsnippet.utils import TensorArgValidator, validate_group_ndims_arg
 
         if is_reparameterized is None:
             is_reparameterized = distribution.is_reparameterized
-        if log_prob is not None:
+        if log_prob is not None and not is_tensor_object(log_prob):
             log_prob = tf.convert_to_tensor(log_prob)
 
         n_samples = validate_n_samples_arg(n_samples, 'n_samples')
@@ -63,6 +67,7 @@ class StochasticTensor(TensorWrapper):
         self._self_n_samples = n_samples
         self._self_group_ndims = group_ndims
         self._self_is_reparameterized = is_reparameterized
+        self._self_flow_origin = flow_origin
         self._self_log_prob = log_prob
         self._self_prob = None
 
@@ -137,6 +142,18 @@ class StochasticTensor(TensorWrapper):
         """
         return self._self_is_reparameterized
 
+    @property
+    def flow_origin(self):
+        """
+        Get the original stochastic tensor from the base distribution of a
+        :class:`tfsnippet.FlowDistribution`.
+
+        Returns:
+            StochasticTensor or None: The original stochastic tensor,
+                or :obj:`None` if there is no original stochastic tensor.
+        """
+        return self._self_flow_origin
+
     def log_prob(self, group_ndims=None, name=None):
         """
         Compute the log-densities of this :class:`StochasticTensor`.
@@ -171,15 +188,26 @@ class StochasticTensor(TensorWrapper):
         Returns:
             tf.Tensor: The densities.
         """
+        from tfsnippet.distributions import FlowDistributionDerivedTensor
+
+        def compute_prob(log_p):
+            prob = tf.exp(log_p)
+            if isinstance(log_p, FlowDistributionDerivedTensor):
+                # copy the `flow origin` information from log_prob to prob
+                prob = FlowDistributionDerivedTensor(
+                    prob, flow_origin=log_p.flow_origin)
+            return prob
+
         if group_ndims is None or group_ndims == self.group_ndims:
             if self._self_prob is None:
                 with tf.name_scope(name, default_name='StochasticTensor.prob'):
-                    self._self_prob = tf.exp(self.log_prob())
+                    self._self_prob = compute_prob(self.log_prob())
             return self._self_prob
         else:
             with tf.name_scope(name, default_name='StochasticTensor.prob'):
                 log_p = self.distribution.log_prob(self.tensor, group_ndims)
-                return tf.exp(log_p)
+                p = compute_prob(log_p)
+            return p
 
 
 register_tensor_wrapper_class(StochasticTensor)
