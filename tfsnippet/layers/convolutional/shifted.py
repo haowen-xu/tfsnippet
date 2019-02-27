@@ -37,12 +37,12 @@ def shifted_conv2d(input,
             can only be -1, 0 or 1.
 
             If the shift for a specific axis is `-1`, then `kernel_size - 1`
-            zeros will be padded at the front of that axis.
+            zeros will be padded at the end of that axis.
             If the shift is `0`, then `(kernel_size - 1) // 2` zeros will be
             padded at the front, and `kernel_size // 2` zeros will be padded
             at the end that axis.
             Otherwise if the shift is `1`, then `kernel_size + 1` zeros will
-            be padded at the end of that axis.
+            be padded at the front of that axis.
         strides (int or (int, int)): Strides over spatial dimensions.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
