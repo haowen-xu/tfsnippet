@@ -22,7 +22,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
                          shortcut_force_conv,
                          activation_fn,
                          normalizer_fn,
-                         dropout_fn):
+                         dropout_fn,
+                         after_conv_0,
+                         after_conv_1):
                 self.test_obj = test_obj
                 self.resize_at_exit = resize_at_exit
                 self.in_channels = in_channels
@@ -34,6 +36,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 self.activation_fn = activation_fn
                 self.normalizer_fn = normalizer_fn
                 self.dropout_fn = dropout_fn
+                self.after_conv_0 = after_conv_0
+                self.after_conv_1 = after_conv_1
                 self.apply_shortcut = (
                         (strides != 1 and strides != (1, 1)) or
                         in_channels != out_channels or
@@ -54,11 +58,13 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 self.conv0_in = apply_fn(activation_fn,
                                          apply_fn(normalizer_fn, 'input'))
                 self.conv0_out = 'conv({})'.format(self.conv0_in)
+                self.conv0_out = apply_fn(self.after_conv_0, self.conv0_out)
                 self.conv1_in = apply_fn(activation_fn,
                                          apply_fn(normalizer_fn,
                                                   apply_fn(dropout_fn,
                                                            self.conv0_out)))
                 self.conv1_out = 'conv_1({})'.format(self.conv1_in)
+                self.conv1_out = apply_fn(self.after_conv_1, self.conv1_out)
                 self.final_out = self.shortcut_out + self.conv1_out
 
             def doTest(self):
@@ -98,7 +104,7 @@ class ResNetBlockTestCase(tf.test.TestCase):
                     self.assertEqual(kernel_size, self.shortcut_kernel_size)
                     self.assertEqual(strides, self.strides)
                     return self.shortcut_out
-                elif scope == 'conv':
+                elif scope == 'conv_0':
                     self.assertEqual(input, self.conv0_in)
                     if self.resize_at_exit:
                         self.assertEqual(out_channels, self.in_channels)
@@ -130,6 +136,12 @@ class ResNetBlockTestCase(tf.test.TestCase):
         def dropout_fn(t):
             return 'dropout_fn({})'.format(t)
 
+        def after_conv_0(t):
+            return 'after_conv_0({})'.format(t)
+
+        def after_conv_1(t):
+            return 'after_conv_1({})'.format(t)
+
         # test direct shortcut, resize at exit, w/o norm, act, dropout
         TestHelper(
             self,
@@ -142,7 +154,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=None,
             normalizer_fn=None,
-            dropout_fn=None).doTest()
+            dropout_fn=None,
+            after_conv_0=None,
+            after_conv_1=None).doTest()
         TestHelper(
             self,
             resize_at_exit=False,
@@ -154,7 +168,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=None,
             normalizer_fn=None,
-            dropout_fn=None).doTest()
+            dropout_fn=None,
+            after_conv_0=None,
+            after_conv_1=None).doTest()
 
         # test conv shortcut because of force conv, w/o norm, act, dropout
         TestHelper(
@@ -168,7 +184,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=True,
             activation_fn=None,
             normalizer_fn=None,
-            dropout_fn=None).doTest()
+            dropout_fn=None,
+            after_conv_0=None,
+            after_conv_1=None).doTest()
         TestHelper(
             self,
             resize_at_exit=False,
@@ -180,7 +198,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=True,
             activation_fn=None,
             normalizer_fn=None,
-            dropout_fn=None).doTest()
+            dropout_fn=None,
+            after_conv_0=None,
+            after_conv_1=None).doTest()
 
         # test conv shortcut because of channel mismatch, w norm, act, dropout
         TestHelper(
@@ -194,7 +214,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
-            dropout_fn=dropout_fn).doTest()
+            dropout_fn=dropout_fn,
+            after_conv_0=after_conv_0,
+            after_conv_1=after_conv_1).doTest()
         TestHelper(
             self,
             resize_at_exit=False,
@@ -206,7 +228,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
-            dropout_fn=dropout_fn).doTest()
+            dropout_fn=dropout_fn,
+            after_conv_0=after_conv_0,
+            after_conv_1=after_conv_1).doTest()
 
         # test conv shortcut because of strides > 1, w norm, act, dropout
         TestHelper(
@@ -220,7 +244,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
-            dropout_fn=dropout_fn).doTest()
+            dropout_fn=dropout_fn,
+            after_conv_0=after_conv_0,
+            after_conv_1=after_conv_1).doTest()
         TestHelper(
             self,
             resize_at_exit=False,
@@ -232,7 +258,9 @@ class ResNetBlockTestCase(tf.test.TestCase):
             shortcut_force_conv=False,
             activation_fn=normalizer_fn,
             normalizer_fn=activation_fn,
-            dropout_fn=dropout_fn).doTest()
+            dropout_fn=dropout_fn,
+            after_conv_0=after_conv_0,
+            after_conv_1=after_conv_1).doTest()
 
     def test_resnet_conv2d_block(self):
         with mock.patch('tfsnippet.layers.convolutional.resnet.'
@@ -241,6 +269,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
             normalizer_fn = lambda x: x
             activation_fn = lambda x: x
             dropout_fn = lambda x: x
+            after_conv_0 = lambda x: x
+            after_conv_1 = lambda x: x
 
             # test NHWC
             input = tf.constant(np.random.random(size=[17, 11, 32, 31, 5]),
@@ -264,6 +294,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'activation_fn': None,
                 'normalizer_fn': None,
                 'dropout_fn': None,
+                'after_conv_0': None,
+                'after_conv_1': None,
                 'name': 'conv_layer',
                 'scope': None,
             })
@@ -282,6 +314,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 activation_fn=activation_fn,
                 normalizer_fn=normalizer_fn,
                 dropout_fn=dropout_fn,
+                after_conv_0=after_conv_0,
+                after_conv_1=after_conv_1,
                 name='conv_layer',
             )
             self.assertEqual(get_static_shape(output), (17, 11, 7, 16, 16))
@@ -297,6 +331,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'activation_fn': activation_fn,
                 'normalizer_fn': normalizer_fn,
                 'dropout_fn': dropout_fn,
+                'after_conv_0': after_conv_0,
+                'after_conv_1': after_conv_1,
                 'name': 'conv_layer',
                 'scope': None,
             })
@@ -308,6 +344,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
             normalizer_fn = lambda x: x
             activation_fn = lambda x: x
             dropout_fn = lambda x: x
+            after_conv_0 = lambda x: x
+            after_conv_1 = lambda x: x
 
             # test NHWC
             input = tf.constant(np.random.random(size=[17, 11, 32, 31, 5]),
@@ -331,6 +369,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'activation_fn': None,
                 'normalizer_fn': None,
                 'dropout_fn': None,
+                'after_conv_0': None,
+                'after_conv_1': None,
                 'name': 'deconv_layer',
                 'scope': None,
             })
@@ -349,6 +389,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 activation_fn=activation_fn,
                 normalizer_fn=normalizer_fn,
                 dropout_fn=dropout_fn,
+                after_conv_0=after_conv_0,
+                after_conv_1=after_conv_1,
                 name='deconv_layer',
             )
             self.assertEqual(get_static_shape(output), (17, 11, 7, 64, 62))
@@ -364,6 +406,8 @@ class ResNetBlockTestCase(tf.test.TestCase):
                 'activation_fn': activation_fn,
                 'normalizer_fn': normalizer_fn,
                 'dropout_fn': dropout_fn,
+                'after_conv_0': after_conv_0,
+                'after_conv_1': after_conv_1,
                 'name': 'deconv_layer',
                 'scope': None,
             })

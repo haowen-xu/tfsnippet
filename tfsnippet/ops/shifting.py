@@ -15,7 +15,7 @@ def shift(input, shift, name=None):
 
     Args:
         input (Tensor): The tensor to be shifted.
-        shift (Iterablen[int]): The shift length for each axes.
+        shift (Iterable[int]): The shift length for each axes.
             It must be equal to the rank of `input`.
             For each axis, if its corresponding shift < 0, then the
             `input` will be shifted to left by `-shift` at that axis.

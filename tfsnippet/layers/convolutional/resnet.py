@@ -30,6 +30,8 @@ def resnet_general_block(conv_fn,
                          activation_fn=None,
                          normalizer_fn=None,
                          dropout_fn=None,
+                         after_conv_0=None,
+                         after_conv_1=None,
                          name=None,
                          scope=None):
     """
@@ -57,8 +59,9 @@ def resnet_general_block(conv_fn,
             out_channels=in_channels if resize_at_exit else out_channels,
             kernel_size=kernel_size,
             strides=strides,
-            scope='conv'
+            scope='conv_0'
         )
+        residual = after_conv_0(residual)
         residual = dropout_fn(residual)
         residual = conv_fn(
             input=activation_fn(normalizer_fn(residual)),
@@ -67,18 +70,19 @@ def resnet_general_block(conv_fn,
             strides=strides,
             scope='conv_1'
         )
+        residual = after_conv_1(residual)
 
         output = shortcut + residual
 
     Args:
-        conv_fn: The convolution function for "conv" and "conv_1"
+        conv_fn: The convolution function for "conv_0" and "conv_1"
             convolutional layers.  It must accept, and only expect, 5 named
             arguments ``(input, out_channels, kernel_size, strides, scope)``.
         input (Tensor): The input tensor.
         in_channels (int): The channel numbers of the tensor.
         out_channels (int): The channel numbers of the output.
         kernel_size (int or tuple[int]): Kernel size over spatial dimensions,
-            for "conv" and "conv_1" convolutional layers.
+            for "conv_0" and "conv_1" convolutional layers.
         strides (int or tuple[int]): Strides over spatial dimensions,
             for all three convolutional layers.
         shortcut_conv_fn: The convolution function for the "shortcut"
@@ -92,10 +96,12 @@ def resnet_general_block(conv_fn,
             Otherwise (by default) only apply the transformation if necessary.
         resize_at_exit (bool): If :obj:`True`, resize the spatial dimensions
             at the "conv_1" convolutional layer.  If :obj:`False`, resize at
-            the "conv" convolutional layer. (see above)
+            the "conv_0" convolutional layer. (see above)
         activation_fn: The activation function.
         normalizer_fn: The normalizer function.
         dropout_fn: The dropout function.
+        after_conv_0: The function to apply on the output of "conv_0" layer.
+        after_conv_1: The function to apply on the output of "conv_1" layer.
 
     Returns:
         tf.Tensor: The output tensor.
@@ -129,12 +135,12 @@ def resnet_general_block(conv_fn,
 
     # define two types of convolution operations: resizing conv, and
     # size keeping conv
-    def resize_conv(input, kernel_size, scope, conv_fn=conv_fn):
-        return conv_fn(input=input, out_channels=out_channels,
+    def resize_conv(input, kernel_size, n_channels, scope, conv_fn=conv_fn):
+        return conv_fn(input=input, out_channels=n_channels,
                        kernel_size=kernel_size, strides=strides,
                        scope=scope)
 
-    def keep_conv(input, kernel_size, n_channels, scope):
+    def keep_conv(input, kernel_size, n_channels, scope, conv_fn=conv_fn):
         return conv_fn(input=input, out_channels=n_channels,
                        kernel_size=kernel_size, strides=1,
                        scope=scope)
@@ -152,7 +158,7 @@ def resnet_general_block(conv_fn,
                 shortcut_force_conv:
             shortcut = resize_conv(
                 input, shortcut_kernel_size, scope='shortcut',
-                conv_fn=shortcut_conv_fn
+                n_channels=out_channels, conv_fn=shortcut_conv_fn
             )
         else:
             shortcut = input
@@ -160,14 +166,18 @@ def resnet_general_block(conv_fn,
         # build the residual path
         if resize_at_exit:
             conv0 = partial(
-                keep_conv, kernel_size=kernel_size, scope='conv',
+                keep_conv, kernel_size=kernel_size, scope='conv_0',
                 n_channels=in_channels
             )
             conv1 = partial(
-                resize_conv, kernel_size=kernel_size, scope='conv_1')
+                resize_conv, kernel_size=kernel_size, scope='conv_1',
+                n_channels=out_channels
+            )
         else:
             conv0 = partial(
-                resize_conv, kernel_size=kernel_size, scope='conv')
+                resize_conv, kernel_size=kernel_size, scope='conv_0',
+                n_channels=out_channels
+            )
             conv1 = partial(
                 keep_conv, kernel_size=kernel_size, scope='conv_1',
                 n_channels=out_channels
@@ -175,13 +185,15 @@ def resnet_general_block(conv_fn,
 
         with tf.variable_scope('residual'):
             residual = input
-            residual = apply_fn(normalizer_fn, residual, 'norm')
-            residual = apply_fn(activation_fn, residual, 'activation')
+            residual = apply_fn(normalizer_fn, residual, 'norm_0')
+            residual = apply_fn(activation_fn, residual, 'activation_0')
             residual = conv0(residual)
+            residual = apply_fn(after_conv_0, residual, 'after_conv_0')
             residual = apply_fn(dropout_fn, residual, 'dropout')
             residual = apply_fn(normalizer_fn, residual, 'norm_1')
             residual = apply_fn(activation_fn, residual, 'activation_1')
             residual = conv1(residual)
+            residual = apply_fn(after_conv_1, residual, 'after_conv_1')
 
         # merge the shortcut path and the residual path
         output = shortcut + residual
@@ -203,6 +215,8 @@ def resnet_conv2d_block(input,
                         normalizer_fn=None,
                         weight_norm=False,
                         dropout_fn=None,
+                        after_conv_0=None,
+                        after_conv_1=None,
                         kernel_initializer=None,
                         kernel_regularizer=None,
                         kernel_constraint=None,
@@ -220,7 +234,7 @@ def resnet_conv2d_block(input,
         input (Tensor): The input tensor, at least 4-d.
         out_channels (int): The channel numbers of the output.
         kernel_size (int or tuple[int]): Kernel size over spatial dimensions,
-            for "conv" and "conv_1" convolutional layers.
+            for "conv_0" and "conv_1" convolutional layers.
         strides (int or tuple[int]): Strides over spatial dimensions,
             for all three convolutional layers.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
@@ -235,6 +249,8 @@ def resnet_conv2d_block(input,
         normalizer_fn: The normalizer function.
         weight_norm: Passed to :func:`conv2d`.
         dropout_fn: The dropout function.
+        after_conv_0: The function to apply on the output of "conv_0" layer.
+        after_conv_1: The function to apply on the output of "conv_1" layer.
         kernel_initializer: Passed to :func:`conv2d`.
         kernel_regularizer: Passed to :func:`conv2d`.
         kernel_constraint: Passed to :func:`conv2d`.
@@ -297,6 +313,8 @@ def resnet_conv2d_block(input,
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,
         dropout_fn=dropout_fn,
+        after_conv_0=after_conv_0,
+        after_conv_1=after_conv_1,
         name=name or 'resnet_conv2d_block',
         scope=scope
     )
@@ -317,6 +335,8 @@ def resnet_deconv2d_block(input,
                           normalizer_fn=None,
                           weight_norm=False,
                           dropout_fn=None,
+                          after_conv_0=None,
+                          after_conv_1=None,
                           kernel_initializer=None,
                           kernel_regularizer=None,
                           kernel_constraint=None,
@@ -334,7 +354,7 @@ def resnet_deconv2d_block(input,
         input (Tensor): The input tensor, at least 4-d.
         out_channels (int): The channel numbers of the output.
         kernel_size (int or tuple[int]): Kernel size over spatial dimensions,
-            for "conv" and "conv_1" deconvolutional layers.
+            for "conv_0" and "conv_1" deconvolutional layers.
         strides (int or tuple[int]): Strides over spatial dimensions,
             for all three deconvolutional layers.
         shortcut_kernel_size (int or tuple[int]): Kernel size over spatial
@@ -357,6 +377,8 @@ def resnet_deconv2d_block(input,
         normalizer_fn: The normalizer function.
         weight_norm: Passed to :func:`deconv2d`.
         dropout_fn: The dropout function.
+        after_conv_0: The function to apply on the output of "conv_0" layer.
+        after_conv_1: The function to apply on the output of "conv_1" layer.
         kernel_initializer: Passed to :func:`deconv2d`.
         kernel_regularizer: Passed to :func:`deconv2d`.
         kernel_constraint: Passed to :func:`deconv2d`.
@@ -438,6 +460,8 @@ def resnet_deconv2d_block(input,
         activation_fn=activation_fn,
         normalizer_fn=normalizer_fn,
         dropout_fn=dropout_fn,
+        after_conv_0=after_conv_0,
+        after_conv_1=after_conv_1,
         name=name or 'resnet_deconv2d_block',
         scope=scope
     )
