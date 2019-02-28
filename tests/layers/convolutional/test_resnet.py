@@ -105,8 +105,10 @@ class ResNetBlockTestCase(tf.test.TestCase):
         kernel_regularizer = l2_regularizer(0.001)
 
         # test error arguments
-        with pytest.raises(ValueError, match=''):
-            for arg_name in ('kernel', 'kernel_mask', 'bias'):
+        for arg_name in ('kernel', 'kernel_mask', 'bias'):
+            with pytest.raises(ValueError,
+                               match='`{}` argument is not allowed for a '
+                                     'resnet block'.format(arg_name)):
                 _ = resnet_general_block(
                     conv_fn=conv2d,
                     input=x_tensor,

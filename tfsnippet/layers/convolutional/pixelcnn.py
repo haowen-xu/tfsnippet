@@ -19,7 +19,8 @@ __all__ = [
 
 class PixelCNN2DOutput(object):
     """
-    The vertical and horizontal stack outputs of a PixelCNN 2D layer.
+    The output of a PixelCNN 2D layer, including tensors from the vertical and
+    horizontal convolution stacks.
     """
 
     def __init__(self, vertical, horizontal):
@@ -64,7 +65,7 @@ def pixelcnn_2d_input(input, channels_last=True, auxiliary_channel=True,
 
         # apply the PixelCNN 2D layers.
         for i in range(5):
-            output = spt.layers.pixelcnn_2d_resnet(
+            output = spt.layers.pixelcnn_conv2d_resnet(
                 output,
                 out_channels=64,
                 vertical_kernel_size=(2, 3),
@@ -256,11 +257,11 @@ def pixelcnn_conv2d_resnet(input,
             if activation_fn is not None:
                 with tf.variable_scope('activation'):
                     input = activation_fn(input)
-            return shortcut_conv_fn(
-                input=input,
+            return input + shortcut_conv_fn(
+                input=vertical,
                 out_channels=out_channels,
-                kernel_size=(1, 1),  # since resize at conv_0, 1x1 conv here
-                strides=(1, 1),  # since resize at conv_0, no strides here
+                kernel_size=(1, 1),
+                strides=(1, 1),
                 channels_last=channels_last,
                 use_bias=True,
                 scope=scope,

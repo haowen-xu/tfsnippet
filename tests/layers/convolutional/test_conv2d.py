@@ -113,6 +113,28 @@ class Conv2dTestCase(tf.test.TestCase):
             )
         return output
 
+    def test_conv2d_1x1(self):
+        with self.test_session() as sess:
+            np.random.seed(1234)
+
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+            kernel = np.random.random(size=[1, 1, 5, 7]).astype(np.float32)
+            bias = np.random.random(size=[7]).astype(np.float32)
+
+            # test strides 1, kernel size 1, valid padding, NHWC
+            np.testing.assert_allclose(
+                self.run_conv2d(x, 7, 1, 'valid', kernel, bias, 1, 1,
+                                channels_last=True),
+                self.conv2d_ans(x, 'valid', kernel, bias, 1, 1)
+            )
+
+            # test strides (2, 3), kernel size 1, valid padding, NHWC
+            np.testing.assert_allclose(
+                self.run_conv2d(x, 7, 1, 'same', kernel, bias, (2, 3), 1,
+                                channels_last=True),
+                self.conv2d_ans(x, 'same', kernel, bias, (2, 3), 1)
+            )
+
     def test_conv2d(self):
         with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
                 self.test_session() as sess:

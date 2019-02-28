@@ -103,7 +103,9 @@ def conv2d(input,
     # check functional arguments
     padding = validate_enum_arg(
         'padding', str(padding).upper(), ['VALID', 'SAME'])
-    strides = validate_conv2d_strides_tuple('strides', strides, channels_last)
+    original_strides = validate_conv2d_size_tuple('strides', strides)
+    strides = validate_conv2d_strides_tuple(
+        'strides', original_strides, channels_last)
     dilations = validate_positive_int_arg('dilations', dilations)
 
     if dilations > 1 and not channels_last:
@@ -174,12 +176,16 @@ def conv2d(input,
 
         # special optimization: use dense instead of 1x1 conv if possible
         if dilations == 1 and kernel_size == (1, 1) and channels_last:
-            # flatten to 2d
-            output, s1, s2 = flatten_to_ndims(input, 2)
-
             with tf.name_scope('conv2d_1x1'):
                 conv2d_1x1_kernel = tf.reshape(
                     kernel, kernel_shape[2:], name='conv2d_1x1_kernel')
+                output = input[...,
+                               ::original_strides[0],
+                               ::original_strides[1],
+                               :]
+
+                # flatten to 2d
+                output, s1, s2 = flatten_to_ndims(output, 2)
                 output = tf.matmul(output, conv2d_1x1_kernel)
 
         else:
