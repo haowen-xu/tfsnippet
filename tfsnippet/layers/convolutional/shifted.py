@@ -65,6 +65,7 @@ def shifted_conv2d(input,
     rank = len(get_static_shape(input))
     pads = [(0, 0)] * rank
 
+    is_shifted_conv2d = False
     spatial_start = -3 if channels_last else -2
     for i, (ksize, shift) in enumerate(zip(kernel_size, spatial_shift)):
         axis = i + spatial_start
@@ -72,10 +73,27 @@ def shifted_conv2d(input,
             pads[axis] = ((ksize - 1) // 2, ksize // 2)
         elif shift == -1:
             pads[axis] = (0, ksize - 1)
+            is_shifted_conv2d = True
         else:
             assert(shift == 1)
             pads[axis] = (ksize - 1, 0)
+            is_shifted_conv2d = True
 
+    # fast routine: no shift, use ordinary conv_fn with padding == 'SAME'
+    if not is_shifted_conv2d:
+        return conv_fn(
+            input=input,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            strides=strides,
+            channels_last=channels_last,
+            padding='SAME',
+            scope=scope,
+            name=name,
+            **kwargs
+        )
+
+    # slow routine: pad and use conv_fn with padding == 'VALID'
     with tf.variable_scope(scope, default_name=name or 'shifted_conv2d'):
         output = tf.pad(input, pads)
         output = conv_fn(

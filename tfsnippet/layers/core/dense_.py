@@ -2,19 +2,21 @@ import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import *
-from .gated import as_gated
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
-__all__ = ['dense', 'gated_dense']
+__all__ = ['dense']
 
 
 @add_arg_scope
 @add_name_and_scope_arg_doc
-def dense(input, units,
+def dense(input,
+          units,
           activation_fn=None,
           normalizer_fn=None,
           weight_norm=False,
+          gated=False,
+          gate_sigmoid_bias=2.,
           kernel=None,
           kernel_initializer=None,
           kernel_regularizer=None,
@@ -49,6 +51,10 @@ def dense(input, units,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
@@ -83,6 +89,8 @@ def dense(input, units,
 
     # get the specification of outputs and parameters
     out_units = validate_positive_int_arg('units', units)
+    if gated:
+        out_units *= 2
     kernel_shape = (in_units, out_units)
     bias_shape = (out_units,)
 
@@ -141,9 +149,17 @@ def dense(input, units,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=-1)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
+
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
 
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
@@ -152,41 +168,3 @@ def dense(input, units,
         output = maybe_check_numerics(output, 'output')
 
     return output
-
-
-@add_arg_scope
-@add_name_and_scope_arg_doc
-def gated_dense(input, units, sigmoid_bias=2., activation_fn=None,
-                **kwargs):
-    """
-    Gated fully-connected layer.
-
-    In brief::
-
-        gated_dense = lambda x: (
-            sigmoid(sigmoid_bias + dense(x)) *
-            dense(x, activation_fn=activation_fn)
-        )
-
-    See :func:`dense` for more details about the arguments.
-
-    Args:
-        input (Tensor): The input tensor, at least 2-d.
-        units (int): Number of output units.
-        sigmoid_bias: The constant bias added to the `gate` before
-            applying the sigmoid activation.
-        activation_fn: The activation function.
-        \\**kwargs: Other named arguments to be passed to :func:`dense`.
-
-    Returns:
-        tf.Tensor: The output tensor.
-    """
-    if 'kernel' in kwargs or 'bias' in kwargs:
-        raise ValueError('The `kernel` and `bias` argument are not supported.')
-
-    return as_gated(dense, sigmoid_bias=sigmoid_bias)(
-        input=input,
-        units=units,
-        activation_fn=activation_fn,
-        **kwargs
-    )

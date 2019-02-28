@@ -8,7 +8,7 @@ from tfsnippet.utils import (InputSpec, ParamSpec, add_name_and_scope_arg_doc,
                              get_static_shape, maybe_check_numerics,
                              validate_int_tuple_arg, get_dimensions_size,
                              validate_enum_arg, model_variable,
-                             maybe_add_histogram, settings)
+                             maybe_add_histogram, settings, deprecated_arg)
 from ..flows import FeatureMappingFlow
 
 __all__ = ['ActNorm', 'act_norm']
@@ -345,9 +345,9 @@ class ActNorm(FeatureMappingFlow):
 
 @add_arg_scope
 @add_name_and_scope_arg_doc
+@deprecated_arg('value_ndims', version='0.2.0-alpha2')
 def act_norm(input,
              axis=-1,
-             value_ndims=1,
              initializing=False,
              scale_type='exp',
              bias_regularizer=None,
@@ -359,7 +359,8 @@ def act_norm(input,
              trainable=True,
              epsilon=1e-6,
              name=None,
-             scope=None):
+             scope=None,
+             value_ndims=None):
     """
     ActNorm proposed by (Kingma & Dhariwal, 2018).
 
@@ -384,13 +385,11 @@ def act_norm(input,
                               ))
 
     Args:
-        input (tf.Tensor): The input tensor.
+        input (Tensor): The input tensor.
         axis (int or Iterable[int]): The axis to apply ActNorm.
             Dimensions not in `axis` will be averaged out when computing
             the mean of activations. Default `-1`, the last dimension.
             All items of the `axis` should be covered by `value_ndims`.
-        value_ndims (int): Number of dimensions to be considered as the
-            value dimensions.  `x.ndims - value_ndims == log_det.ndims`.
         initializing (bool): Whether or not to use the input `x` to initialize
             the layer parameters? (default :obj:`True`)
         scale_type: One of {"exp", "linear"}.
@@ -410,6 +409,13 @@ def act_norm(input,
     Returns:
         tf.Tensor: The output after the ActNorm has been applied.
     """
+    input = InputSpec(shape=['...']).validate('input', input)
+    rank = len(get_static_shape(input))
+    axis = list(validate_int_tuple_arg('axis', axis))
+    for i, a in enumerate(axis):
+        if a >= 0:
+            axis[i] = a - rank
+    value_ndims = max(-a for a in axis)
     layer = ActNorm(
         axis=axis,
         value_ndims=value_ndims,
