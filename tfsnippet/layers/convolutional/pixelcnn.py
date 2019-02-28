@@ -138,7 +138,7 @@ def pixelcnn_2d_output(input):
     """
     if not isinstance(input, PixelCNN2DOutput):
         raise TypeError('`input` is not an instance of `PixelCNN2DOutput`: '
-                        'got {}'.format(input))
+                        'got {!r}'.format(input))
     return input.horizontal
 
 
@@ -154,7 +154,7 @@ def pixelcnn_conv2d_resnet(input,
                            channels_last=True,
                            use_shortcut_conv=None,
                            shortcut_conv_fn=None,
-                           shortcut_kernel_size=None,
+                           shortcut_kernel_size=(1, 1),
                            activation_fn=None,
                            normalizer_fn=None,
                            dropout_fn=None,
@@ -209,7 +209,7 @@ def pixelcnn_conv2d_resnet(input,
     """
     if not isinstance(input, PixelCNN2DOutput):
         raise TypeError('`input` is not an instance of `PixelCNN2DOutput`: '
-                        'got {}'.format(input))
+                        'got {!r}'.format(input))
 
     vertical, in_channels, _ = validate_conv2d_input(
         input.vertical, channels_last, 'input.vertical')
@@ -226,7 +226,8 @@ def pixelcnn_conv2d_resnet(input,
     horizon_conv_fn = partial(
         shifted_conv2d, conv_fn=conv_fn, spatial_shift=(1, 1))
 
-    with tf.variable_scope(scope, default_name=name):
+    with tf.variable_scope(scope,
+                           default_name=name or 'pixelcnn_conv2d_resnet'):
         # first, derive the vertical stack output
         vertical = resnet_general_block(
             conv_fn=vertical_conv_fn,
