@@ -5,7 +5,8 @@ from .resnet import *
 from .shifted import *
 
 __all__ = [
-    'avg_pool2d', 'conv2d', 'deconv2d', 'gated_conv2d', 'gated_deconv2d',
-    'global_avg_pool2d', 'max_pool2d', 'resnet_conv2d_block',
+    'PixelCNN2DOutput', 'avg_pool2d', 'conv2d', 'deconv2d',
+    'global_avg_pool2d', 'max_pool2d', 'pixelcnn_2d_input',
+    'pixelcnn_2d_output', 'pixelcnn_conv2d_resnet', 'resnet_conv2d_block',
     'resnet_deconv2d_block', 'resnet_general_block', 'shifted_conv2d',
 ]

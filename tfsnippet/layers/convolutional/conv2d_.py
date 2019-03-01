@@ -10,12 +10,11 @@ from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
                              add_name_and_scope_arg_doc, model_variable,
                              maybe_check_numerics, maybe_add_histogram)
 from .utils import *
-from ..core import as_gated
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
 __all__ = [
-    'conv2d', 'deconv2d', 'gated_conv2d', 'gated_deconv2d',
+    'conv2d', 'deconv2d',
 ]
 
 
@@ -31,6 +30,8 @@ def conv2d(input,
            activation_fn=None,
            normalizer_fn=None,
            weight_norm=False,
+           gated=False,
+           gate_sigmoid_bias=2.,
            kernel=None,
            kernel_mask=None,
            kernel_initializer=None,
@@ -67,6 +68,10 @@ def conv2d(input,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_mask (Tensor): If specified, multiply this mask onto `kernel`,
             i.e., the actual kernel to use will be `kernel * kernel_mask`.
@@ -92,11 +97,15 @@ def conv2d(input,
         validate_conv2d_input(input, channels_last)
     out_channels = validate_positive_int_arg('out_channels', out_channels)
     dtype = input.dtype.base_dtype
+    if gated:
+        out_channels *= 2
 
     # check functional arguments
     padding = validate_enum_arg(
         'padding', str(padding).upper(), ['VALID', 'SAME'])
-    strides = validate_conv2d_strides_tuple('strides', strides, channels_last)
+    original_strides = validate_conv2d_size_tuple('strides', strides)
+    strides = validate_conv2d_strides_tuple(
+        'strides', original_strides, channels_last)
     dilations = validate_positive_int_arg('dilations', dilations)
 
     if dilations > 1 and not channels_last:
@@ -131,6 +140,8 @@ def conv2d(input,
 
     # the main part of the conv2d layer
     with tf.variable_scope(scope, default_name=name or 'conv2d'):
+        c_axis = -1 if channels_last else -3
+
         # create the variables
         if kernel is None:
             kernel = model_variable(
@@ -163,26 +174,41 @@ def conv2d(input,
             maybe_add_histogram(bias, 'bias')
             bias = maybe_check_numerics(bias, 'bias')
 
-        # flatten to 4d
-        output, s1, s2 = flatten_to_ndims(input, 4)
+        # special optimization: use dense instead of 1x1 conv if possible
+        if dilations == 1 and kernel_size == (1, 1) and channels_last:
+            with tf.name_scope('conv2d_1x1'):
+                conv2d_1x1_kernel = tf.reshape(
+                    kernel, kernel_shape[2:], name='conv2d_1x1_kernel')
+                output = input[...,
+                               ::original_strides[0],
+                               ::original_strides[1],
+                               :]
 
-        # do convolution
-        if dilations > 1:
-            output = tf.nn.atrous_conv2d(
-                value=output,
-                filters=kernel,
-                rate=dilations,
-                padding=padding
-            )
+                # flatten to 2d
+                output, s1, s2 = flatten_to_ndims(output, 2)
+                output = tf.matmul(output, conv2d_1x1_kernel)
+
         else:
-            output = tf.nn.conv2d(
-                input=output,
-                filter=kernel,
-                strides=strides,
-                padding=padding,
-                data_format=data_format,
-                dilations=[1] * 4
-            )
+            # flatten to 4d
+            output, s1, s2 = flatten_to_ndims(input, 4)
+
+            # do convolution
+            if dilations > 1:
+                output = tf.nn.atrous_conv2d(
+                    value=output,
+                    filters=kernel,
+                    rate=dilations,
+                    padding=padding
+                )
+            else:
+                output = tf.nn.conv2d(
+                    input=output,
+                    filter=kernel,
+                    strides=strides,
+                    padding=padding,
+                    data_format=data_format,
+                    dilations=[1] * 4
+                )
 
         # add bias
         if use_bias:
@@ -192,9 +218,17 @@ def conv2d(input,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=c_axis)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
+
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
 
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
@@ -216,6 +250,8 @@ def deconv2d(input,
              activation_fn=None,
              normalizer_fn=None,
              weight_norm=False,
+             gated=False,
+             gate_sigmoid_bias=2.,
              kernel=None,
              kernel_initializer=None,
              kernel_regularizer=None,
@@ -258,6 +294,10 @@ def deconv2d(input,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
@@ -281,6 +321,8 @@ def deconv2d(input,
         validate_conv2d_input(input, channels_last)
     out_channels = validate_positive_int_arg('out_channels', out_channels)
     dtype = input.dtype.base_dtype
+    if gated:
+        out_channels *= 2
 
     # check functional arguments
     padding = validate_enum_arg(
@@ -438,9 +480,17 @@ def deconv2d(input,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=c_axis)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
+
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
 
         # unflatten back to original shape
         output = unflatten_from_ndims(output, s1, s2)
@@ -449,91 +499,3 @@ def deconv2d(input,
         output = maybe_check_numerics(output, 'output')
 
     return output
-
-
-@add_arg_scope
-@add_name_and_scope_arg_doc
-def gated_conv2d(input,
-                 out_channels,
-                 kernel_size,
-                 sigmoid_bias=2.,
-                 activation_fn=None,
-                 **kwargs):
-    """
-    Gated 2D convolutional layer.
-
-    In brief::
-
-        gated_dense = lambda x: (
-            sigmoid(sigmoid_bias + conv2d(x, out_channels, kernel_size)) *
-            conv2d(x, out_channels, kernel_size, activation_fn=activation_fn)
-        )
-
-    See :func:`conv2d` for more details about the arguments.
-
-    Args:
-        input (Tensor): The input tensor, at least 4-d.
-        out_channels (int): The channel numbers of the deconvolution output.
-        kernel_size (int or (int, int)): Kernel size over spatial dimensions.
-        sigmoid_bias: The constant bias added to the `gate` before
-            applying the sigmoid activation.
-        activation_fn: The activation function.
-        \\**kwargs: Other named arguments to be passed to :func:`conv2d`.
-
-    Returns:
-        tf.Tensor: The output tensor.
-    """
-    if 'kernel' in kwargs or 'bias' in kwargs:
-        raise ValueError('The `kernel` and `bias` argument are not supported.')
-
-    return as_gated(conv2d, sigmoid_bias=sigmoid_bias)(
-        input=input,
-        out_channels=out_channels,
-        kernel_size=kernel_size,
-        activation_fn=activation_fn,
-        **kwargs
-    )
-
-
-@add_arg_scope
-@add_name_and_scope_arg_doc
-def gated_deconv2d(input,
-                   out_channels,
-                   kernel_size,
-                   sigmoid_bias=2.,
-                   activation_fn=None,
-                   **kwargs):
-    """
-    Gated 2D deconvolutional layer.
-
-    In brief::
-
-        gated_dense = lambda x: (
-            sigmoid(sigmoid_bias + deconv2d(x, out_channels, kernel_size)) *
-            deconv2d(x, out_channels, kernel_size, activation_fn=activation_fn)
-        )
-
-    See :func:`deonv2d` for more details about the arguments.
-
-    Args:
-        input (Tensor): The input tensor, at least 4-d.
-        out_channels (int): The channel numbers of the deconvolution output.
-        kernel_size (int or (int, int)): Kernel size over spatial dimensions.
-        sigmoid_bias: The constant bias added to the `gate` before
-            applying the sigmoid activation.
-        activation_fn: The activation function.
-        \\**kwargs: Other named arguments to be passed to :func:`deconv2d`.
-
-    Returns:
-        tf.Tensor: The output tensor.
-    """
-    if 'kernel' in kwargs or 'bias' in kwargs:
-        raise ValueError('The `kernel` and `bias` argument are not supported.')
-
-    return as_gated(deconv2d, sigmoid_bias=sigmoid_bias)(
-        input=input,
-        out_channels=out_channels,
-        kernel_size=kernel_size,
-        activation_fn=activation_fn,
-        **kwargs
-    )

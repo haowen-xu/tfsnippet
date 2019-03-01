@@ -40,7 +40,7 @@ def naive_act_norm_transform(x, var_shape_aligned, value_ndims, scale, bias):
     return y, log_det
 
 
-class ActNormClassTestCase(tf.test.TestCase):
+class ActNormTestCase(tf.test.TestCase):
 
     def test_error(self):
         with pytest.raises(ValueError,
@@ -176,8 +176,20 @@ class ActNormClassTestCase(tf.test.TestCase):
             np.testing.assert_allclose(log_det2, log_det)
             np.testing.assert_allclose(np.transpose(y2, (0, 1, 3, 4, 2)), y)
 
-    def test_act_norm_vars(self):
-        # test trainable
+    def test_act_norm_function(self):
+        x = np.random.normal(size=[2, 3, 4, 5, 6])
+
+        with self.test_session() as sess:
+            y = sess.run(act_norm(x, axis=[1, -1], initializing=True))
+            scale, bias, var_shape_aligned = \
+                naive_act_norm_initialize(x, axis=[1, -1])
+            y2 = naive_act_norm_transform(
+                x, var_shape_aligned=var_shape_aligned, value_ndims=4,
+                scale=scale, bias=bias
+            )[0]
+            np.testing.assert_allclose(y, y2)
+
+        # test variables creation when trainable
         with tf.Graph().as_default():
             _ = act_norm(tf.zeros([2, 3]), trainable=True, scale_type='linear')
             assert_variables(['scale', 'bias'], trainable=True,
@@ -185,7 +197,7 @@ class ActNormClassTestCase(tf.test.TestCase):
                              collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['log_scale'], exist=False,  scope='act_norm')
 
-        # test non-trainable
+        # test variables creation when non-trainable
         with tf.Graph().as_default():
             _ = act_norm(tf.zeros([2, 3]), trainable=False, scale_type='exp')
             assert_variables(['log_scale', 'bias'], trainable=False,

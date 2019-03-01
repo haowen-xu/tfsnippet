@@ -37,6 +37,11 @@ def as_gated(layer_fn, sigmoid_bias=2., default_name=None):
 
     Returns:
         The wrapped gated layer function.
+
+    Notes:
+        If a layer supports `gated` argument (e.g., :func:`spt.layers.dense`),
+        it is generally better to use that argument, instead of using this
+        :func:`as_gated` wrapper on the layer.
     """
     if not default_name:
         if getattr(layer_fn, '__name__', None):

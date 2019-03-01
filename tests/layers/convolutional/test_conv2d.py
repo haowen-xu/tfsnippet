@@ -3,10 +3,11 @@ import functools
 import numpy as np
 import pytest
 import tensorflow as tf
-from mock import mock, Mock
+from mock import mock
 
 from tests.helper import assert_variables
 from tests.layers.convolutional.helper import *
+from tests.layers.core.test_gated import safe_sigmoid
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import *
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
@@ -36,7 +37,8 @@ class Conv2dTestCase(tf.test.TestCase):
 
     @staticmethod
     def conv2d_ans(input, padding, kernel, bias, strides, dilations,
-                   activation_fn=None, normalizer_fn=None):
+                   activation_fn=None, normalizer_fn=None, gated=False,
+                   gate_sigmoid_bias=2.):
         """Produce the expected answer of conv2d."""
         strides = (strides,) * 2 if is_integer(strides) else tuple(strides)
         strides = (1,) + strides + (1,)
@@ -66,8 +68,12 @@ class Conv2dTestCase(tf.test.TestCase):
             output += bias
         if normalizer_fn:
             output = normalizer_fn(output)
+        if gated:
+            output, gate = tf.split(output, 2, axis=-1)
         if activation_fn:
             output = activation_fn(output)
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias)
 
         output = unflatten_from_ndims(output, s1, s2)
         output = session.run(output)
@@ -106,6 +112,28 @@ class Conv2dTestCase(tf.test.TestCase):
                 tuple(i for i in range(len(i_shape) - 3)) + (-2, -1, -3)
             )
         return output
+
+    def test_conv2d_1x1(self):
+        with self.test_session() as sess:
+            np.random.seed(1234)
+
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+            kernel = np.random.random(size=[1, 1, 5, 7]).astype(np.float32)
+            bias = np.random.random(size=[7]).astype(np.float32)
+
+            # test strides 1, kernel size 1, valid padding, NHWC
+            np.testing.assert_allclose(
+                self.run_conv2d(x, 7, 1, 'valid', kernel, bias, 1, 1,
+                                channels_last=True),
+                self.conv2d_ans(x, 'valid', kernel, bias, 1, 1)
+            )
+
+            # test strides (2, 3), kernel size 1, valid padding, NHWC
+            np.testing.assert_allclose(
+                self.run_conv2d(x, 7, 1, 'same', kernel, bias, (2, 3), 1,
+                                channels_last=True),
+                self.conv2d_ans(x, 'same', kernel, bias, (2, 3), 1)
+            )
 
     def test_conv2d(self):
         with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
@@ -280,6 +308,35 @@ class Conv2dTestCase(tf.test.TestCase):
                 self.conv2d_ans(x, 'same', kernel * mask, bias, 1, 1)
             )
 
+    def test_gated(self):
+        assert_allclose = functools.partial(
+            np.testing.assert_allclose, rtol=1e-5, atol=1e-5)
+        with mock.patch('tensorflow.nn.conv2d', patched_conv2d), \
+                self.test_session() as sess:
+            np.random.seed(1234)
+
+            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
+            kernel = np.random.random(size=[3, 4, 5, 14]).astype(np.float32)
+            normalized_kernel = l2_normalize(kernel, axis=(0, 1, 2))
+            kernel = kernel.astype(np.float32)
+            bias = np.random.random(size=[14]).astype(np.float32)
+
+            normalizer_fn = lambda x: x * 1.5 - 3.
+            activation_fn = lambda x: x * 2. + 1.
+
+            assert_allclose(
+                self.run_conv2d(x, 7, (3, 4), 'same', kernel, bias, 1, 1,
+                                channels_last=True, weight_norm=True,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn,
+                                gated=True,
+                                gate_sigmoid_bias=1.1),
+                self.conv2d_ans(x, 'same', normalized_kernel, None, 1, 1,
+                                normalizer_fn=normalizer_fn,
+                                activation_fn=activation_fn,
+                                gated=True, gate_sigmoid_bias=1.1)
+            )
+
 
 def patched_conv2d_transpose(value, filter, output_shape, strides, padding,
                              data_format):
@@ -445,6 +502,20 @@ class Deconv2dTestCase(tf.test.TestCase):
         )
         assert_allclose(deconv_out, ans)
 
+        # test gated
+        activation_fn = lambda x: x * 2. + 1.
+        normalizer_fn = lambda x: x * 1.5 - 3.
+        output, gate = np.split(normalizer_fn(linear_out), 2, axis=-1)
+        ans = activation_fn(output) * safe_sigmoid(gate + 1.1)
+
+        deconv_out = Deconv2dTestCase.run_deconv2d(
+            y, x_channels // 2, kernel_size, x_shape, padding,
+            kernel, bias, strides, channels_last=True,
+            normalizer_fn=normalizer_fn, activation_fn=activation_fn,
+            gated=True, gate_sigmoid_bias=1.1
+        )
+        assert_allclose(deconv_out, ans)
+
     @staticmethod
     def run_deconv2d(input, out_channels, kernel_size, output_shape, padding,
                      kernel, bias, strides, channels_last, ph=None, **kwargs):
@@ -485,9 +556,9 @@ class Deconv2dTestCase(tf.test.TestCase):
                 self.test_session() as sess:
             np.random.seed(1234)
 
-            x = np.random.normal(size=[17, 11, 32, 31, 5]).astype(np.float32)
-            kernel = np.random.random(size=[3, 4, 5, 7]).astype(np.float32)
-            bias = np.random.random(size=[5]).astype(np.float32)
+            x = np.random.normal(size=[17, 11, 32, 31, 6]).astype(np.float32)
+            kernel = np.random.random(size=[3, 4, 6, 7]).astype(np.float32)
+            bias = np.random.random(size=[6]).astype(np.float32)
 
             self.check(x, 'valid', kernel, bias, strides=1)
             self.check(x, 'same', kernel, bias, strides=1)
@@ -545,70 +616,3 @@ class Deconv2dTestCase(tf.test.TestCase):
             assert_variables(['kernel'], trainable=True, scope='deconv2d',
                              collections=[tf.GraphKeys.MODEL_VARIABLES])
             assert_variables(['bias'], exist=False, scope='deconv2d')
-
-
-class GatedConv2dTestCase(tf.test.TestCase):
-
-    def test_gated_conv2d(self):
-        as_gated_ret = [None]
-
-        def patched_as_gated(*args, **kwargs):
-            as_gated_ret[0] = Mock(wraps=as_gated(*args, **kwargs))
-            return as_gated_ret[0]
-
-        with mock.patch('tfsnippet.layers.convolutional.conv2d_.as_gated',
-                        Mock(wraps=patched_as_gated)) as m:
-            x = tf.zeros([11, 7, 5, 3])
-            kernel_regularizer = l2_regularizer(0.001)
-            y = gated_conv2d(
-                x, 9, 1, sigmoid_bias=1.5, activation_fn=tf.nn.relu,
-                kernel_regularizer=kernel_regularizer
-            )
-            self.assertEqual(y.get_shape().as_list(), [11, 7, 5, 9])
-            self.assertEqual(m.call_args, ((conv2d,), {'sigmoid_bias': 1.5}))
-            self.assertEqual(as_gated_ret[0].call_args, ((), {
-                'input': x,
-                'out_channels': 9,
-                'kernel_size': 1,
-                'activation_fn': tf.nn.relu,
-                'kernel_regularizer': kernel_regularizer,
-            }))
-
-            with pytest.raises(ValueError,
-                               match='The `kernel` and `bias` argument are '
-                                     'not supported'):
-                _ = gated_conv2d(x, 9, 1, kernel=tf.zeros([3, 5]))
-
-
-class GatedDeconv2dTestCase(tf.test.TestCase):
-
-    def test_gated_deconv2d(self):
-        as_gated_ret = [None]
-
-        def patched_as_gated(*args, **kwargs):
-            as_gated_ret[0] = Mock(wraps=as_gated(*args, **kwargs))
-            return as_gated_ret[0]
-
-        with mock.patch('tfsnippet.layers.convolutional.conv2d_.as_gated',
-                        Mock(wraps=patched_as_gated)) as m:
-            x = tf.zeros([11, 7, 5, 3])
-            kernel_regularizer = l2_regularizer(0.001)
-            y = gated_deconv2d(
-                x, 9, 1, sigmoid_bias=1.5, activation_fn=tf.nn.relu,
-                kernel_regularizer=kernel_regularizer
-            )
-            self.assertEqual(y.get_shape().as_list(), [11, 7, 5, 9])
-            self.assertEqual(m.call_args, ((deconv2d,), {'sigmoid_bias': 1.5}))
-            self.assertEqual(as_gated_ret[0].call_args, ((), {
-                'input': x,
-                'out_channels': 9,
-                'kernel_size': 1,
-                'activation_fn': tf.nn.relu,
-                'kernel_regularizer': kernel_regularizer,
-            }))
-
-            with pytest.raises(ValueError,
-                               match='The `kernel` and `bias` argument are '
-                                     'not supported'):
-                _ = gated_deconv2d(x, 9, 1, kernel=tf.zeros([3, 5]))
-
