@@ -142,6 +142,25 @@ def pixelcnn_2d_output(input):
     return input.horizontal
 
 
+def pixelcnn_conv2d_resnet_after_conv_0(input, vertical, out_channels,
+                                        channels_last, activation_fn,
+                                        shortcut_conv_fn, **kwargs):
+    if activation_fn is not None:
+        with tf.variable_scope('activation'):
+            input = activation_fn(input)
+
+    return input + shortcut_conv_fn(
+        input=vertical,
+        out_channels=out_channels,
+        kernel_size=(1, 1),
+        strides=(1, 1),
+        channels_last=channels_last,
+        use_bias=True,
+        scope='vertical_to_horizontal',
+        **kwargs
+    )
+
+
 @add_name_and_scope_arg_doc
 def pixelcnn_conv2d_resnet(input,
                            out_channels,
@@ -253,22 +272,6 @@ def pixelcnn_conv2d_resnet(input,
             **kwargs
         )
 
-        # second, derive the horizontal stack output
-        def after_conv_0(input):
-            if activation_fn is not None:
-                with tf.variable_scope('activation'):
-                    input = activation_fn(input)
-            return input + shortcut_conv_fn(
-                input=vertical,
-                out_channels=out_channels,
-                kernel_size=(1, 1),
-                strides=(1, 1),
-                channels_last=channels_last,
-                use_bias=True,
-                scope=scope,
-                **kwargs
-            )
-
         horizontal = resnet_general_block(
             conv_fn=horizon_conv_fn,
             input=horizontal,
@@ -281,7 +284,15 @@ def pixelcnn_conv2d_resnet(input,
             shortcut_conv_fn=shortcut_conv_fn,
             shortcut_kernel_size=shortcut_kernel_size,
             resize_at_exit=False,  # always resize at conv_0
-            after_conv_0=after_conv_0,
+            after_conv_0=partial(
+                pixelcnn_conv2d_resnet_after_conv_0,
+                vertical=vertical,
+                out_channels=out_channels,
+                channels_last=channels_last,
+                activation_fn=activation_fn,
+                shortcut_conv_fn=shortcut_conv_fn,
+                **kwargs
+            ),
             after_conv_1=None,
             activation_fn=activation_fn,
             normalizer_fn=normalizer_fn,
