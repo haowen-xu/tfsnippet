@@ -11,13 +11,17 @@ from tfsnippet.utils import ensure_variables_initialized, get_static_shape
 
 
 def check_pixel_deps(tester, H, W, vertical, horizontal,
-                     vertical_predicate, horizon_predicate):
+                     vertical_predicate, horizon_predicate,
+                     should_print=False):
     for i in range(H):
         for j in range(W):
             idx = i * W + j
 
             for c in range(vertical.shape[3]):
                 # vertical stack influences
+                if should_print:
+                    print((vertical[idx, ..., c] != 0.).astype(np.int32))
+
                 for h in range(vertical.shape[1]):
                     for w in range(vertical.shape[2]):
                         has_value = (vertical[idx] != 0.)[h, w, c]
@@ -30,6 +34,9 @@ def check_pixel_deps(tester, H, W, vertical, horizontal,
                         )
 
                 # horizontal stack influences
+                if should_print:
+                    print((horizontal[idx, ..., c] != 0.).astype(np.int32))
+
                 for h in range(horizontal.shape[1]):
                     for w in range(horizontal.shape[2]):
                         has_value = (horizontal[idx] != 0.)[h, w, c]
@@ -279,7 +286,6 @@ class PixelCNN2DTestCase(tf.test.TestCase):
                 (j <= w - 1 and i <= h)
             )
 
-            # NHWC
             y = pixelcnn_2d_input(
                 x, channels_last=True, auxiliary_channel=False)
             for i in range(n_layers):
@@ -290,26 +296,6 @@ class PixelCNN2DTestCase(tf.test.TestCase):
                 )
             ensure_variables_initialized()
             vertical, horizontal = sess.run([y.vertical, y.horizontal])
-            check_pixel_deps(
-                self, H, W, vertical, horizontal, vertical_predicate,
-                horizontal_predicate,
-            )
-
-            # NCHW
-            y = pixelcnn_2d_input(
-                np.transpose(x, [0, 3, 1, 2]), channels_last=False,
-                auxiliary_channel=False
-            )
-            for i in range(n_layers):
-                y = pixelcnn_conv2d_resnet(
-                    y, out_channels=3, vertical_kernel_size=(2, 3),
-                    horizontal_kernel_size=(2, 2), strides=(1, 1),
-                    channels_last=False, activation_fn=tf.nn.leaky_relu
-                )
-            ensure_variables_initialized()
-            vertical, horizontal = sess.run([y.vertical, y.horizontal])
-            vertical = np.transpose(vertical, [0, 2, 3, 1])
-            horizontal = np.transpose(horizontal, [0, 2, 3, 1])
             check_pixel_deps(
                 self, H, W, vertical, horizontal, vertical_predicate,
                 horizontal_predicate,
