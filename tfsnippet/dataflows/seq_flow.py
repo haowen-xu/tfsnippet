@@ -38,7 +38,7 @@ class SeqFlow(ArrayFlow):
             dtype: Data type of the numbers. (default ``np.int32``)
             random_state (RandomState): Optional numpy RandomState for
                 shuffling data before each epoch.  (default :obj:`None`,
-                use the global :class:`RandomState`).
+                construct a new :class:`RandomState`).
         """
         # check the parameters
         if batch_size is None:

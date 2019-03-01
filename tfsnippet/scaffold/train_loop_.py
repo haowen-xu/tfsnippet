@@ -400,7 +400,7 @@ class TrainLoop(DisposableContext):
             if checkpoint_file:
                 self._checkpoint_saver.restore(checkpoint_file)
                 self.println(
-                    'Resume training: epoch {}, step{}, from checkpoint {}'.
+                    'Resume training: epoch {}, step {}, from checkpoint {}'.
                     format(self.epoch, self.step, checkpoint_file)
                 )
 

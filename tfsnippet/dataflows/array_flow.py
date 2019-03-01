@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.random import RandomState
 
-from tfsnippet.utils import minibatch_slices_iterator
+from tfsnippet.utils import minibatch_slices_iterator, generate_random_seed
 from .base import ExtraInfoDataFlow
 
 __all__ = ['ArrayFlow']
@@ -41,7 +41,7 @@ class ArrayFlow(ExtraInfoDataFlow):
                 mini-batch if it is incomplete? (default :obj:`False`)
             random_state (RandomState): Optional numpy RandomState for
                 shuffling data before each epoch.  (default :obj:`None`,
-                use the global :class:`RandomState`).
+                construct a new :class:`RandomState`).
         """
         # validate parameters
         arrays = tuple(arrays)
@@ -67,7 +67,8 @@ class ArrayFlow(ExtraInfoDataFlow):
             is_shuffled=shuffle
         )
         self._arrays = arrays
-        self._random_state = random_state or np.random
+        self._random_state = \
+            random_state or np.random.RandomState(generate_random_seed())
 
         # internal indices buffer
         self._indices_buffer = None

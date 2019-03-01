@@ -3,7 +3,17 @@ import random
 import numpy as np
 import tensorflow as tf
 
-__all__ = ['set_random_seed', 'VarScopeRandomState']
+__all__ = ['generate_random_seed', 'set_random_seed', 'VarScopeRandomState']
+
+
+def generate_random_seed():
+    """
+    Generate a new random seed from the default NumPy random state.
+
+    Returns:
+        int: The new random seed.
+    """
+    return np.random.randint(0xffffffff)
 
 
 def set_random_seed(seed):
@@ -14,11 +24,8 @@ def set_random_seed(seed):
         seed (int): The seed used to generate the separated seeds for
             all concerning modules.
     """
-    def next_seed():
-        return np.random.randint(0xffffffff)
-
     np.random.seed(seed)
-    seeds = [next_seed() for _ in range(4)]
+    seeds = [generate_random_seed() for _ in range(4)]
 
     if hasattr(random, 'seed'):
         random.seed(seeds[0])

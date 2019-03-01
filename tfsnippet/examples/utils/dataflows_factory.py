@@ -34,7 +34,7 @@ def bernoulli_flow(x, batch_size, shuffle=False, skip_incomplete=False,
         dtype: The data type of the sampled array.  Default `np.int32`.
         random_state (RandomState): Optional numpy RandomState for
             shuffling data before each epoch.  (default :obj:`None`,
-            use the global :class:`RandomState`).
+            construct a new :class:`RandomState`).
 
     Returns:
         DataFlow: The Bernoulli `x` flow.
