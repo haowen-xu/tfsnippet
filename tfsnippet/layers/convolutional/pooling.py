@@ -1,10 +1,8 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.utils import (validate_enum_arg, flatten_to_ndims,
-                             unflatten_from_ndims,
-                             add_name_arg_doc, maybe_check_numerics,
-                             maybe_add_histogram)
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.utils import validate_enum_arg, add_name_arg_doc
 
 from .utils import validate_conv2d_strides_tuple, validate_conv2d_input
 

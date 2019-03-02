@@ -2,10 +2,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.ops import assert_rank, assert_scalar_equal
+from tfsnippet.ops import (assert_rank, assert_scalar_equal, flatten_to_ndims,
+                           unflatten_from_ndims)
 from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
-                             unflatten_from_ndims,
-                             flatten_to_ndims, is_tensor_object, assert_deps,
+                             is_tensor_object, assert_deps,
                              get_shape,
                              add_name_and_scope_arg_doc, model_variable,
                              maybe_check_numerics, maybe_add_histogram)

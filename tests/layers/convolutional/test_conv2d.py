@@ -11,7 +11,8 @@ from tests.layers.core.test_gated import safe_sigmoid
 from tests.layers.helper import l2_normalize
 from tfsnippet.layers import *
 from tfsnippet.layers.convolutional.utils import get_deconv_output_length
-from tfsnippet.utils import flatten_to_ndims, unflatten_from_ndims, is_integer
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.utils import is_integer
 
 tf_conv2d = tf.nn.conv2d
 tf_atrous_conv2d = tf.nn.atrous_conv2d

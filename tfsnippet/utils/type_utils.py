@@ -13,8 +13,7 @@ except ImportError:  # pragma: no cover
     _DYNAMIC_TENSOR_TYPES = (tf.Tensor, tf.Variable, TensorWrapper)
 
 __all__ = [
-    'is_integer', 'is_float', 'is_tensor_object', 'convert_to_tensor_and_cast',
-    'TensorArgValidator'
+    'is_integer', 'is_float', 'is_tensor_object', 'TensorArgValidator'
 ]
 
 __INTEGER_TYPES = (
@@ -76,25 +75,6 @@ def is_tensor_object(x):
         bool: A boolean indicating whether `x` is a tensor object.
     """
     return isinstance(x, _DYNAMIC_TENSOR_TYPES)
-
-
-def convert_to_tensor_and_cast(x, dtype=None):
-    """
-    Convert `x` into a :class:`tf.Tensor`, and cast its dtype if required.
-
-    Args:
-        x: The tensor to be converted into a :class:`tf.Tensor`.
-        dtype (tf.DType): The data type.
-
-    Returns:
-        tf.Tensor: The converted and casted tensor.
-    """
-    x = tf.convert_to_tensor(x)
-    if dtype is not None:
-        dtype = tf.as_dtype(dtype)
-        if dtype != x.dtype:
-            x = tf.cast(x, dtype)
-    return x
 
 
 class TensorArgValidator(object):

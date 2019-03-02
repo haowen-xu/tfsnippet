@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from tfsnippet.ops import assert_rank_at_least
+from tfsnippet.ops import (assert_rank_at_least, broadcast_to_shape,
+                           broadcast_to_shape_strict)
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
-                             assert_deps, broadcast_to_shape_strict,
-                             maybe_check_numerics, DocInherit, is_tensor_object,
-                             TensorWrapper, broadcast_to_shape,
+                             assert_deps, maybe_check_numerics, DocInherit,
+                             is_tensor_object, TensorWrapper,
                              register_tensor_wrapper_class, maybe_add_histogram)
 
 __all__ = [

@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
 from tfsnippet.utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg

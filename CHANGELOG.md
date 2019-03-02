@@ -26,6 +26,7 @@ This version introduces breaking changes. Existing code might better stick to [v
 - `BayesianNet.add` now removes the `flow` argument.
 - The hook facility of `BaseTrainer` and `Evaluator` have been rewritten with `utils.EventSource`.
 - `TrainLoop` now supports to make checkpoints, and recover from the checkpoints.
+- Several utilities of `utils.shape_utils` and `utils.type_utils` have been moved from `utils` package to `ops` package.
 
 ### Removed
 - The `modules` package has been purged out of this project totally, including the `VAE` class.

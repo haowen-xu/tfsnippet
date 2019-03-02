@@ -1,8 +1,8 @@
 import numpy as np
 
-from tfsnippet.ops import space_to_depth, depth_to_space
+from tfsnippet.ops import space_to_depth, depth_to_space, reshape_tail
 from tfsnippet.utils import (get_static_shape, get_shape, InputSpec,
-                             reshape_tail, add_name_and_scope_arg_doc)
+                             add_name_and_scope_arg_doc)
 from .base import BaseFlow
 from .utils import ZeroLogDet
 

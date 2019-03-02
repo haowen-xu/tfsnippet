@@ -1,10 +1,10 @@
 import tensorflow as tf
 
+from tfsnippet.ops import convert_to_tensor_and_cast
 from tfsnippet.utils import (DocInherit,
                              TensorWrapper,
                              register_tensor_wrapper_class,
-                             get_default_session_or_error,
-                             convert_to_tensor_and_cast)
+                             get_default_session_or_error)
 
 __all__ = ['ScheduledVariable', 'AnnealingVariable']
 

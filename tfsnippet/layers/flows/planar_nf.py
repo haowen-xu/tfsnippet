@@ -1,12 +1,12 @@
 import tensorflow as tf
 
-from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims,
-                             add_name_and_scope_arg_doc, assert_deps,
-                             validate_positive_int_arg, get_static_shape,
+from tfsnippet.utils import (add_name_and_scope_arg_doc,
+                             validate_positive_int_arg,
+                             get_static_shape,
                              model_variable)
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
 from .base import FeatureMappingFlow
 from .sequential import SequentialFlow
-from .utils import assert_log_det_shape_matches_input
 
 __all__ = [
     'PlanarNormalizingFlow', 'planar_normalizing_flows',

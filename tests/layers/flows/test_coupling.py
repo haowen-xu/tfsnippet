@@ -6,9 +6,10 @@ import tensorflow as tf
 
 from tests.layers.flows.helper import invertible_flow_standard_check
 from tfsnippet.layers import CouplingLayer, conv2d
-from tfsnippet.utils import (flatten_to_ndims, unflatten_from_ndims,
-                             transpose_conv2d_channels_last_to_x,
-                             transpose_conv2d_channels_x_to_last)
+from tfsnippet.ops import (flatten_to_ndims,
+                           unflatten_from_ndims,
+                           transpose_conv2d_channels_last_to_x,
+                           transpose_conv2d_channels_x_to_last)
 
 
 def naive_coupling_layer(shift_and_scale_fn, x,

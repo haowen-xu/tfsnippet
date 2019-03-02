@@ -77,7 +77,7 @@ def q_net(x, observed=None, n_z=None, is_training=False, is_initializing=False):
         h_x = spt.layers.resnet_conv2d_block(h_x, 64)  # output: (64, 7, 7)
 
     # sample z ~ q(z|x)
-    h_x = spt.utils.reshape_tail(h_x, ndims=3, shape=[-1])
+    h_x = spt.ops.reshape_tail(h_x, ndims=3, shape=[-1])
     z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
     z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
     z = net.add('z', spt.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
@@ -112,7 +112,7 @@ def p_net(observed=None, n_z=None, is_training=False, is_initializing=False):
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg),
                    channels_last=config.channels_last):
         h_z = spt.layers.dense(z, 64 * 7 * 7)
-        h_z = spt.utils.reshape_tail(
+        h_z = spt.ops.reshape_tail(
             h_z,
             ndims=1,
             shape=(7, 7, 64) if config.channels_last else (64, 7, 7)

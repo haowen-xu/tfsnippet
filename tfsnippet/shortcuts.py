@@ -6,6 +6,7 @@ from .dataflows import DataFlow, DataMapper, SlidingWindow
 from .utils.config_utils import (Config, ConfigField, get_config_defaults,
                                  register_config_arguments)
 from .utils.graph_keys import GraphKeys
+from .utils.invertible_matrix import InvertibleMatrix
 from .utils.model_vars import model_variable, get_model_variables
 from .utils.reuse import instance_reuse, global_reuse, VarScopeObject
 from .utils.settings_ import settings
@@ -22,6 +23,9 @@ __all__ = [
 
     # from tfsnippet.utils.graph_keys
     'GraphKeys',
+
+    # from tfsnippet.utils.invertible_matrix
+    'InvertibleMatrix',
 
     # from tfsnippet.utils.model_vars
     'model_variable', 'get_model_variables',

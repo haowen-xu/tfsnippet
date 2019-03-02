@@ -10,7 +10,7 @@ from .reuse import VarScopeObject
 from .scope import reopen_variable_scope
 from .tensor_spec import InputSpec
 from .tfver import is_tensorflow_version_higher_or_equal
-from .type_utils import is_integer, convert_to_tensor_and_cast
+from .type_utils import is_integer
 
 __all__ = ['PermutationMatrix', 'InvertibleMatrix']
 
@@ -248,6 +248,8 @@ class InvertibleMatrix(VarScopeObject):
             random_state (np.random.RandomState): Use this random state,
                 instead of constructing a :class:`VarScopeRandomState`.
         """
+        from tfsnippet.ops import convert_to_tensor_and_cast
+
         # validate the arguments
         def validate_shape():
             if is_integer(size):

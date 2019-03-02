@@ -2,8 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from tfsnippet.utils import (InvertibleMatrix, get_static_shape,
-                             get_dimensions_size, is_tensor_object,
-                             generate_random_seed)
+                             get_dimensions_size, is_tensor_object)
 from ..convolutional import conv2d
 from ..core import dense
 from .base import FeatureMappingFlow

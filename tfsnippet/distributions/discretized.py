@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from tfsnippet.ops import maybe_clip_value
+from tfsnippet.ops import (maybe_clip_value, convert_to_tensor_and_cast,
+                           broadcast_to_shape)
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.utils import (convert_to_tensor_and_cast, is_tensor_object,
-                             maybe_check_numerics, broadcast_to_shape,
-                             get_shape)
+from tfsnippet.utils import (is_tensor_object,
+                             maybe_check_numerics, get_shape)
 from .base import Distribution
 from .utils import compute_density_immediately, reduce_group_ndims
 

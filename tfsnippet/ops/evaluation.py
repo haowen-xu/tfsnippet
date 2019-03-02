@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.utils import convert_to_tensor_and_cast
+from .type_utils import convert_to_tensor_and_cast
 
 __all__ = ['bits_per_dimension']
 

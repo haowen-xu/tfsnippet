@@ -2,9 +2,8 @@ from contextlib import contextmanager
 
 import tensorflow as tf
 
-from tfsnippet.ops import log_mean_exp
-from tfsnippet.utils import (add_name_arg_doc, get_static_shape,
-                             convert_to_tensor_and_cast)
+from tfsnippet.ops import log_mean_exp, convert_to_tensor_and_cast
+from tfsnippet.utils import (add_name_arg_doc, get_static_shape)
 from .utils import _require_multi_samples
 
 __all__ = [

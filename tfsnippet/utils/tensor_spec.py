@@ -5,7 +5,7 @@ from .doc_utils import DocInherit
 from .shape_utils import get_static_shape
 from .type_utils import is_integer
 
-__all__ = ['InputSpec', 'ParamSpec']
+__all__ = ['TensorSpec', 'InputSpec', 'ParamSpec']
 
 
 def _try_parse_int(x):
@@ -16,7 +16,7 @@ def _try_parse_int(x):
 
 
 @DocInherit
-class _TensorSpec(object):
+class TensorSpec(object):
     """
     Base class to describe and validate the specification of a tensor.
     """
@@ -90,7 +90,7 @@ class _TensorSpec(object):
 
     def __eq__(self, other):
         return (
-                isinstance(other, _TensorSpec) and
+                isinstance(other, TensorSpec) and
                 self._value_shape == other._value_shape and
                 self._allow_more_dims == other._allow_more_dims and
                 self._dtype == other._dtype
@@ -225,7 +225,7 @@ class _TensorSpec(object):
         return x
 
 
-class InputSpec(_TensorSpec):
+class InputSpec(TensorSpec):
     """
     Class to describe the specification for an input tensor.
 
@@ -233,7 +233,7 @@ class InputSpec(_TensorSpec):
     """
 
 
-class ParamSpec(_TensorSpec):
+class ParamSpec(TensorSpec):
     """
     Class to describe the specification for a parameter.
 

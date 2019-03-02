@@ -5,7 +5,8 @@ import tensorflow as tf
 from mock import mock
 
 from tfsnippet.layers import *
-from tfsnippet.utils import is_integer, flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.utils import is_integer
 
 
 def patched_pool(pool_fn, value, ksize, strides, padding, data_format):
