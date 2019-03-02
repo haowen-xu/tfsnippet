@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from tfsnippet.utils import add_name_arg_doc, is_tensor_object, get_shape
+from tfsnippet.utils import (add_name_arg_doc, is_tensor_object, get_shape,
+                             InputSpec, get_static_shape)
 from .shape_utils import broadcast_to_shape
 from .type_utils import convert_to_tensor_and_cast
 
@@ -8,19 +9,21 @@ __all__ = ['pixelcnn_2d_sample']
 
 
 @add_name_arg_doc
-def pixelcnn_2d_sample(fn, x, height, width, channels_last=True,
+def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
                        start=0, end=None, name=None):
     """
     Sample output from a PixelCNN 2D network, pixel-by-pixel.
 
     Args:
-        fn: A function ``(i, x) -> y``, where `i` is the iteration index
-            (range from `0` to `height * width - 1`), `x` is the output
-            obtained pixel-by-pixel through iteration `0` to `i - 1`.
-        x (tf.Tensor): The initial `x`, at least 4-d.  Should have exactly
-            the same shape as `y` output by `fn`.
-        height (int or tf.Tensor): The height of the output.
-        width (int or tf.Tensor): The width of the output.
+        fn: `(i: tf.Tensor, inputs: tuple[tf.Tensor]) -> tuple[tf.Tensor]`,
+            the function to derive the outputs of PixelCNN 2D network at
+            iteration `i`.  `inputs` are the pixel-by-pixel outputs gathered
+            through iteration `0` to iteration `i - 1`.  The iteration index
+            `i` may range from `0` to `height * width - 1`.
+        inputs (Iterable[tf.Tensor]): The initial input tensors.
+            All the tensors must be at least 4-d, with identical shape.
+        height (int or tf.Tensor): The height of the outputs.
+        width (int or tf.Tensor): The width of the outputs.
         channels_last (bool): Whether or not the channel axis is the last
             axis in `input`? (i.e., the data format is "NHWC")
         start (int or tf.Tensor): The start iteration, default `0`.
@@ -28,10 +31,11 @@ def pixelcnn_2d_sample(fn, x, height, width, channels_last=True,
             Default `height * width`.
 
     Returns:
-        tf.Tensor: The final output.
+        tuple[tf.Tensor]: The final outputs.
     """
     from tfsnippet.layers.convolutional.utils import validate_conv2d_input
 
+    # check the arguments
     def to_int(t):
         if is_tensor_object(t):
             return convert_to_tensor_and_cast(t, dtype=tf.int32)
@@ -39,10 +43,19 @@ def pixelcnn_2d_sample(fn, x, height, width, channels_last=True,
 
     height = to_int(height)
     width = to_int(width)
-    x, _, _ = validate_conv2d_input(
-        x, channels_last=channels_last, arg_name='x')
 
-    with tf.name_scope(name, default_name='pixelcnn_2d_sample', values=[x]):
+    inputs = list(inputs)
+    if not inputs:
+        raise ValueError('`inputs` must not be empty.')
+    inputs[0], _, _ = validate_conv2d_input(
+        inputs[0], channels_last=channels_last, arg_name='inputs[0]')
+    dtype = inputs[0].dtype.base_dtype
+    input_spec = InputSpec(shape=get_static_shape(inputs[0]), dtype=dtype)
+    for i, input in enumerate(inputs[1:], 1):
+        inputs[i] = input_spec.validate('inputs[{}]'.format(i), input)
+
+    # do pixelcnn sampling
+    with tf.name_scope(name, default_name='pixelcnn_2d_sample', values=inputs):
         # the total size, start and end index
         total_size = height * width
         start = convert_to_tensor_and_cast(start, dtype=tf.int32)
@@ -60,33 +73,50 @@ def pixelcnn_2d_sample(fn, x, height, width, channels_last=True,
         if any(is_tensor_object(t) for t in mask_shape):
             mask_shape = tf.stack(mask_shape, axis=0)
 
-        # the pixelcnn sampling loop
-        def loop_cond(i, x):
-            return i < end
+        # the input dynamic shape
+        input_shape = get_shape(inputs[0])
 
-        def loop_body(i, x):
-            dtype = x.dtype.base_dtype
+        # the pixelcnn sampling loop
+        def loop_cond(idx, _):
+            return idx < end
+
+        def loop_body(idx, inputs):
+            inputs = tuple(inputs)
+
+            # prepare for the output mask
             selector = tf.reshape(
                 tf.concat(
-                    [tf.ones([i], dtype=tf.uint8),
+                    [tf.ones([idx], dtype=tf.uint8),
                      tf.zeros([1], dtype=tf.uint8),
-                     tf.ones([total_size - i - 1], dtype=tf.uint8)],
+                     tf.ones([total_size - idx - 1], dtype=tf.uint8)],
                     axis=0
                 ),
                 mask_shape
             )
-            selector = tf.cast(
-                broadcast_to_shape(selector, get_shape(x)), dtype=tf.bool)
-            y = convert_to_tensor_and_cast(fn(i, x), dtype=dtype)
-            y = tf.where(selector, x, y)
-            return i + 1, y
+            selector = tf.cast(broadcast_to_shape(selector, input_shape),
+                               dtype=tf.bool)
+
+            # obtain the outputs
+            outputs = list(fn(idx, inputs))
+            if len(outputs) != len(inputs):
+                raise ValueError('The length of outputs != inputs: {} vs {}'.
+                                 format(len(outputs), len(inputs)))
+
+            # mask the outputs
+            for i, (input, output) in enumerate(zip(inputs, outputs)):
+                if output.dtype.base_dtype != dtype:
+                    raise TypeError('`outputs[{}].dtype` != input dtype: '
+                                    'output {} vs dtype {}'.
+                                    format(i, output, dtype))
+                outputs[i] = tf.where(selector, input, output)
+
+            return idx + 1, tuple(outputs)
 
         i0 = start
-        _, y = tf.while_loop(
+        _, outputs = tf.while_loop(
             cond=loop_cond,
             body=loop_body,
-            loop_vars=[i0, x],
-            back_prop=False,
-            shape_invariants=[i0.get_shape(), x.get_shape()]
+            loop_vars=(i0, tuple(inputs)),
+            back_prop=False
         )
-        return y
+        return outputs
