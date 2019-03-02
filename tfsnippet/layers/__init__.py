@@ -15,7 +15,7 @@ __all__ = [
     'LeakyReLU', 'MultiLayerFlow', 'PixelCNN2DOutput', 'PlanarNormalizingFlow',
     'ReshapeFlow', 'SequentialFlow', 'SpaceToDepthFlow', 'SplitFlow',
     'act_norm', 'as_gated', 'avg_pool2d', 'broadcast_log_det_against_input',
-    'conv2d', 'deconv2d', 'default_kernel_initializer', 'dense',
+    'conv2d', 'deconv2d', 'default_kernel_initializer', 'dense', 'dropout',
     'global_avg_pool2d', 'l2_regularizer', 'max_pool2d', 'pixelcnn_2d_input',
     'pixelcnn_2d_output', 'pixelcnn_conv2d_resnet', 'planar_normalizing_flows',
     'resnet_conv2d_block', 'resnet_deconv2d_block', 'resnet_general_block',
