@@ -10,7 +10,9 @@ __all__ = ['pixelcnn_2d_sample']
 
 @add_name_arg_doc
 def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
-                       start=0, end=None, name=None):
+                       start=0, end=None, back_prop=False,
+                       parallel_iterations=1, swap_memory=False,
+                       name=None):
     """
     Sample output from a PixelCNN 2D network, pixel-by-pixel.
 
@@ -29,6 +31,8 @@ def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
         start (int or tf.Tensor): The start iteration, default `0`.
         end (int or tf.Tensor): The end (exclusive) iteration.
             Default `height * width`.
+        back_prop, parallel_iterations, swap_memory: Arguments passed to
+            :func:`tf.while_loop`.
 
     Returns:
         tuple[tf.Tensor]: The final outputs.
@@ -120,6 +124,8 @@ def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
             cond=loop_cond,
             body=loop_body,
             loop_vars=(i0, tuple(inputs)),
-            back_prop=False
+            back_prop=back_prop,
+            parallel_iterations=parallel_iterations,
+            swap_memory=swap_memory,
         )
         return outputs
