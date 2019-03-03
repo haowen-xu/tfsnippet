@@ -104,6 +104,19 @@ class Distribution(object):
         """
         return self._value_ndims
 
+    @property
+    def base_distribution(self):
+        """
+        Get the base distribution of this distribution.
+
+        For distribution other than :class:`tfsnippet.BatchToValueDistribution`,
+        this property should return this distribution itself.
+
+        Returns:
+            Distribution: The base distribution.
+        """
+        return self
+
     def expand_value_ndims(self, ndims):
         """
         Convert the last few `batch_ndims` into `value_ndims`.
