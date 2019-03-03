@@ -14,6 +14,7 @@ from .invertible_matrix import *
 from .misc import *
 from .model_vars import *
 from .random import *
+from .registry import *
 from .reuse import *
 from .scope import *
 from .session import *
@@ -27,24 +28,25 @@ from .tfver import *
 from .type_utils import *
 
 __all__ = [
-    'AutoInitAndCloseable', 'BoolConfigValidator', 'CacheDir', 'Config',
-    'ConfigField', 'ConfigValidator', 'ConsoleTable', 'ContextStack',
-    'Disposable', 'DisposableContext', 'DocInherit', 'ETA', 'EventSource',
-    'Extractor', 'FloatConfigValidator', 'GraphKeys', 'InputSpec',
-    'IntConfigValidator', 'InvertibleMatrix', 'NoReentrantContext',
-    'ParamSpec', 'PermutationMatrix', 'RarExtractor', 'StatisticsCollector',
-    'StrConfigValidator', 'SummaryCollector', 'TFSnippetConfig',
-    'TarExtractor', 'TemporaryDirectory', 'TensorArgValidator', 'TensorSpec',
-    'TensorWrapper', 'VarScopeObject', 'VarScopeRandomState', 'ZipExtractor',
-    'add_histogram', 'add_name_and_scope_arg_doc', 'add_name_arg_doc',
-    'add_summary', 'append_arg_to_doc', 'append_to_doc', 'assert_deps',
-    'camel_to_underscore', 'concat_shapes', 'create_session',
-    'default_summary_collector', 'deprecated', 'deprecated_arg',
-    'ensure_variables_initialized', 'generate_random_seed', 'get_batch_size',
-    'get_cache_root', 'get_config_defaults', 'get_config_validator',
-    'get_default_scope_name', 'get_default_session_or_error',
-    'get_dimension_size', 'get_dimensions_size', 'get_model_variables',
-    'get_rank', 'get_reuse_stack_top', 'get_shape', 'get_static_shape',
+    'AutoInitAndCloseable', 'BaseRegistry', 'BoolConfigValidator', 'CacheDir',
+    'ClassRegistry', 'Config', 'ConfigField', 'ConfigValidator',
+    'ConsoleTable', 'ContextStack', 'Disposable', 'DisposableContext',
+    'DocInherit', 'ETA', 'EventSource', 'Extractor', 'FloatConfigValidator',
+    'GraphKeys', 'InputSpec', 'IntConfigValidator', 'InvertibleMatrix',
+    'NoReentrantContext', 'ParamSpec', 'PermutationMatrix', 'RarExtractor',
+    'StatisticsCollector', 'StrConfigValidator', 'SummaryCollector',
+    'TFSnippetConfig', 'TarExtractor', 'TemporaryDirectory',
+    'TensorArgValidator', 'TensorSpec', 'TensorWrapper', 'VarScopeObject',
+    'VarScopeRandomState', 'ZipExtractor', 'add_histogram',
+    'add_name_and_scope_arg_doc', 'add_name_arg_doc', 'add_summary',
+    'append_arg_to_doc', 'append_to_doc', 'assert_deps', 'camel_to_underscore',
+    'concat_shapes', 'create_session', 'default_summary_collector',
+    'deprecated', 'deprecated_arg', 'ensure_variables_initialized',
+    'generate_random_seed', 'get_batch_size', 'get_cache_root',
+    'get_config_defaults', 'get_config_validator', 'get_default_scope_name',
+    'get_default_session_or_error', 'get_dimension_size',
+    'get_dimensions_size', 'get_model_variables', 'get_rank',
+    'get_reuse_stack_top', 'get_shape', 'get_static_shape',
     'get_uninitialized_variables', 'get_variable_ddi', 'get_variables_as_dict',
     'global_reuse', 'humanize_duration', 'instance_reuse', 'is_float',
     'is_integer', 'is_shape_equal', 'is_tensor_object',
