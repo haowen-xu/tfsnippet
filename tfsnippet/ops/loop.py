@@ -49,8 +49,7 @@ def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
         raise ValueError('`inputs` must not be empty.')
     inputs[0], _, _ = validate_conv2d_input(
         inputs[0], channels_last=channels_last, arg_name='inputs[0]')
-    dtype = inputs[0].dtype.base_dtype
-    input_spec = InputSpec(shape=get_static_shape(inputs[0]), dtype=dtype)
+    input_spec = InputSpec(shape=get_static_shape(inputs[0]))
     for i, input in enumerate(inputs[1:], 1):
         inputs[i] = input_spec.validate('inputs[{}]'.format(i), input)
 
@@ -104,10 +103,14 @@ def pixelcnn_2d_sample(fn, inputs, height, width, channels_last=True,
 
             # mask the outputs
             for i, (input, output) in enumerate(zip(inputs, outputs)):
-                if output.dtype.base_dtype != dtype:
-                    raise TypeError('`outputs[{}].dtype` != input dtype: '
-                                    'output {} vs dtype {}'.
-                                    format(i, output, dtype))
+                input_dtype = inputs[i].dtype.base_dtype
+                output_dtype = output.dtype.base_dtype
+                if output_dtype != input_dtype:
+                    raise TypeError(
+                        '`outputs[{idx}].dtype` != `inputs[{idx}].dtype`: '
+                        '{output} vs {input}'.
+                        format(idx=i, output=output_dtype, input=input_dtype)
+                    )
                 outputs[i] = tf.where(selector, input, output)
 
             return idx + 1, tuple(outputs)

@@ -70,12 +70,6 @@ class PixelCNN2DSampleTestCase(tf.test.TestCase):
         with pytest.raises(ValueError, match='`inputs` must not be empty'):
             _ = pixelcnn_2d_sample(fn, [], height, width)
 
-        with pytest.raises(TypeError,
-                           match=r'The dtype of `inputs\[1\]` is invalid'):
-            inputs = [tf.zeros([1, height, width, 1], dtype=tf.float32),
-                      tf.zeros([1, height, width, 1], dtype=tf.float64)]
-            _ = pixelcnn_2d_sample(fn, inputs, height, width)
-
         with pytest.raises(ValueError,
                            match=r'The shape of `inputs\[1\]` is invalid'):
             inputs = [tf.zeros([1, height, width, 1]),
@@ -95,7 +89,7 @@ class PixelCNN2DSampleTestCase(tf.test.TestCase):
             return [tf.cast(inputs[0], dtype=tf.float64)]
 
         with pytest.raises(TypeError,
-                           match=r'`outputs\[0\].dtype` != input dtype: output '
-                                 r'.* vs dtype .*'):
+                           match=r'`outputs\[0\].dtype` != `inputs\[0\].dtype`'
+                                 r': .* vs .*'):
             inputs = [tf.zeros([1, height, width, 1], dtype=tf.float32)]
             _ = pixelcnn_2d_sample(fn, inputs, height, width)
