@@ -1,6 +1,7 @@
 from functools import partial
 
 import tensorflow as tf
+from tensorflow.contrib.framework import add_arg_scope
 
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape, get_shape,
                              add_name_and_scope_arg_doc, InputSpec)
@@ -49,6 +50,7 @@ class PixelCNN2DOutput(object):
         return self._horizontal
 
 
+@add_arg_scope
 @add_name_arg_doc
 def pixelcnn_2d_input(input, channels_last=True, auxiliary_channel=True,
                       name=None):
@@ -161,6 +163,7 @@ def pixelcnn_conv2d_resnet_after_conv_0(input, vertical, out_channels,
     )
 
 
+@add_arg_scope
 @add_name_and_scope_arg_doc
 def pixelcnn_conv2d_resnet(input,
                            out_channels,
