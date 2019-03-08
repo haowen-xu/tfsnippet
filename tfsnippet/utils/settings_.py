@@ -20,6 +20,10 @@ class TFSnippetConfig(Config):
                     'parameters and outputs to the collection '
                     '`tfsnippet.GraphKeys.AUTO_HISTOGRAM`?'
     )
+    file_cache_checksum = ConfigField(
+        bool, default=False,
+        description='Whether or not to validate the checksum of cached files?'
+    )
 
 
 settings = TFSnippetConfig()

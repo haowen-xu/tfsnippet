@@ -272,6 +272,21 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(compute_hash(hashlib.sha1(), cache_path),
                                  payload_tar_sha1)
 
+                # test validate cached file
+                with scoped_set_config(settings, file_cache_checksum=True):
+                    path = cache_dir.download(url + 'payload.tar',
+                                              hasher=hashlib.sha1(),
+                                              expected_hash=payload_tar_sha1)
+
+                    with open(path, 'wb') as f:
+                        f.write(b'12345')
+
+                    with pytest.raises(IOError, match='Hash not match for '
+                                                      'cached file'):
+                        _ = cache_dir.download(url + 'payload.tar',
+                                               hasher=hashlib.sha1(),
+                                               expected_hash=payload_tar_sha1)
+
     @mock.patch('tfsnippet.utils.caching.Extractor', PatchedExtractor)
     def test_extract_file(self):
         with TemporaryDirectory() as tmpdir:

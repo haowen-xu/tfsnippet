@@ -5,12 +5,12 @@ from contextlib import contextmanager
 import requests
 import six
 import sys
-
 from filelock import FileLock
 from tqdm import tqdm
 
 from .archive_file import Extractor
 from .imported import makedirs
+from .settings_ import settings
 
 if six.PY2:
     from urlparse import urlparse
@@ -145,7 +145,25 @@ class CacheDir(object):
 
     def _download(self, uri, file_path, show_progress, progress_file,
                   hasher=None, expected_hash=None):
-        if not os.path.isfile(file_path):
+        if os.path.isfile(file_path):
+            if settings.file_cache_checksum and hasher is not None:
+                with open(file_path, 'rb') as f:
+                    chunk = bytearray(8192)
+                    n_bytes = f.readinto(chunk)
+                    while n_bytes > 0:
+                        hasher.update(chunk[:n_bytes])
+                        n_bytes = f.readinto(chunk)
+
+                got_hash = hasher.hexdigest()
+                if got_hash != expected_hash:
+                    os.remove(file_path)
+                    raise IOError(
+                        'Hash not match for cached file {}: '
+                        '{} vs expected {}'.
+                        format(file_path, got_hash, expected_hash)
+                    )
+
+        else:
             temp_file = file_path + '._downloading_'
             try:
                 if not show_progress:
