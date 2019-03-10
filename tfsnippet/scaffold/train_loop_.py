@@ -433,6 +433,8 @@ class TrainLoop(DisposableContext):
                         )
                     else:
                         self._early_stopping_saver.restore(es_latest)
+                        self.println('Restore early-stopping parameters: '
+                                     'from checkpoint {}'.format(es_latest))
                     self._early_stopping_saver = None
                 else:  # pragma: no cover
                     warnings.warn(
