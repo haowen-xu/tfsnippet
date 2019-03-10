@@ -13,7 +13,6 @@ from tensorflow.contrib.framework import arg_scope, add_arg_scope
 import tfsnippet as spt
 from tfsnippet.examples.utils import (MLResults,
                                       save_images_collection,
-                                      collect_outputs,
                                       ClusteringClassifier,
                                       bernoulli_as_pixel,
                                       bernoulli_flow,
@@ -278,7 +277,7 @@ def main():
         df = bernoulli_flow(
             x_train, config.batch_size, shuffle=False, skip_incomplete=False)
         with loop.timeit('cls_train_time'):
-            [c_pred] = collect_outputs(
+            [c_pred] = spt.evaluation.collect_outputs(
                 outputs=[q_y_given_x],
                 inputs=[input_x],
                 data_flow=df,
@@ -288,7 +287,7 @@ def main():
 
     def evaluate_classifier(loop):
         with loop.timeit('cls_test_time'):
-            [c_pred] = collect_outputs(
+            [c_pred] = spt.evaluation.collect_outputs(
                 outputs=[q_y_given_x],
                 inputs=[input_x],
                 data_flow=test_flow,

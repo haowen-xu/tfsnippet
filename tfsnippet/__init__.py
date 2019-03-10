@@ -1,8 +1,8 @@
 __version__ = '0.2.0a3'
 
 
-from . import (dataflows, datasets, distributions, layers, ops,
-               preprocessing, scaffold, trainer, utils, variational,
+from . import (dataflows, datasets, distributions, evaluation, layers,
+               ops, preprocessing, scaffold, trainer, utils, variational,
                bayes, shortcuts, stochastic)
 from .distributions import *
 from .scaffold import *
@@ -16,8 +16,8 @@ from .stochastic import *
 def _exports():
     exports = [
         # export modules
-        'dataflows', 'datasets', 'distributions', 'layers', 'ops',
-        'preprocessing', 'scaffold', 'trainer', 'utils', 'variational',
+        'dataflows', 'datasets', 'distributions', 'evaluation', 'layers',
+        'ops', 'preprocessing', 'scaffold', 'trainer', 'utils', 'variational',
         'bayes', 'stochastic',
     ]
 
