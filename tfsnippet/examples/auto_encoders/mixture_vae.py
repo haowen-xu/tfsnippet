@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-This is an example of VAE, whose q(z|x) is a mixture of Gaussian:
+This is an example of VAE, whose p(z) is a mixture of Gaussian:
 
 .. math::
 
-    q(z|x) = \\sum_{k=1}^K \\pi(k) q_{k}(z|x)
+    p(z) = \\sum_{k=1}^K \\pi(k) p_{k}(z)
 """
 
 import functools
@@ -28,6 +28,7 @@ class ExpConfig(spt.Config):
     # model parameters
     z_dim = 40
     x_dim = 784
+    z_logstd_min = -1.
     n_mixture_components = 3
 
     # training parameters
@@ -68,26 +69,10 @@ def q_net(x, observed=None, n_z=None, is_initializing=False):
         h_x = spt.layers.dense(h_x, 500)
 
     # sample z ~ q(z|x)
-    components = [
-        spt.Normal(
-            mean=spt.layers.dense(
-                h_x, config.z_dim, name='z_mean_{}'.format(i)),
-            logstd=spt.layers.dense(
-                h_x, config.z_dim, name='z_logstd_{}'.format(i))
-        )
-        for i in range(config.n_mixture_components)
-    ]
-
-    mixture_param_shape = spt.utils.concat_shapes([
-        spt.utils.get_shape(components[0].mean),
-        [config.n_mixture_components]
-    ])
-    mixture = spt.Mixture(
-        categorical=spt.Categorical(logits=tf.zeros(mixture_param_shape)),
-        components=components,
-        is_reparameterized=True
-    )
-    z = net.add('z', mixture, n_samples=n_z, group_ndims=1)
+    z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
+    z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
+    z = net.add('z', spt.Normal(mean=z_mean, logstd=z_logstd), n_samples=n_z,
+                group_ndims=1)
 
     return net
 
@@ -100,9 +85,27 @@ def p_net(observed=None, n_z=None, is_initializing=False):
         spt.layers.act_norm, initializing=is_initializing)
 
     # sample z ~ p(z)
-    z = net.add('z', spt.Normal(mean=tf.zeros([1, config.z_dim]),
-                                logstd=tf.zeros([1, config.z_dim])),
-                group_ndims=1, n_samples=n_z)
+    def make_component(i):
+        normal = spt.Normal(
+            mean=tf.get_variable('mean_{}'.format(i), shape=[1, config.z_dim],
+                                 dtype=tf.float32, trainable=True),
+            logstd=tf.maximum(
+                tf.get_variable('logstd_{}'.format(i), shape=[1, config.z_dim],
+                                dtype=tf.float32, trainable=True),
+                config.z_logstd_min
+            )
+        )
+        return normal.expand_value_ndims(1)
+
+    components = [make_component(i) for i in range(config.n_mixture_components)]
+    mixture = spt.Mixture(
+        categorical=spt.Categorical(
+            logits=tf.zeros([1, config.n_mixture_components])),
+        components=components,
+        is_reparameterized=True
+    )
+
+    z = net.add('z', mixture, n_samples=n_z)
 
     # compute the hidden features
     with arg_scope([spt.layers.dense],

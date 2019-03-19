@@ -54,7 +54,7 @@ Examples
    - `VAE <tfsnippet/examples/auto_encoders/vae.py>`_.
    - `Convolutional VAE <tfsnippet/examples/auto_encoders/conv_vae.py>`_: VAE with convolutional layers.
    - `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_: VAE with `q(z|x)` and `p(z)` being Bernoulli distribution.
-   - `Mixture Posterior VAE <tfsnippet/examples/auto_encoders/mixture_vae.py>`_: VAE with `q(z|x)` being a mixture of Gaussian.
+   - `Mixture Prior VAE <tfsnippet/examples/auto_encoders/mixture_vae.py>`_: VAE with `p(z)` being a mixture of Gaussian.
    - `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_: GM-VAE, with auxiliary categorical variable `y`.
    - `Planar Normalizing Flow <tfsnippet/examples/auto_encoders/planar_nf.py>`_: VAE with `q(z|x)` derived by a planar normalizing flow.
    - `Dense Real NVP <tfsnippet/examples/auto_encoders/dense_real_nvp.py>`_: VAE with `q(z|x)` derived by a Real NVP (with dense layers).
