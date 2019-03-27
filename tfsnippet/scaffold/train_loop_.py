@@ -405,7 +405,10 @@ class TrainLoop(DisposableContext):
                 )
 
         # initialize the eta flags
-        self._eta = ETA()
+        self._eta = ETA(take_initial_snapshot=False)
+        progress = self.get_progress()
+        if progress is not None:
+            self._eta.take_snapshot(progress)
 
         # trigger the event
         self.events.on(EventKeys.ENTER_LOOP, self)
