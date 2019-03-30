@@ -1,5 +1,5 @@
-import pytest
 import numpy as np
+import pytest
 import tensorflow as tf
 
 from tfsnippet import DataFlow
@@ -66,6 +66,29 @@ class CollectOutputsTestCase(tf.test.TestCase):
                                      'output is a scalar'):
                 _ = collect_outputs(
                     [tf.reduce_mean(ph1)], [ph1], df, mode='concat')
+
+            # test concat on axis 1
+            df = DataFlow.arrays([arr1, arr2], batch_size=3)
+            outputs = collect_outputs(
+                [tf.concat(
+                    [
+                        tf.transpose(ph1, [1, 0]),
+                        tf.transpose(ph2, [1, 0])
+                    ],
+                    axis=0
+                )],
+                [ph1, ph2], df, mode='concat', axis=1
+            )
+            ans = np.concatenate(
+                [
+                    np.transpose(arr1, [1, 0]),
+                    np.transpose(arr2, [1, 0])
+                ],
+                axis=0
+            )
+            self.assertIsInstance(outputs, tuple)
+            self.assertEqual(len(outputs), 1)
+            np.testing.assert_allclose(outputs[0], ans)
 
     def test_collect_outputs_average(self):
         with self.test_session() as sess:

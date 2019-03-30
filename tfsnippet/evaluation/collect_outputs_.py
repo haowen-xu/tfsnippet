@@ -9,8 +9,8 @@ from tfsnippet.utils import validate_enum_arg, get_default_session_or_error
 __all__ = ['collect_outputs']
 
 
-def collect_outputs(outputs, inputs, data_flow, mode='concat', feed_dict=None,
-                    session=None):
+def collect_outputs(outputs, inputs, data_flow, mode='concat', axis=0,
+                    feed_dict=None, session=None):
     """
     Run TensorFlow nodes by mini-batch and collect outputs from each batch.
 
@@ -23,6 +23,7 @@ def collect_outputs(outputs, inputs, data_flow, mode='concat', feed_dict=None,
             from each mini-batch.  If "average", the output from each batch
             must be a scalar, and if so, this method will take average of the
             outputs from each mini-batch, weighted according to the batch size.
+        axis (int): The axis for concatenation.
         feed_dict: Optional, additional feed dict.
         session: The TensorFlow session.  If not specified, use the
             default session.
@@ -74,7 +75,7 @@ def collect_outputs(outputs, inputs, data_flow, mode='concat', feed_dict=None,
             assert(len(stacked.shape) == 1)
             collected[i] = np.average(stacked, axis=0, weights=weights)
         else:
-            collected[i] = np.concatenate(batches, axis=0)
+            collected[i] = np.concatenate(batches, axis=axis)
 
     if output_keys is not None:
         collected = dict(zip(output_keys, collected))
