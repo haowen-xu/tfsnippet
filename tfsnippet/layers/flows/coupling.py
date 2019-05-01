@@ -49,6 +49,7 @@ class CouplingLayer(FeatureMappingFlow):
                  scale_type='linear',
                  sigmoid_scale_bias=2.,
                  epsilon=1e-6,
+                 scale_lower_bound=None,
                  name=None,
                  scope=None):
         """
@@ -74,6 +75,8 @@ class CouplingLayer(FeatureMappingFlow):
                 this in :class:`tfsnippet.layers.CouplingLayer`.
             epsilon: Small float number to avoid dividing by zero or taking
                 logarithm of zero.
+            scale_lower_bound: Small float number to avoid 1/`scale` becomes zero
+                if ``scale_type == 'sigmoid'``.
         """
         self._shift_and_scale_fn = shift_and_scale_fn
         self._secondary = bool(secondary)
@@ -81,6 +84,7 @@ class CouplingLayer(FeatureMappingFlow):
             'scale_type', scale_type, ['exp', 'sigmoid', 'linear', None])
         self._sigmoid_scale_bias = sigmoid_scale_bias
         self._epsilon = epsilon
+        self._scale_lower_bound = scale_lower_bound
         self._n_features = None  # type: int
 
         super(CouplingLayer, self).__init__(
@@ -159,8 +163,12 @@ class CouplingLayer(FeatureMappingFlow):
 
         # derive the scale class
         if self._scale_type == 'sigmoid':
-            scale = SigmoidScale(
-                pre_scale + self._sigmoid_scale_bias, self._epsilon)
+            if self._scale_lower_bound is not None:
+                scale = tf.maximum(SigmoidScale(
+                    pre_scale + self._sigmoid_scale_bias, self._epsilon), self._scale_lower_bound)
+            else:
+                scale = SigmoidScale(
+                    pre_scale + self._sigmoid_scale_bias, self._epsilon)
         elif self._scale_type == 'exp':
             scale = ExpScale(pre_scale, self._epsilon)
         elif self._scale_type == 'linear':
