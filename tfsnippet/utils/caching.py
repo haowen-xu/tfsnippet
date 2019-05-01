@@ -5,12 +5,12 @@ from contextlib import contextmanager
 import requests
 import six
 import sys
-
 from filelock import FileLock
 from tqdm import tqdm
 
 from .archive_file import Extractor
 from .imported import makedirs
+from .settings_ import settings
 
 if six.PY2:
     from urlparse import urlparse
@@ -143,12 +143,34 @@ class CacheDir(object):
         with FileLock(lock_file):
             yield
 
-    def _download(self, uri, file_path, show_progress, progress_file):
-        if not os.path.isfile(file_path):
+    def _download(self, uri, file_path, show_progress, progress_file,
+                  hasher=None, expected_hash=None):
+        if os.path.isfile(file_path):
+            if settings.file_cache_checksum and hasher is not None:
+                with open(file_path, 'rb') as f:
+                    chunk = bytearray(8192)
+                    n_bytes = f.readinto(chunk)
+                    while n_bytes > 0:
+                        hasher.update(chunk[:n_bytes])
+                        n_bytes = f.readinto(chunk)
+
+                got_hash = hasher.hexdigest()
+                if got_hash != expected_hash:
+                    os.remove(file_path)
+                    raise IOError(
+                        'Hash not match for cached file {}: '
+                        '{} vs expected {}'.
+                        format(file_path, got_hash, expected_hash)
+                    )
+
+        else:
             temp_file = file_path + '._downloading_'
             try:
-                desc = 'Downloading {}'.format(uri)
-                with _maybe_tqdm(tqdm_enabled=show_progress, desc=desc,
+                if not show_progress:
+                    progress_file.write('Downloading {} ... '.format(uri))
+                    progress_file.flush()
+                with _maybe_tqdm(tqdm_enabled=show_progress,
+                                 desc='Downloading {}'.format(uri),
                                  unit='B', unit_scale=True, unit_divisor=1024,
                                  miniters=1, file=progress_file) as t, \
                         open(temp_file, 'wb') as f:
@@ -170,18 +192,36 @@ class CacheDir(object):
                     for chunk in req.iter_content(8192):
                         if chunk:
                             f.write(chunk)
+                            if hasher is not None:
+                                hasher.update(chunk)
                             if t is not None:
                                 t.update(len(chunk))
+
+                    if hasher is not None:
+                        got_hash = hasher.hexdigest()
+                        if got_hash != expected_hash:
+                            raise IOError(
+                                'Hash not match for file downloaded from {}: '
+                                '{} vs expected {}'.
+                                format(uri, got_hash, expected_hash)
+                            )
+
             except BaseException:
+                if not show_progress:
+                    progress_file.write('error\n')
+                    progress_file.flush()
                 if os.path.isfile(temp_file):  # pragma: no cover
                     os.remove(temp_file)
                 raise
             else:
+                if not show_progress:
+                    progress_file.write('ok\n')
+                    progress_file.flush()
                 os.rename(temp_file, file_path)
         return file_path
 
     def download(self, uri, filename=None, show_progress=None,
-                 progress_file=sys.stderr):
+                 progress_file=sys.stderr, hasher=None, expected_hash=None):
         """
         Download a file into this :class:`CacheDir`.
 
@@ -197,6 +237,10 @@ class CacheDir(object):
                 if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
+            hasher: A hasher algorithm instance from `hashlib`.
+                If specified, will compute the hash of downloaded content,
+                and validate against `expected_hash`.
+            expected_hash (str): The expected hash of downloaded content.
 
         Returns:
             str: The absolute path of the downloaded file.
@@ -215,16 +259,16 @@ class CacheDir(object):
         with self._lock_file(file_path):
             return self._download(
                 uri, file_path, show_progress=show_progress,
-                progress_file=progress_file
+                progress_file=progress_file, hasher=hasher,
+                expected_hash=expected_hash
             )
 
     def _extract_file(self, archive_file, extract_path, show_progress,
                       progress_file):
         if not os.path.isdir(extract_path):
             temp_path = extract_path + '._extracting_'
-            if show_progress:
-                progress_file.write('Extracting {} ... '.format(archive_file))
-                progress_file.flush()
+            progress_file.write('Extracting {} ... '.format(archive_file))
+            progress_file.flush()
             try:
                 with Extractor.open(archive_file) as extractor:
                     for name, file_obj in extractor:
@@ -235,16 +279,14 @@ class CacheDir(object):
                         with open(file_path, 'wb') as dst_obj:
                             shutil.copyfileobj(file_obj, dst_obj)
             except BaseException:
-                if show_progress:
-                    progress_file.write('error\n')
-                    progress_file.flush()
+                progress_file.write('error\n')
+                progress_file.flush()
                 if os.path.isdir(temp_path):  # pragma: no cover
                     shutil.rmtree(temp_path)
                 raise
             else:
-                if show_progress:
-                    progress_file.write('done\n')
-                    progress_file.flush()
+                progress_file.write('ok\n')
+                progress_file.flush()
                 os.rename(temp_path, extract_path)
         return extract_path
 
@@ -289,7 +331,8 @@ class CacheDir(object):
             )
 
     def download_and_extract(self, uri, filename=None, extract_dir=None,
-                             show_progress=None, progress_file=sys.stderr):
+                             show_progress=None, progress_file=sys.stderr,
+                             hasher=None, expected_hash=None):
         """
         Download a file into this :class:`CacheDir`, and extract it.
 
@@ -309,6 +352,10 @@ class CacheDir(object):
                 if `progress_file.isatty()` is :obj:`True`.
             progress_file: The file object where to write the progress.
                 (default :obj:`sys.stderr`)
+            hasher: A hasher algorithm instance from `hashlib`.
+                If specified, will compute the hash of downloaded content,
+                and validate against `expected_hash`.
+            expected_hash (str): The expected hash of downloaded content.
 
         Returns:
             str: The absolute path of the extracted directory.
@@ -332,7 +379,8 @@ class CacheDir(object):
             if not os.path.isdir(extract_path):
                 archive_file = self._download(
                     uri, file_path, show_progress=show_progress,
-                    progress_file=progress_file
+                    progress_file=progress_file, hasher=hasher,
+                    expected_hash=expected_hash
                 )
                 self._extract_file(
                     archive_file, extract_path, show_progress=show_progress,

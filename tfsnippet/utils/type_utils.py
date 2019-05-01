@@ -12,7 +12,9 @@ try:
 except ImportError:  # pragma: no cover
     _DYNAMIC_TENSOR_TYPES = (tf.Tensor, tf.Variable, TensorWrapper)
 
-__all__ = ['is_integer', 'is_float', 'is_tensor_object', 'TensorArgValidator']
+__all__ = [
+    'is_integer', 'is_float', 'is_tensor_object', 'TensorArgValidator'
+]
 
 __INTEGER_TYPES = (
     six.integer_types +
@@ -91,8 +93,10 @@ class TensorArgValidator(object):
     def _value_test(self, value, tf_assertion, value_test, err_msg):
         if is_tensor_object(value):
             assert_op = tf_assertion(value, err_msg.format(self.name))
-            with assert_deps([assert_op]):
-                return tf.identity(value)
+            with assert_deps([assert_op]) as asserted:
+                if asserted:  # pragma: no cover
+                    value = tf.identity(value)
+            return value
         else:
             if not value_test(value):
                 raise ValueError(err_msg.format(self.name))

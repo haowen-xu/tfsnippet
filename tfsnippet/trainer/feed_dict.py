@@ -1,3 +1,4 @@
+from tfsnippet.scaffold import ScheduledVariable
 from .dynamic_values import DynamicValue
 
 __all__ = ['resolve_feed_dict', 'merge_feed_dict']
@@ -10,8 +11,9 @@ def resolve_feed_dict(feed_dict, inplace=False):
     The supported dynamic value types and corresponding resolving method
     is listed as follows:
 
-    1. :class:`DynamicValue`: :meth:`get()` will be called.
-    2. callable object: Will be called to get the value.
+    1. :class:`ScheduledVariable`: :meth:`get()` will be called.
+    2. :class:`DynamicValue`: :meth:`get()` will be called.
+    3. callable object: Will be called to get the value.
 
     Args:
         feed_dict (dict[tf.Tensor, any]): The feed dict to be resolved.
@@ -26,7 +28,9 @@ def resolve_feed_dict(feed_dict, inplace=False):
         feed_dict = dict(feed_dict)
     for k in feed_dict:
         v = feed_dict[k]
-        if isinstance(v, DynamicValue):
+        if isinstance(v, ScheduledVariable):
+            feed_dict[k] = v.get()
+        elif isinstance(v, DynamicValue):
             feed_dict[k] = v.get()
         elif callable(v):
             feed_dict[k] = v()

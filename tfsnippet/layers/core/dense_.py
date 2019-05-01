@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
 from tfsnippet.utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
@@ -10,10 +11,13 @@ __all__ = ['dense']
 
 @add_arg_scope
 @add_name_and_scope_arg_doc
-def dense(input, units,
+def dense(input,
+          units,
           activation_fn=None,
           normalizer_fn=None,
           weight_norm=False,
+          gated=False,
+          gate_sigmoid_bias=2.,
           kernel=None,
           kernel_initializer=None,
           kernel_regularizer=None,
@@ -48,6 +52,10 @@ def dense(input, units,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
@@ -62,14 +70,14 @@ def dense(input, units,
         bias_initializer: The initializer for `bias`.
         bias_regularizer: The regularizer for `bias`.
         bias_constraint: The constraint for `bias`.
-        trainable: Whether or not the parameters are trainable?
+        trainable (bool): Whether or not the variables are trainable?
 
     Returns:
         tf.Tensor: The output tensor.
     """
     # get the specification of inputs
     input_spec = InputSpec(shape=('...', '?', '*'))
-    input = input_spec.validate(input)
+    input = input_spec.validate('input', input)
     dtype = input.dtype.base_dtype
     input_shape = get_static_shape(input)
     in_units = input_shape[-1]
@@ -82,22 +90,26 @@ def dense(input, units,
 
     # get the specification of outputs and parameters
     out_units = validate_positive_int_arg('units', units)
+    if gated:
+        out_units *= 2
     kernel_shape = (in_units, out_units)
     bias_shape = (out_units,)
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the dense layer
     with tf.variable_scope(scope, default_name=name or 'dense'):
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -110,8 +122,11 @@ def dense(input, units,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
 
+        maybe_add_histogram(kernel, 'kernel')
+        kernel = maybe_check_numerics(kernel, 'kernel')
+
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 dtype=dtype,
@@ -120,9 +135,11 @@ def dense(input, units,
                 constraint=bias_constraint,
                 trainable=trainable,
             )
+            maybe_add_histogram(bias, 'bias')
+            bias = maybe_check_numerics(bias, 'bias')
 
         # flatten to 2d
-        output, s1, s2 = flatten(input, 2)
+        output, s1, s2 = flatten_to_ndims(input, 2)
 
         # do kernel * input + bias
         output = tf.matmul(output, kernel)
@@ -133,11 +150,22 @@ def dense(input, units,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=-1)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
 
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
+
         # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
+
+        maybe_add_histogram(output, 'output')
+        output = maybe_check_numerics(output, 'output')
 
     return output

@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from tests.helper import assert_variables
 from tfsnippet.layers import *
 from tfsnippet.utils import get_static_shape, ensure_variables_initialized
 
@@ -57,11 +58,10 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
             ensure_variables_initialized()
 
             # compute the ground-truth y and log_det
-            y, log_det = x, 0
+            y = x
             w, b, u_hat = flow._w, flow._b, flow._u_hat
             u_hat, w, b = sess.run([u_hat, w, b])
-            y, tmp = transform(y, u_hat, w, b)
-            log_det += tmp
+            y, log_det = transform(y, u_hat, w, b)
 
             # check the flow-derived y and log_det
             y2, log_det2 = sess.run(
@@ -69,6 +69,21 @@ class PlanarNormalizingFlowTestCase(tf.test.TestCase):
 
             np.testing.assert_allclose(y2, y, rtol=1e-5)
             np.testing.assert_allclose(log_det2, log_det, rtol=1e-5)
+
+    def test_planar_nf_vars(self):
+        # test trainable
+        with tf.Graph().as_default():
+            _ = PlanarNormalizingFlow().apply(tf.zeros([2, 3]))
+            assert_variables(['w', 'b', 'u'], trainable=True,
+                             scope='planar_normalizing_flow',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
+
+        # test non-trainable
+        with tf.Graph().as_default():
+            _ = PlanarNormalizingFlow(trainable=False).apply(tf.zeros([2, 3]))
+            assert_variables(['w', 'b', 'u'], trainable=False,
+                             scope='planar_normalizing_flow',
+                             collections=[tf.GraphKeys.MODEL_VARIABLES])
 
     def test_planar_normalizing_flows(self):
         # test single-layer flow

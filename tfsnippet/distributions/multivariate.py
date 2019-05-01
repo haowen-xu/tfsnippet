@@ -1,7 +1,7 @@
 import tensorflow as tf
 import zhusuan.distributions as zd
 
-from tfsnippet.utils import should_check_numerics
+from tfsnippet.utils import settings
 from .wrapper import ZhuSuanDistribution
 
 __all__ = ['OnehotCategorical', 'Concrete', 'ExpConcrete']
@@ -75,10 +75,10 @@ class Concrete(ZhuSuanDistribution):
             is_reparameterized (bool): Whether or not the gradients can
                 be propagated through parameters? (default :obj:`True`)
             check_numerics (bool): Whether or not to check numerical issues.
-                Default to ``tfsnippet.utils.should_check_numerics()``.
+                Default to ``tfsnippet.settings.check_numerics``.
         """
         if check_numerics is None:
-            check_numerics = should_check_numerics()
+            check_numerics = settings.check_numerics
         super(Concrete, self).__init__(
             zd.Concrete(temperature=temperature,
                         logits=logits,
@@ -127,10 +127,10 @@ class ExpConcrete(ZhuSuanDistribution):
             is_reparameterized (bool): Whether or not the gradients can
                 be propagated through parameters? (default :obj:`True`)
             check_numerics (bool): Whether or not to check numerical issues.
-                Default to ``tfsnippet.utils.should_check_numerics()``.
+                Default to ``tfsnippet.settings.check_numerics``.
         """
         if check_numerics is None:
-            check_numerics = should_check_numerics()
+            check_numerics = settings.check_numerics
         super(ExpConcrete, self).__init__(
             zd.ExpConcrete(temperature=temperature,
                            logits=logits,

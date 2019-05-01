@@ -53,7 +53,7 @@ class ExamplesTestCase(unittest.TestCase):
 
             with TemporaryDirectory() as tempdir:
                 args = [sys.executable, '-u',
-                        example_script, '-c', 'max_step=1']
+                        example_script, '--max_step=1']
                 subprocess.check_call(args, cwd=tempdir, env=env_dict)
                 print('')
 

@@ -1,90 +1,22 @@
-import os
 from contextlib import contextmanager
 
 import tensorflow as tf
 
 from .doc_utils import add_name_arg_doc
+from .graph_keys import GraphKeys
 
 __all__ = [
-    'is_assertion_enabled',
-    'set_assertion_enabled',
-    'scoped_set_assertion_enabled',
-    'should_check_numerics',
-    'set_check_numerics',
-    'scoped_set_check_numerics',
     'maybe_check_numerics',
     'assert_deps',
+    'maybe_add_histogram',
 ]
-
-
-_enable_assertion = (
-    os.environ.get('TFSNIPPET_DISABLE_ASSERTION', '').lower()
-    not in ('1', 'yes', 'on', 'true')
-)
-_check_numerics = (
-    os.environ.get('TFSNIPPET_CHECK_NUMERICS', '').lower()
-    in ('1', 'yes', 'on', 'true')
-)
-
-
-@contextmanager
-def _scoped_set(value, getter, setter):
-    old_value = getter()
-    try:
-        setter(value)
-        yield
-    finally:
-        setter(old_value)
-
-
-def is_assertion_enabled():
-    """Whether or not to enable assertions?"""
-    return _enable_assertion
-
-
-def set_assertion_enabled(enabled):
-    """
-    Set whether or not to enable assertions?
-
-    If the assertions are disabled, then :func:`assert_deps` will not execute
-    any given operations.
-    """
-    global _enable_assertion
-    _enable_assertion = bool(enabled)
-
-
-def scoped_set_assertion_enabled(enabled):
-    """Set whether or not to enable assertions in a scoped context."""
-    return _scoped_set(enabled, is_assertion_enabled, set_assertion_enabled)
-
-
-def should_check_numerics():
-    """Whether or not to check numerics?"""
-    return _check_numerics
-
-
-def set_check_numerics(enabled):
-    """
-    Set whether or not to check numerics?
-
-    By checking numerics, one can figure out where the NaNs and Infinities
-    originate from.  This affects the behavior of :func:`maybe_check_numerics`,
-    and the default behavior of :class:`tfsnippet.distributions.Distribution`
-    sub-classes.
-    """
-    global _check_numerics
-    _check_numerics = bool(enabled)
-
-
-def scoped_set_check_numerics(enabled):
-    """Set whether or not to check numerics in a scoped context."""
-    return _scoped_set(enabled, should_check_numerics, set_check_numerics)
 
 
 @add_name_arg_doc
 def maybe_check_numerics(tensor, message, name=None):
     """
-    Check the numerics of `tensor`, if ``should_check_numerics()``.
+    If ``tfsnippet.settings.check_numerics == True``, check the numerics of
+    `tensor`.  Otherwise do nothing.
 
     Args:
         tensor: The tensor to be checked.
@@ -93,29 +25,68 @@ def maybe_check_numerics(tensor, message, name=None):
     Returns:
         tf.Tensor: The tensor, whose numerics have been checked.
     """
-    if should_check_numerics():
+    from .settings_ import settings
+    if settings.check_numerics:
+        tensor = tf.convert_to_tensor(tensor)
         return tf.check_numerics(tensor, message, name=name)
     else:
-        return tf.identity(tensor)
+        return tensor
 
 
 @contextmanager
 def assert_deps(assert_ops):
     """
-    If ``is_assertion_enabled() == True``, open a context that will run
-    `assert_ops` on exit.  Otherwise do nothing.
+    If ``tfsnippet.settings.enable_assertions == True``, open a context that
+    will run `assert_ops`.  Otherwise do nothing.
 
     Args:
-        assert_ops (Iterable[tf.Operation or NOne]): A list of assertion
+        assert_ops (Iterable[tf.Operation or None]): A list of assertion
             operations.  :obj:`None` items will be ignored.
 
     Yields:
         bool: A boolean indicate whether or not the assertion operations
             are not empty, and are executed.
     """
+    from .settings_ import settings
     assert_ops = [o for o in assert_ops if o is not None]
-    if assert_ops and is_assertion_enabled():
+    if assert_ops and settings.enable_assertions:
         with tf.control_dependencies(assert_ops):
             yield True
     else:
+        for op in assert_ops:
+            # let TensorFlow not warn about not using this assertion operation
+            if hasattr(op, 'mark_used'):
+                op.mark_used()
         yield False
+
+
+@add_name_arg_doc
+def maybe_add_histogram(tensor, summary_name=None, strip_scope=False,
+                        collections=None, name=None):
+    """
+    If ``tfsnippet.settings.auto_histogram == True``, add the histogram
+    of `tensor` via :func:`tfsnippet.add_histogram`.  Otherwise do nothing.
+
+    Args:
+        tensor: Take histogram of this tensor.
+        summary_name: Specify the summary name for `tensor`.
+        strip_scope: If :obj:`True`, strip the name scope from `tensor.name`
+            when adding the histogram.
+        collections: Add the histogram to these collections. Defaults to
+            `[tfsnippet.GraphKeys.AUTO_HISTOGRAM]`.
+
+    Returns:
+        The serialized histogram tensor of `tensor`.
+
+    See Also:
+        :func:`tfsnippet.add_histogram`
+    """
+    from .settings_ import settings
+    from .summary_collector import add_histogram
+    if settings.auto_histogram:
+        if collections is None:
+            collections = (GraphKeys.AUTO_HISTOGRAM,)
+        return add_histogram(
+            tensor, summary_name=summary_name, collections=collections,
+            strip_scope=strip_scope, name=name or 'maybe_add_histogram'
+        )

@@ -6,7 +6,8 @@ from tfsnippet.utils import (ParamSpec,
                              add_name_and_scope_arg_doc,
                              validate_int_tuple_arg,
                              resolve_negative_axis,
-                             maybe_check_numerics)
+                             maybe_check_numerics,
+                             model_variable)
 
 __all__ = ['weight_norm']
 
@@ -47,7 +48,7 @@ def weight_norm(kernel,
         scale_initializer: The initializer for `scale`.
         scale_regularizer: The regularizer for `scale`.
         scale_constraint: The constraint for `scale`.
-        trainable (bool): Whether or not `log_scale` and `scale` are trainable?
+        trainable (bool): Whether or not the variables are trainable?
         epsilon: Small float number to avoid dividing by zero.
     """
     # check the parameters
@@ -65,7 +66,7 @@ def weight_norm(kernel,
     if scale_initializer is None:
         scale_initializer = tf.ones_initializer(dtype=dtype)
     if scale is not None:
-        scale = var_spec.validate(scale)
+        scale = var_spec.validate('scale', scale)
 
     # any dimension not specified in `axis` should be averaged out
     axis = resolve_negative_axis(len(kernel_shape), axis)
@@ -75,13 +76,13 @@ def weight_norm(kernel,
         # normalize the kernel
         kernel = maybe_check_numerics(
             tf.nn.l2_normalize(kernel, axis=reduce_axis, epsilon=epsilon),
-            message='weight-normalized kernel'
+            'weight-normalized kernel'
         )
 
         # create the scaling variable
         if use_scale:
             if scale is None:
-                scale = tf.get_variable(
+                scale = model_variable(
                     'scale',
                     shape=kernel_shape,
                     dtype=dtype,
@@ -90,6 +91,7 @@ def weight_norm(kernel,
                     constraint=scale_constraint,
                     trainable=trainable
                 )
+                scale = maybe_check_numerics(scale, 'scale')
             kernel = kernel * scale
 
         # now return the normalized weight

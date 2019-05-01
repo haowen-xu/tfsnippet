@@ -1,18 +1,39 @@
+from tfsnippet.scaffold import TrainLoop
 from tfsnippet.utils import DocInherit
 
 __all__ = [
-    'DynamicValue', 'SimpleDynamicValue', 'AnnealingDynamicValue',
+    'DynamicValue', 'AnnealingScalar',
 ]
 
 
 @DocInherit
 class DynamicValue(object):
     """
-    Dynamic values fed into trainers.
+    Dynamic values to be fed into trainers and evaluators.
 
-    It is sometimes necessary to feed a dynamic value into a trainer,
-    e.g., an annealing learning rate.  This class provides such a base
-    class for all dynamic values.
+    For example, if you want to feed a learning rate into trainer, which
+    shrinks into half every 100 epochs, you may use the following code::
+
+        class MyLearningRate(spt.DynamicValue):
+
+            def __init__(self, loop):
+                self.loop = loop
+
+            def get(self):
+                return 0.001 * int(self.loop.epoch // 100) * 0.5
+
+        learning_rate = tf.placeholder(dtype=tf.float32, shape=())
+        ...
+
+        with spt.TrainLoop(...) as loop:
+            trainer = spt.Trainer(
+                ...,
+                feed_dict={learning_rate: MyLearningRate(loop)}
+            )
+            trainer.run()
+
+    Or you may also use :class:`AnnealingScalar`, a class that has already
+    implemented such behaviour.
     """
 
     def get(self):
@@ -20,66 +41,106 @@ class DynamicValue(object):
         raise NotImplementedError()
 
 
-class SimpleDynamicValue(DynamicValue):
+class AnnealingScalar(DynamicValue):
     """
-    A simple :class:`DynamicValue`, which stores the value in its internal
-    attribute, and can be changed by :meth:`set`.
+    A :class:`DynamicValue` scalar, which anneals every few epochs or steps.
+
+    For example, to anneal the learning rate every 100 epochs::
+
+        learning_rate = tf.placeholder(dtype=tf.float32, shape=())
+        ...
+
+        with spt.TrainLoop(...) as loop:
+            trainer = spt.Trainer(
+                ...,
+                feed_dict={learning_rate: spt.AnnealingScalar(
+                    loop, initial=0.001, ratio=0.5, epochs=100)}
+            )
     """
 
-    def __init__(self, value):
+    def __init__(self, loop, initial_value, ratio, epochs=None, steps=None,
+                 min_value=None, max_value=None):
         """
-        Construct a new :class:`SimpleDynamicValue`.
+        Construct a new :class:`AnnealingScalar`.
 
         Args:
-            value: Any value to be set.  It can even be another instance
-                of :class:`DynamicValue`.
+            loop (TrainLoop): The training loop object.
+            initial_value (float): A float number, the initial value.
+            ratio (float): A float number, the ratio of annealing at each time.
+            epochs (int): Anneal every this number of epochs.
+                One and only one of `epochs` and `steps` should be specified.
+            steps (int): Anneal every this number of steps.
+                One and only one of `epochs` and `steps` should be specified.
+            min_value (float): Optional, a float number, the minimum value.
+            max_value (float): Optional, a float number, the maximum value.
         """
-        self._value = None
-        self.set(value)
+        initial_value = float(initial_value)
+        ratio = float(ratio)
+        if min_value is not None:
+            min_value = float(min_value)
+            if initial_value < min_value:
+                raise ValueError('`initial_value` must >= `min_value`: '
+                                 'initial_value {} vs min_value {}'.
+                                 format(initial_value, min_value))
+
+        if max_value is not None:
+            max_value = float(max_value)
+            if min_value is not None and max_value < min_value:
+                raise ValueError('`min_value` must <= `max_value`: '
+                                 'min_value {} vs max_value {}'.
+                                 format(min_value, max_value))
+            if initial_value > max_value:
+                raise ValueError('`initial_value` must <= `max_value`: '
+                                 'initial_value {} vs max_value {}'.
+                                 format(initial_value, max_value))
+
+        if (epochs is None and steps is None) or \
+                (epochs is not None and steps is not None):
+            raise ValueError('One and only one of `epochs` and `steps` '
+                             'should be specified.')
+
+        if epochs is not None:
+            epochs = int(epochs)
+            if epochs < 1:
+                raise ValueError('`epochs` must be positive: {}'.format(epochs))
+
+        if steps is not None:
+            steps = int(steps)
+            if steps < 1:
+                raise ValueError('`steps` must be positive: {}'.format(steps))
+
+        self._loop = loop
+        self._initial_value = initial_value
+        self._ratio = ratio
+        self._epochs = epochs
+        self._steps = steps
+        self._min_value = min_value
+        self._max_value = max_value
+
+        self._cache_value = None
+        self._cache_epoch = None
+        self._cache_step = None
 
     def get(self):
-        if isinstance(self._value, DynamicValue):
-            return self._value.get()
-        else:
-            return self._value
+        if (self._epochs is not None and
+            self._cache_epoch != self._loop.epoch) or \
+                (self._steps is not None and
+                 self._cache_step != self._loop.step):
+            if self._epochs is not None:
+                freq_count = int(max(self._loop.epoch - 1, 0) // self._epochs)
+            else:
+                freq_count = int(max(self._loop.step - 1, 0) // self._steps)
 
-    def set(self, value):
-        """
-        Set the value of this :class:`SimpleDynamicValue` instance.
+            scale = self._ratio ** freq_count
+            value = self._initial_value * scale
 
-        Args:
-            value: Any value to be set.  It can even be another instance
-                of :class:`DynamicValue`.
-        """
-        if value is self:
-            raise ValueError('Cannot set the value to `self`.')
-        self._value = value
+            if self._max_value is not None:
+                value = min(self._max_value, value)
+            if self._min_value is not None:
+                value = max(self._min_value, value)
 
+            self._cache_value = value
+            self._cache_epoch = self._loop.epoch
+            self._cache_step = self._loop.step
 
-class AnnealingDynamicValue(SimpleDynamicValue):
-    """
-    A :class:`DynamicValue` whose value is annealed (scaled) each time
-    :meth:`anneal` is called.
-    """
-
-    def __init__(self, initial_value, ratio, min_value=None):
-        """
-        Construct a new :class:`AnnealingDynamicValue`.
-
-        Args:
-            initial_value: A number, the initial value.
-            ratio: A number, the ratio of annealing at each time.
-            min_value: Optional, a number, the minimum value.
-        """
-        if min_value is not None:
-            initial_value = max(initial_value, min_value)
-        super(AnnealingDynamicValue, self).__init__(initial_value)
-        self.min_value = min_value
-        self.ratio = ratio
-
-    def anneal(self):
-        """Anneal the value."""
-        if self.min_value is not None:
-            self._value = max(self.min_value, self._value * self.ratio)
-        else:
-            self._value *= self.ratio
+        return self._cache_value

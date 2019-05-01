@@ -14,10 +14,7 @@ class Trainer(BaseTrainer):
     A subclass of :class:`BaseTrainer`, executing a training operation per step.
     This might be the most commonly used :class:`Trainer`.  Code example::
 
-        from tfsnippet.scaffold import TrainLoop
-        from tfsnippet.trainer import (LossTrainer,
-                                       Evaluator,
-                                       AnnealingDynamicValue)
+        import tfsnippet as spt
 
         # build the model
         input_x = tf.placeholder(...)
@@ -25,11 +22,11 @@ class Trainer(BaseTrainer):
         learning_rate = tf.placeholder(...)  # learning rate annealing
 
         # prepare for the data and
-        train_data = DataFlow.arrays(
+        train_data = spt.DataFlow.arrays(
             [train_x, train_y], batch_size=128, shuffle=True,
             skip_incomplete=True
         )
-        valid_data = DataFlow.arrays(
+        valid_data = spt.DataFlow.arrays(
             [valid_x, valid_y], batch_size=512)
         ...
 
@@ -38,17 +35,16 @@ class Trainer(BaseTrainer):
         train_op = optimizer.minimize(loss)
 
         # run the trainer
-        learning_rate_var = AnnealingDynamicValue(0.001, ratio=0.75)
+        learning_rate = spt.AnnealingVariable('learning_rate', 0.001, 0.75)
 
-        with TrainLoop(param_vars,
-                       max_epoch=10,
-                       early_stopping=True) as loop:
-            trainer = Trainer(
+        with spt.TrainLoop(param_vars,
+                           max_epoch=10,
+                           early_stopping=True) as loop:
+            trainer = spt.Trainer(
                 loop, train_op, [input_x, input_y], train_data,
-                feed_dict={learning_rate: learning_rate_var},
                 metrics={'loss': loss'}
             )
-            evaluator = Evaluator(
+            evaluator = spt.Evaluator(
                 loop, {'loss': loss}, [input_x, input_y], valid_data)
 
             # validate after every epoch
@@ -59,10 +55,13 @@ class Trainer(BaseTrainer):
             trainer.log_after_epochs(freq=1)
 
             # anneal the learning rate after every 10 epochs
-            trainer.anneal_after_epochs(learning_rate_var, freq=10)
+            trainer.anneal_after_epochs(learning_rate, freq=10)
 
             # run the main training loop
             trainer.run()
+
+    See Also:
+        :class:`tfsnippet.trainer.BaseTrainer`
     """
 
     def __init__(self, loop, train_op, inputs, data_flow, feed_dict=None,
@@ -81,7 +80,10 @@ class Trainer(BaseTrainer):
                 in `inputs`.
             feed_dict: The feed dict for training.  It will be merged with
                 the arrays provided by `data_flow` in each step.
-                (default :obj:`None`)
+
+                Dynamic values can be specified, e.g., a callable function
+                or a :class:`ScheduledVariable`, which will be resolved
+                by :func:`resolve_feed_dict` at each step.
             metrics (dict[str, tf.Tensor]): Metrics to be computed along with
                 `train_op`.  The keys are the names of metrics.
             summaries (tf.Tensor or Iterable[tf.Tensor]): A tensor or a list

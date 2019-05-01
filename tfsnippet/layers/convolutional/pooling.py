@@ -1,8 +1,8 @@
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.utils import (validate_enum_arg, flatten, unflatten,
-                             add_name_arg_doc)
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.utils import validate_enum_arg, add_name_arg_doc
 
 from .utils import validate_conv2d_strides_tuple, validate_conv2d_input
 
@@ -21,12 +21,13 @@ def _pool2d(pool_fn, input, pool_size, strides=(1, 1), channels_last=True,
 
     # call pooling
     with tf.name_scope(name, default_name=default_name):
-        output, s1, s2 = flatten(input, 4)
+        output, s1, s2 = flatten_to_ndims(input, 4)
         output = pool_fn(
             value=output, ksize=ksize, strides=strides, padding=padding,
             data_format=data_format
         )
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
+
     return output
 
 

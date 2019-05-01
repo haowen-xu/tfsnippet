@@ -1,6 +1,7 @@
 import numpy as np
 
 from tfsnippet.dataflows import DataMapper
+from tfsnippet.utils import generate_random_seed
 
 __all__ = ['BaseSampler', 'BernoulliSampler', 'UniformNoiseSampler']
 
@@ -38,10 +39,11 @@ class BernoulliSampler(BaseSampler):
         Args:
             dtype: The data type of the sampled array.  Default `np.int32`.
             random_state (RandomState): Optional numpy RandomState for sampling.
-                (default :obj:`None`, use the global :class:`RandomState`).
+                (default :obj:`None`, construct a new :class:`RandomState`).
         """
         self._dtype = dtype
-        self._random_state = random_state
+        self._random_state = \
+            random_state or np.random.RandomState(generate_random_seed())
 
     @property
     def dtype(self):
@@ -71,12 +73,13 @@ class UniformNoiseSampler(BaseSampler):
             maxval: The upper bound of the uniform noise (excluded).
             dtype: The data type of the sampled array.  Default `np.int32`.
             random_state (RandomState): Optional numpy RandomState for sampling.
-                (default :obj:`None`, use the global :class:`RandomState`).
+                (default :obj:`None`, construct a new :class:`RandomState`).
         """
         self._minval = minval
         self._maxval = maxval
         self._dtype = np.dtype(dtype) if dtype is not None else None
-        self._random_state = random_state
+        self._random_state = \
+            random_state or np.random.RandomState(generate_random_seed())
 
     @property
     def minval(self):

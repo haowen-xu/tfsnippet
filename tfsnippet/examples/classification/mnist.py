@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
-import click
+import sys
+from argparse import ArgumentParser
+
 import tensorflow as tf
+from pprint import pformat
 from tensorflow.contrib.framework import arg_scope
 
-import tfsnippet as ts
-from tfsnippet.examples.utils import (MLConfig,
-                                      MLResults,
-                                      global_config as config,
-                                      config_options,
-                                      print_with_title)
+import tfsnippet as spt
+from tfsnippet.examples.utils import MLResults, print_with_title
 
 
-class ExpConfig(MLConfig):
+class ExpConfig(spt.Config):
     # model parameters
     x_dim = 784
     l2_reg = 0.0001
 
     # training parameters
+    result_dir = None
     write_summary = False
     max_epoch = 500
     max_step = None
@@ -29,28 +29,35 @@ class ExpConfig(MLConfig):
     lr_anneal_step_freq = None
 
 
-@ts.global_reuse
-def model(x, is_training):
-    with arg_scope([ts.layers.dense],
+config = ExpConfig()
+
+
+@spt.global_reuse
+def model(x):
+    with arg_scope([spt.layers.dense],
                    activation_fn=tf.nn.leaky_relu,
-                   kernel_regularizer=ts.layers.l2_regularizer(config.l2_reg)):
+                   kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h_x = x
-        h_x = ts.layers.dense(h_x, 500)
-        h_x = ts.layers.dense(h_x, 500)
-    logits = ts.layers.dense(h_x, 10, name='logits')
+        h_x = spt.layers.dense(h_x, 500)
+        h_x = spt.layers.dense(h_x, 500)
+    logits = spt.layers.dense(h_x, 10, name='logits')
     return logits
 
 
-@click.command()
-@click.option('--result-dir', help='The result directory.', metavar='PATH',
-              required=False, type=str)
-@config_options(ExpConfig)
-def main(result_dir):
+def main():
+    # parse the arguments
+    arg_parser = ArgumentParser()
+    spt.register_config_arguments(config, arg_parser, title='Model options')
+    spt.register_config_arguments(spt.settings, arg_parser, prefix='tfsnippet',
+                                  title='TFSnippet options')
+    arg_parser.parse_args(sys.argv[1:])
+
     # print the config
-    print_with_title('Configurations', config.format_config(), after='\n')
+    print_with_title('Configurations', pformat(config.to_dict()), after='\n')
 
     # open the result object and prepare for result directories
-    results = MLResults(result_dir)
+    results = MLResults(config.result_dir)
+    results.save_config(config)  # save experiment settings for review
     results.make_dirs('train_summary', exist_ok=True)
 
     # input placeholders
@@ -58,18 +65,15 @@ def main(result_dir):
         dtype=tf.float32, shape=(None, config.x_dim), name='input_x')
     input_y = tf.placeholder(
         dtype=tf.int32, shape=[None], name='input_y')
-    is_training = tf.placeholder(
-        dtype=tf.bool, shape=(), name='is_training')
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = ts.AnnealingDynamicValue(config.initial_lr,
-                                                 config.lr_anneal_factor)
+    learning_rate = spt.AnnealingVariable(
+        'learning_rate', config.initial_lr, config.lr_anneal_factor)
 
     # derive the loss, output and accuracy
-    logits = model(input_x, is_training=is_training)
+    logits = model(input_x)
     cls_loss = tf.losses.sparse_softmax_cross_entropy(input_y, logits)
     loss = cls_loss + tf.losses.get_regularization_loss()
-    y = ts.ops.softmax_classification_output(logits)
-    acc = ts.ops.classification_accuracy(y, input_y)
+    y = spt.ops.softmax_classification_output(logits)
+    acc = spt.ops.classification_accuracy(y, input_y)
 
     # derive the optimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -81,41 +85,42 @@ def main(result_dir):
 
     # prepare for training and testing data
     (x_train, y_train), (x_test, y_test) = \
-        ts.datasets.load_mnist(normalize_x=True)
-    train_flow = ts.DataFlow.arrays([x_train, y_train], config.batch_size,
-                                    shuffle=True, skip_incomplete=True)
-    test_flow = ts.DataFlow.arrays([x_test, y_test], config.test_batch_size)
+        spt.datasets.load_mnist(x_shape=[784], normalize_x=True)
+    train_flow = spt.DataFlow.arrays([x_train, y_train], config.batch_size,
+                                     shuffle=True, skip_incomplete=True)
+    test_flow = spt.DataFlow.arrays([x_test, y_test], config.test_batch_size)
 
-    with ts.utils.create_session().as_default(), \
+    with spt.utils.create_session().as_default(), \
             train_flow.threaded(5) as train_flow:
         # train the network
-        with ts.TrainLoop(params,
-                          max_epoch=config.max_epoch,
-                          max_step=config.max_step,
-                          summary_dir=(results.system_path('train_summary')
-                                       if config.write_summary else None),
-                          summary_graph=tf.get_default_graph(),
-                          early_stopping=False) as loop:
-            trainer = ts.Trainer(
+        with spt.TrainLoop(params,
+                           max_epoch=config.max_epoch,
+                           max_step=config.max_step,
+                           summary_dir=(results.system_path('train_summary')
+                                        if config.write_summary else None),
+                           summary_graph=tf.get_default_graph(),
+                           early_stopping=False) as loop:
+            trainer = spt.Trainer(
                 loop, train_op, [input_x, input_y], train_flow,
-                feed_dict={learning_rate: learning_rate_var, is_training: True},
-                metrics={'loss': loss, 'acc': acc}
+                metrics={'loss': loss, 'acc': acc},
+                summaries=tf.summary.merge_all(spt.GraphKeys.AUTO_HISTOGRAM)
             )
             trainer.anneal_after(
-                learning_rate_var,
+                learning_rate,
                 epochs=config.lr_anneal_epoch_freq,
                 steps=config.lr_anneal_step_freq
             )
-            evaluator = ts.Evaluator(
+            evaluator = spt.Evaluator(
                 loop,
                 metrics={'test_acc': acc},
                 inputs=[input_x, input_y],
                 data_flow=test_flow,
-                feed_dict={is_training: False},
                 time_metric_name='test_time'
             )
-            evaluator.after_run.add_hook(
-                lambda: results.update_metrics(evaluator.last_metrics_dict))
+            evaluator.events.on(
+                spt.EventKeys.AFTER_EXECUTION,
+                lambda e: results.update_metrics(evaluator.last_metrics_dict)
+            )
             trainer.evaluate_after_epochs(evaluator, freq=5)
             trainer.log_after_epochs(freq=1)
             trainer.run()

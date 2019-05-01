@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['DataFlow']
+__all__ = ['DataFlow', 'ExtraInfoDataFlow']
 
 
 class DataFlow(object):
@@ -108,7 +108,7 @@ class DataFlow(object):
                 mini-batch if it is incomplete? (default :obj:`False`)
             random_state (RandomState): Optional numpy RandomState for
                 shuffling data before each epoch.  (default :obj:`None`,
-                use the global :class:`RandomState`).
+                construct a new :class:`RandomState`).
 
         Returns:
             tfsnippet.dataflow.ArrayFlow: The constructed ArrayFlow.
@@ -249,7 +249,7 @@ class DataFlow(object):
             dtype: Data type of the numbers. (default ``np.int32``)
             random_state (RandomState): Optional numpy RandomState for
                 shuffling data before each epoch.  (default :obj:`None`,
-                use the global :class:`RandomState`).
+                construct a new :class:`RandomState`).
 
         Returns:
             tfsnippet.dataflow.SeqFlow: The data flow from number sequence.
@@ -278,7 +278,7 @@ class DataFlow(object):
                 mini-batch if it is incomplete? (default :obj:`False`)
             random_state (RandomState): Optional numpy RandomState for
                 shuffling data before each epoch.  (default :obj:`None`,
-                use the global :class:`RandomState`).
+                construct a new :class:`RandomState`).
 
         Returns:
             tfsnippet.dataflow.ArrayFlow: The data flow from arrays.

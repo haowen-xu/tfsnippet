@@ -1,9 +1,11 @@
 import tensorflow as tf
 
-from tfsnippet.utils import (flatten, unflatten, add_name_and_scope_arg_doc,
-                             reopen_variable_scope, InputSpec, get_static_shape,
-                             validate_positive_int_arg)
-from .base import BaseFlow
+from tfsnippet.utils import (add_name_and_scope_arg_doc,
+                             validate_positive_int_arg,
+                             get_static_shape,
+                             model_variable)
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from .base import FeatureMappingFlow
 from .sequential import SequentialFlow
 
 __all__ = [
@@ -11,7 +13,7 @@ __all__ = [
 ]
 
 
-class PlanarNormalizingFlow(BaseFlow):
+class PlanarNormalizingFlow(FeatureMappingFlow):
     """
     A single layer Planar Normalizing Flow (Danilo 2016) with `tanh` activation
     function, as well as the invertible trick.  The `x` and `y` are assumed to
@@ -42,7 +44,7 @@ class PlanarNormalizingFlow(BaseFlow):
                  name=None,
                  scope=None):
         """
-        Construct a new :class:`PlanarNF`.
+        Construct a new :class:`PlanarNormalizingFlow`.
 
         Args:
             w_initializer: The initializer for parameter `w`.
@@ -62,16 +64,16 @@ class PlanarNormalizingFlow(BaseFlow):
         self._u_regularizer = u_regularizer
         self._trainable = bool(trainable)
 
-        super(PlanarNormalizingFlow, self).__init__(value_ndims=1,
-                                                    name=name, scope=scope)
+        super(PlanarNormalizingFlow, self).__init__(
+            axis=-1, value_ndims=1, require_batch_dims=True,
+            name=name, scope=scope
+        )
 
     def _build(self, input=None):
-        input = InputSpec(shape=('...', '?', '*')).validate(input)
         dtype = input.dtype.base_dtype
-        n_units = get_static_shape(input)[-1]
-        self._input_spec = InputSpec(shape=('...', '?', n_units))
+        n_units = get_static_shape(input)[self.axis]
 
-        w = tf.get_variable(
+        w = model_variable(
             'w',
             shape=[1, n_units],
             dtype=dtype,
@@ -79,7 +81,7 @@ class PlanarNormalizingFlow(BaseFlow):
             regularizer=self._w_regularizer,
             trainable=self._trainable
         )
-        b = tf.get_variable(
+        b = model_variable(
             'b',
             shape=[1],
             dtype=dtype,
@@ -87,7 +89,7 @@ class PlanarNormalizingFlow(BaseFlow):
             regularizer=self._b_regularizer,
             trainable=self._trainable
         )
-        u = tf.get_variable(
+        u = model_variable(
             'u',
             shape=[1, n_units],
             dtype=dtype,
@@ -106,19 +108,18 @@ class PlanarNormalizingFlow(BaseFlow):
         return False
 
     def _transform(self, x, compute_y, compute_log_det):
-        x = self._input_spec.validate(x)
         w, b, u, u_hat = self._w, self._b, self._u, self._u_hat
 
         # flatten x for better performance
-        x, s1, s2 = flatten(x, 2)  # x.shape == [?, n_units]
-        wxb = tf.matmul(x, w, transpose_b=True) + b  # shape == [?, 1]
+        x_flatten, s1, s2 = flatten_to_ndims(x, 2)  # x.shape == [?, n_units]
+        wxb = tf.matmul(x_flatten, w, transpose_b=True) + b  # shape == [?, 1]
         tanh_wxb = tf.tanh(wxb)  # shape == [?, 1]
 
         # compute y = f(x)
         y = None
         if compute_y:
-            y = x + u_hat * tanh_wxb  # shape == [?, n_units]
-            y = unflatten(y, s1, s2)
+            y = x_flatten + u_hat * tanh_wxb  # shape == [?, n_units]
+            y = unflatten_from_ndims(y, s1, s2)
 
         # compute log(det|df/dz|)
         log_det = None
@@ -128,7 +129,7 @@ class PlanarNormalizingFlow(BaseFlow):
             u_phi = tf.matmul(phi, u_hat, transpose_b=True)  # shape == [?, 1]
             det_jac = 1. + u_phi  # shape == [?, 1]
             log_det = tf.log(tf.abs(det_jac))  # shape == [?, 1]
-            log_det = unflatten(tf.squeeze(log_det, -1), s1, s2)
+            log_det = unflatten_from_ndims(tf.squeeze(log_det, -1), s1, s2)
 
         # now returns the transformed sample and log-determinant
         return y, log_det
@@ -151,12 +152,10 @@ def planar_normalizing_flows(
         name=None,
         scope=None):
     """
-    Construct multi-layer Planar Normalizing Flow (Danilo 2016) with `tanh`
-    activation function, as well as the invertible trick.  The `x` and `y`
-    are assumed to be 1-D random variable (i.e., ``value_ndims == 1``)
+    Construct a sequential of :class`PlanarNormalizingFlow`.
 
     Args:
-        n_layers (int): The number of normalizing flow layers. (default 1)
+        n_layers (int): The number of :class`PlanarNormalizingFlow`.
         w_initializer: The initializer for parameter `w`.
         w_regularizer: The regularizer for parameter `w`.
         b_regularizer: The regularizer for parameter `b`.
@@ -167,10 +166,12 @@ def planar_normalizing_flows(
             (default :obj:`True`)
 
     Returns:
-        BaseFlow: The constructed flow.
+        SequentialFlow or PlanarNormalizingFlow: A :class:`SequentialFlow`
+            if `n_layers > 1`, or a :class:`PlanarNormalizingFlow` if
+            `n_layers == 1`.
 
     See Also:
-        :class:`tfsnippet.layers.PlanarNF`.
+        :class:`tfsnippet.layers.PlanarNormalizingFlow`
     """
     n_layers = validate_positive_int_arg('n_layers', n_layers)
     flow_kwargs = {

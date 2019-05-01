@@ -1,15 +1,8 @@
 from tfsnippet.utils import (validate_int_tuple_arg, InputSpec,
                              get_static_shape, validate_enum_arg)
 
-__all__ = [
-    'validate_conv2d_input',
-    'validate_conv2d_size_tuple',
-    'validate_conv2d_strides_tuple',
-    'get_deconv_output_length',
-]
 
-
-def validate_conv2d_input(input, channels_last):
+def validate_conv2d_input(input, channels_last, arg_name='input'):
     """
     Validate the input for 2-d convolution.
 
@@ -17,6 +10,7 @@ def validate_conv2d_input(input, channels_last):
         input: The input tensor, must be at least 4-d.
         channels_last (bool): Whether or not the last dimension is the
             channels dimension? (i.e., `data_format` is "NHWC")
+        arg_name (str): Name of the input argument.
 
     Returns:
         (tf.Tensor, int, str): The validated input tensor, the number of input
@@ -30,7 +24,7 @@ def validate_conv2d_input(input, channels_last):
         input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
         channel_axis = -3
         data_format = 'NCHW'
-    input = input_spec.validate(input)
+    input = input_spec.validate(arg_name, input)
     input_shape = get_static_shape(input)
     in_channels = input_shape[channel_axis]
 
@@ -100,4 +94,3 @@ def get_deconv_output_length(input_length, kernel_size, strides, padding):
     if padding == 'VALID':
         output_length += max(kernel_size - strides, 0)
     return output_length
-

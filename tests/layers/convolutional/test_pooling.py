@@ -5,7 +5,8 @@ import tensorflow as tf
 from mock import mock
 
 from tfsnippet.layers import *
-from tfsnippet.utils import is_integer, flatten, unflatten
+from tfsnippet.ops import flatten_to_ndims, unflatten_from_ndims
+from tfsnippet.utils import is_integer
 
 
 def patched_pool(pool_fn, value, ksize, strides, padding, data_format):
@@ -40,7 +41,7 @@ class Pooling2DTestCase(tf.test.TestCase):
         ksize = (1,) + ksize + (1,)
 
         session = tf.get_default_session()
-        input, s1, s2 = flatten(input, 4)
+        input, s1, s2 = flatten_to_ndims(input, 4)
         padding = padding.upper()
 
         output = pool_fn(
@@ -51,7 +52,7 @@ class Pooling2DTestCase(tf.test.TestCase):
             data_format='NHWC',
         )
 
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
         output = session.run(output)
         return output
 
@@ -157,24 +158,23 @@ class Pooling2DTestCase(tf.test.TestCase):
             return output
 
         with self.test_session() as sess:
+            assert_allclose = functools.partial(
+                np.testing.assert_allclose, atol=1e-6, rtol=1e-5)
+
             np.random.seed(1234)
             x = np.random.normal(size=[17, 11, 32, 32, 5]).astype(np.float32)
             a1 = np.mean(x, axis=(-3, -2), keepdims=True)
             a2 = np.mean(x, axis=(-3, -2), keepdims=False)
 
             # test NHWC
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=True, keepdims=True) - a1)), 1e-5)
+            assert_allclose(f(x, channels_last=True, keepdims=True), a1)
             # test NCHW, not keep dims
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=False, keepdims=False) - a2)), 1e-5)
+            assert_allclose(f(x, channels_last=False, keepdims=False), a2)
             # test dynamic dimensions, NHWC, not keep dims
             ph = tf.placeholder(
                 dtype=tf.float32, shape=(None, None, None, None, 5))
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=True, keepdims=False, ph=ph) - a2)), 1e-5)
+            assert_allclose(f(x, channels_last=True, keepdims=False, ph=ph), a2)
             # test dynamic dimensions, NCHW
             ph = tf.placeholder(
                 dtype=tf.float32, shape=(None, None, 5, None, None))
-            self.assertLess(np.max(np.abs(
-                f(x, channels_last=False, keepdims=True, ph=ph) - a1)), 1e-5)
+            assert_allclose(f(x, channels_last=False, keepdims=True, ph=ph), a1)

@@ -6,9 +6,9 @@ from collections import OrderedDict
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.scaffold import summarize_variables, MetricLogger
-from tfsnippet.trainer import SimpleDynamicValue
-from tfsnippet.utils import TemporaryDirectory
+from tfsnippet.scaffold import (summarize_variables, MetricLogger,
+                                ScheduledVariable)
+from tfsnippet.utils import TemporaryDirectory, ensure_variables_initialized
 
 
 class LoggingUtilsTestCase(tf.test.TestCase):
@@ -107,22 +107,36 @@ class LoggingUtilsTestCase(tf.test.TestCase):
 class MetricLoggerTestCase(tf.test.TestCase):
 
     def test_basic_logging(self):
+        v = ScheduledVariable('v', 1.)
+
         logger = MetricLogger()
+        self.assertIsInstance(logger.metrics, dict)
         self.assertEqual(logger.format_logs(), '')
 
-        logger.collect_metrics(dict(loss=SimpleDynamicValue(1.)))
+        with self.test_session() as sess:
+            ensure_variables_initialized()
+            logger.collect_metrics(dict(loss=v))
         logger.collect_metrics(dict(loss=2., valid_loss=3., valid_timer=0.1))
         logger.collect_metrics(dict(loss=4., valid_acc=5., train_time=0.2))
         logger.collect_metrics(dict(loss=6., valid_acc=7., train_time=0.3))
         logger.collect_metrics(dict(other_metric=5.))
+        # self.assertEqual(
+        #     logger.format_logs(),
+        #     'train time: 0.25s (±0.05s); '
+        #     'valid timer: 0.1s; '
+        #     'other metric: 5; '
+        #     'loss: 3.25 (±1.92029); '
+        #     'valid loss: 3; '
+        #     'valid acc: 6 (±1)'
+        # )
         self.assertEqual(
             logger.format_logs(),
             'train time: 0.25s (±0.05s); '
             'valid timer: 0.1s; '
-            'other metric: 5; '
             'loss: 3.25 (±1.92029); '
-            'valid loss: 3; '
-            'valid acc: 6 (±1)'
+            'other metric: 5; '
+            'valid acc: 6 (±1); '
+            'valid loss: 3'
         )
 
         logger.clear()

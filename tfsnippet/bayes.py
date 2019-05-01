@@ -5,11 +5,9 @@ import six
 import tensorflow as tf
 from frozendict import frozendict
 
-from tfsnippet.distributions import (Distribution, FlowDistribution,
-                                     as_distribution)
-from tfsnippet.layers import BaseFlow
+from tfsnippet.distributions import Distribution, as_distribution
 from tfsnippet.stochastic import StochasticTensor
-from tfsnippet.utils import get_default_scope_name
+from tfsnippet.utils import get_default_scope_name, is_tensor_object
 
 __all__ = ['BayesianNet']
 
@@ -59,7 +57,7 @@ class BayesianNet(object):
         def bayesian_linear_regression(x, alpha, beta, observed=None):
             net = BayesianNet(observed)
             w = net.add('w', Normal(mean=0., logstd=tf.log(alpha)))
-            y_mean = tf.reduce_sum(tf.expand_dims(w, 0) * x, 1)
+            y_mean = tf.reduce_sum(tf.expand_dims(w, 0) * x, axis=1)
             y = net.add('y', Normal(mean=y_mean, logstd=tf.log(beta)))
             return net
 
@@ -105,9 +103,12 @@ class BayesianNet(object):
             observed: Dict of ``(str, tf.Tensor)``, the names of stochastic
                 nodes and their observations.
         """
+        def to_tensor(t):
+            return tf.convert_to_tensor(t) if not is_tensor_object(t) else t
+
         super(BayesianNet, self).__init__()
         self._observed = frozendict([
-            (name, tf.convert_to_tensor(tensor))
+            (name, to_tensor(tensor))
             for name, tensor in (six.iteritems(observed) if observed else ())
         ])
         self._stochastic_tensors = OrderedDict()
@@ -118,8 +119,7 @@ class BayesianNet(object):
         Get the read-only dict of observations.
 
         Returns:
-            collections.Mapping[str, tf.Tensor]: The read-only dict of
-                observations.
+            collections.Mapping[str, Tensor]: The read-only observations dict.
         """
         return self._observed
 
@@ -134,7 +134,7 @@ class BayesianNet(object):
         return names
 
     def add(self, name, distribution, n_samples=None, group_ndims=0,
-            is_reparameterized=None, flow=None):
+            is_reparameterized=None):
         """
         Add a stochastic node to the network.
 
@@ -155,10 +155,16 @@ class BayesianNet(object):
             group_ndims (int or tf.Tensor): Number of dimensions at the end of
                 ``[n_samples] + batch_shape`` to be considered as events group.
                 (default 0)
-            is_reparameterized: Whether or not the re-parameterization trick
-                should be applied? (default :obj:`None`, following the setting
-                of `distribution`)
-            flow (BaseFlow): If specified, transform `distribution` by `flow`.
+            is_reparameterized: If observation is not given for `name`, this
+                argument will be used to determine whether or not
+                re-parameterization trick should be applied when taking
+                samples from `distribution` (if not specified,  use
+                `distribution.is_reparameterized`).
+
+                If observation is given for `name`, and this argument is
+                set to :obj:`True`, it will be used to validate the observation.
+                If this argument is set to :obj:`False`, `tf.stop_gradient`
+                will be applied on the observation.
 
         Returns:
             StochasticTensor: The sampled stochastic tensor.
@@ -167,7 +173,9 @@ class BayesianNet(object):
             TypeError: If `name` is not a str, or `distribution` is a
                 :class:`TransformedDistribution`.
             KeyError: If :class:`StochasticTensor` with `name` already exists.
-            ValueError: If `transform` cannot be applied.
+            ValueError: If `transform` cannot be applied,
+                or `is_reparameterized = True`, but the observation is not
+                re-parameterized.
 
         See Also:
             :meth:`tfsnippet.distributions.Distribution.sample`
@@ -178,20 +186,27 @@ class BayesianNet(object):
             raise KeyError('StochasticTensor with name {!r} already exists in '
                            'the BayesianNet.  Names must be unique.'.
                            format(name))
-        if flow is not None and name in self._observed and \
-                not flow.explicitly_invertible:
-            raise TypeError('The observed variable {!r} expects `flow` to be '
-                            'explicitly invertible, but it is not: {!r}.'.
-                            format(name, flow))
 
         distribution = as_distribution(distribution)
-        if flow is not None:
-            distribution = FlowDistribution(distribution, flow)
 
         if name in self._observed:
+            ob_tensor = self._observed[name]
+            if isinstance(ob_tensor, StochasticTensor):
+                if is_reparameterized and not ob_tensor.is_reparameterized:
+                    raise ValueError(
+                        '`is_reparameterized` is True, but the observation '
+                        'for `{}` is not re-parameterized: {}'.
+                        format(name, ob_tensor)
+                    )
+                if is_reparameterized is None:
+                    is_reparameterized = ob_tensor.is_reparameterized
+
+            if not is_reparameterized:
+                ob_tensor = tf.stop_gradient(ob_tensor)
+
             t = StochasticTensor(
                 distribution=distribution,
-                tensor=self._observed[name],
+                tensor=ob_tensor,
                 n_samples=n_samples,
                 group_ndims=group_ndims,
                 is_reparameterized=is_reparameterized,
@@ -375,16 +390,14 @@ class BayesianNet(object):
             latent_names = tuple(self)
         else:
             latent_names = tuple(latent_names)
-        merged_obs.update({
-            n: t
-            for n, t in zip(latent_names, self.outputs(latent_names))
-        })
+        merged_obs.update({n: self[n] for n in latent_names})
 
         for n in self:
             if n not in latent_names:  # pragma: no cover
                 warnings.warn('The stochastic tensor `{}` in {!r} is not fed '
                               'into `model_builder` as observed variable when '
-                              'building the variational chain.'.
+                              'building the variational chain. I assume you '
+                              'know what you are doing.'.
                               format(n, self))
 
         # build the model and its log-joint

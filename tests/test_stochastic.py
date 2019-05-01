@@ -64,6 +64,11 @@ class StochasticTensorTestCase(tf.test.TestCase):
         with self.test_session():
             self.assertEqual(t.group_ndims.eval(), 2)
 
+        # test construction log_prob
+        t = StochasticTensor(distrib, tf.constant(0.), log_prob=123.)
+        with self.test_session() as sess:
+            self.assertEqual(sess.run(t.log_prob()), 123.)
+
         # test construction with bad dynamic group_ndims
         t = StochasticTensor(distrib, samples,
                              group_ndims=tf.constant(-1, dtype=tf.int32))

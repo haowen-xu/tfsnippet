@@ -1,11 +1,10 @@
 import contextlib
 
 import tensorflow as tf
-import zhusuan
 
 from tfsnippet.utils import get_default_scope_name
 from .base import Distribution
-from .utils import reduce_group_ndims
+from .utils import reduce_group_ndims, compute_density_immediately
 
 __all__ = ['as_distribution']
 
@@ -27,8 +26,13 @@ def as_distribution(distribution):
     """
     if isinstance(distribution, Distribution):
         return distribution
-    if isinstance(distribution, zhusuan.distributions.Distribution):
-        return ZhuSuanDistribution(distribution)
+    try:
+        import zhusuan
+    except ImportError:  # pragma: no cover
+        pass
+    else:
+        if isinstance(distribution, zhusuan.distributions.Distribution):
+            return ZhuSuanDistribution(distribution)
     raise TypeError('Type `{}` cannot be casted into `tfsnippet.distributions.'
                     'Distribution`'.format(distribution.__class__.__name__))
 
@@ -53,48 +57,44 @@ class ZhuSuanDistribution(Distribution):
                 since :class:`ZhuSuanDistribution` may temporarily modify
                 internal states of `distribution`.
         """
+        import zhusuan
         if not isinstance(distribution, zhusuan.distributions.Distribution):
             raise TypeError('`distribution` is not an instance of `zhusuan.'
                             'distributions.Distribution`')
-        super(ZhuSuanDistribution, self).__init__()
         self._distribution = distribution
+        super(ZhuSuanDistribution, self).__init__(
+            dtype=distribution.dtype,
+            is_continuous=distribution.is_continuous,
+            is_reparameterized=distribution.is_reparameterized,
+            batch_shape=distribution.batch_shape,
+            batch_static_shape=distribution.get_batch_shape(),
+            value_ndims=distribution.get_value_shape().ndims
+        )
 
     def __repr__(self):
         return 'Distribution({!r})'.format(self._distribution)
 
-    @property
-    def dtype(self):
-        return self._distribution.dtype
-
-    @property
-    def is_continuous(self):
-        return self._distribution.is_continuous
-
-    @property
-    def is_reparameterized(self):
-        return self._distribution.is_reparameterized
-
-    @property
-    def value_shape(self):
-        return self._distribution.value_shape
-
-    def get_value_shape(self):
-        return self._distribution.get_value_shape()
-
-    @property
-    def batch_shape(self):
-        return self._distribution.batch_shape
-
-    def get_batch_shape(self):
-        return self._distribution.get_batch_shape()
+    # @property
+    # def value_shape(self):
+    #     return self._distribution.value_shape
+    #
+    # def get_value_shape(self):
+    #     return self._distribution.get_value_shape()
+    #
+    # @property
+    # def batch_shape(self):
+    #     return self._distribution.batch_shape
+    #
+    # def get_batch_shape(self):
+    #     return self._distribution.get_batch_shape()
 
     def sample(self, n_samples=None, is_reparameterized=None, group_ndims=0,
                compute_density=None, name=None):
         from tfsnippet.stochastic import StochasticTensor
 
-        if is_reparameterized and not self.is_reparameterized:
-            raise RuntimeError('Distribution is not re-parameterized')
-        elif is_reparameterized is False and self.is_reparameterized:
+        self._validate_sample_is_reparameterized_arg(is_reparameterized)
+
+        if is_reparameterized is False and self.is_reparameterized:
             @contextlib.contextmanager
             def set_is_reparameterized():
                 try:
@@ -118,9 +118,7 @@ class ZhuSuanDistribution(Distribution):
                     is_reparameterized=is_reparameterized,
                 )
                 if compute_density:
-                    with tf.name_scope('compute_prob_and_log_prob'):
-                        log_p = t.log_prob()
-                        t._self_prob = tf.exp(log_p)
+                    compute_density_immediately(t)
                 return t
 
     def log_prob(self, given, group_ndims=0, name=None):

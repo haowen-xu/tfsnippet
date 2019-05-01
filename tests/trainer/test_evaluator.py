@@ -8,6 +8,7 @@ from mock import Mock
 from tfsnippet.dataflows import DataFlow
 from tfsnippet.scaffold import TrainLoop
 from tfsnippet.trainer import *
+from tfsnippet.utils import EventSource
 
 
 class AutoBatchWeightTestCase(unittest.TestCase):
@@ -33,8 +34,7 @@ class EvaluatorTestCase(tf.test.TestCase):
         self.assertEqual({}, v.feed_dict)
         self.assertEqual('eval_time', v.time_metric_name)
         self.assertIs(auto_batch_weight, v.batch_weight_func)
-        self.assertIsInstance(v.before_run, HookList)
-        self.assertIsInstance(v.after_run, HookList)
+        self.assertIsInstance(v.events, EventSource)
 
         batch_weight_func = Mock(return_value=123.)
         v = Evaluator(loop, {'valid_loss_x': 12}, [34, 56], df,

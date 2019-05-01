@@ -83,3 +83,28 @@ class LogSumAndMeanExpTestCase(tf.test.TestCase):
                 np.log(np.mean(np.exp(x), axis=None, keepdims=True)),
                 sess.run(log_mean_exp(x, keepdims=True))
             )
+
+
+class MaybeClipValueTestCase(tf.test.TestCase):
+
+    def test_maybe_clip_value(self):
+        with self.test_session() as sess:
+            x = np.linspace(0, 1, 101, dtype=np.float32)
+            t = tf.convert_to_tensor(x)
+
+            self.assertIs(maybe_clip_value(t), t)
+
+            t2 = maybe_clip_value(t, min_val=.1)
+            self.assertIsNot(t2, t)
+            np.testing.assert_allclose(sess.run(t2), np.maximum(x, .1))
+
+            t2 = maybe_clip_value(t, max_val=.9)
+            self.assertIsNot(t2, t)
+            np.testing.assert_allclose(sess.run(t2), np.minimum(x, .9))
+
+            t2 = maybe_clip_value(t, min_val=.1, max_val=.9)
+            self.assertIsNot(t2, t)
+            np.testing.assert_allclose(
+                sess.run(t2),
+                np.maximum(np.minimum(x, .9), .1)
+            )

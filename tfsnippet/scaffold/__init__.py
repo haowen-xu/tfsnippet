@@ -1,10 +1,11 @@
-from .early_stopping_ import *
-from .logs import *
+from .checkpoint import *
+from .event_keys import *
+from .logging_ import *
+from .scheduled_var import *
 from .train_loop_ import *
-from .variable_saver import *
 
 __all__ = [
-    'DefaultMetricFormatter', 'EarlyStopping', 'EarlyStoppingContext',
-    'MetricFormatter', 'MetricLogger', 'TrainLoop', 'TrainLoopContext',
-    'VariableSaver', 'early_stopping', 'summarize_variables', 'train_loop',
+    'AnnealingVariable', 'CheckpointSavableObject', 'CheckpointSaver',
+    'DefaultMetricFormatter', 'EventKeys', 'MetricFormatter', 'MetricLogger',
+    'ScheduledVariable', 'TrainLoop', 'summarize_variables',
 ]

@@ -1,7 +1,7 @@
 import tensorflow as tf
-import zhusuan as zs
 
 from tfsnippet.ops import add_n_broadcast
+from tfsnippet.utils import add_name_arg_doc
 from .estimators import *
 from .evaluation import *
 from .objectives import *
@@ -113,6 +113,7 @@ class VariationalInference(object):
             zhusuan.variational.EvidenceLowerBoundObjective: The constructed
                 per-data ELBO objective.
         """
+        import zhusuan as zs
         return self.zs_objective(zs.variational.elbo)
 
     def zs_importance_weighted_objective(self):
@@ -124,6 +125,7 @@ class VariationalInference(object):
             zhusuan.variational.ImportanceWeightedObjective: The constructed
                 per-data importance weighted objective.
         """
+        import zhusuan as zs
         return self.zs_objective(zs.variational.importance_weighted_objective)
 
     def zs_klpq(self):
@@ -135,6 +137,7 @@ class VariationalInference(object):
             zhusuan.variational.InclusiveKLObjective: The constructed
                 per-data inclusive KL objective.
         """
+        import zhusuan as zs
         return self.zs_objective(zs.variational.klpq)
 
     @property
@@ -180,13 +183,10 @@ class VariationalLowerBounds(object):
         """
         self._vi = vi
 
+    @add_name_arg_doc
     def elbo(self, name=None):
         """
         Get the evidence lower-bound.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "elbo")
 
         Returns:
             tf.Tensor: The evidence lower-bound.
@@ -201,13 +201,10 @@ class VariationalLowerBounds(object):
             name=name or 'elbo'
         )
 
+    @add_name_arg_doc
     def monte_carlo_objective(self, name=None):
         """
         Get the importance weighted lower-bound.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "monte_carlo_objective")
 
         Returns:
             tf.Tensor: The per-data importance weighted lower-bound.
@@ -238,13 +235,10 @@ class VariationalTrainingObjectives(object):
         """
         self._vi = vi
 
+    @add_name_arg_doc
     def sgvb(self, name=None):
         """
         Get the SGVB training objective.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "sgvb")
 
         Returns:
             tf.Tensor: The per-data SGVB training objective.
@@ -254,46 +248,53 @@ class VariationalTrainingObjectives(object):
             :func:`tfsnippet.variational.sgvb_estimator`
         """
         with tf.name_scope(name, default_name='sgvb'):
-            return -sgvb_estimator(
-                values=self._vi.log_joint - self._vi.latent_log_prob,
+            return sgvb_estimator(
+                # -(log p(x,z) - log q(z|x))
+                values=self._vi.latent_log_prob - self._vi.log_joint,
                 axis=self._vi.axis
             )
 
-    def reinforce(self, variance_reduction=True, baseline=None, decay=0.8,
-                  name=None):
+    @add_name_arg_doc
+    def nvil(self, baseline=None, center_by_moving_average=True, decay=0.8,
+             baseline_cost_weight=1., name=None):
         """
-        Get the REINFORCE training objective.
+        Get the NVIL training objective.
 
         Args:
-            variance_reduction (bool): Whether to use variance reduction.
-            baseline (tf.Tensor): A trainable estimation for the scale of
-                the elbo value.
-            decay (float): The moving average decay for variance normalization.
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "reinforce")
+            baseline: Values of the baseline function
+                math:`C_{\\psi}(\\mathbf{x})` given input `x`.
+                If this is not specified, then this method will
+                degenerate to the REINFORCE algorithm, with only a moving
+                average estimated constant baseline `c`.
+            center_by_moving_average (bool): Whether or not to use the moving
+                average to maintain an estimation of `c` in above equations?
+            decay: The decaying factor for moving average.
+            baseline_cost_weight: Weight of the baseline cost.
 
         Returns:
-            tf.Tensor: The per-data REINFORCE training objective.
-
-        See Also:
-            :meth:`zhusuan.variational.EvidenceLowerBoundObjective.reinforce`
+            tf.Tensor: The per-data NVIL training objective.
         """
-        # reinforce requires extra variables to collect the moving average
-        # statistics, so we need to generate a variable scope
-        with tf.variable_scope(name, default_name='reinforce'):
-            return self._vi.zs_elbo().reinforce(
-                variance_reduction=variance_reduction,
+        with tf.name_scope(name, default_name='nvil'):
+            cost, baseline_cost = nvil_estimator(
+                values=self._vi.log_joint - self._vi.latent_log_prob,
+                latent_log_joint=self._vi.latent_log_prob,
+                axis=self._vi.axis,
                 baseline=baseline,
-                decay=decay,
+                center_by_moving_average=center_by_moving_average,
+                decay=decay
             )
 
+            if baseline_cost is not None:
+                return baseline_cost_weight * baseline_cost - cost
+            else:
+                return -cost
+
+    reinforce = nvil
+
+    @add_name_arg_doc
     def iwae(self, name=None):
         """
         Get the SGVB training objective for importance weighted objective.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "iwae")
 
         Returns:
             tf.Tensor: The per-data SGVB training objective for importance
@@ -309,13 +310,10 @@ class VariationalTrainingObjectives(object):
                 axis=self._vi.axis
             )
 
+    @add_name_arg_doc
     def vimco(self, name=None):
         """
         Get the VIMCO training objective.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "vimco")
 
         Returns:
             tf.Tensor: The per-data VIMCO training objective.
@@ -327,13 +325,10 @@ class VariationalTrainingObjectives(object):
         with tf.name_scope(name, default_name='vimco'):
             return self._vi.zs_importance_weighted_objective().vimco()
 
+    @add_name_arg_doc
     def rws_wake(self, name=None):
         """
         Get the wake-phase Reweighted Wake-Sleep (RWS) training objective.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "rws_wake")
 
         Returns:
             tf.Tensor: The per-data wake-phase RWS training objective.
@@ -359,13 +354,10 @@ class VariationalEvaluation(object):
         """
         self._vi = vi
 
+    @add_name_arg_doc
     def importance_sampling_log_likelihood(self, name=None):
         """
         Compute :math:`log p(x)` by importance sampling.
-
-        Args:
-            name (str): TensorFlow name scope of the graph nodes.
-                (default "importance_sampling_log_likelihood")
 
         Returns:
             tf.Tensor: The per-data :math:`log p(x)`.

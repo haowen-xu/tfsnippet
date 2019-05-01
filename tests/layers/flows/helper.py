@@ -34,8 +34,9 @@ def quadratic_inverse_transform(ops, y, a, b):
 
 class QuadraticFlow(BaseFlow):
 
-    def __init__(self, a, b):
-        super(QuadraticFlow, self).__init__()
+    def __init__(self, a, b, value_ndims=0):
+        super(QuadraticFlow, self).__init__(x_value_ndims=value_ndims,
+                                            y_value_ndims=value_ndims)
         self.a = a
         self.b = b
 
@@ -48,6 +49,9 @@ class QuadraticFlow(BaseFlow):
 
     def _transform(self, x, compute_y, compute_log_det):
         y, log_det = quadratic_transform(tfops, x, self.a, self.b)
+        if self.x_value_ndims > 0:
+            log_det = tf.reduce_sum(
+                log_det, axis=tf.range(-self.x_value_ndims, 0, dtype=tf.int32))
         if not compute_y:
             y = None
         if not compute_log_det:
@@ -56,6 +60,9 @@ class QuadraticFlow(BaseFlow):
 
     def _inverse_transform(self, y, compute_x, compute_log_det):
         x, log_det = quadratic_inverse_transform(tfops, y, self.a, self.b)
+        if self.y_value_ndims > 0:
+            log_det = tf.reduce_sum(
+                log_det, axis=tf.range(-self.y_value_ndims, 0, dtype=tf.int32))
         if not compute_x:
             x = None
         if not compute_log_det:
@@ -64,7 +71,7 @@ class QuadraticFlow(BaseFlow):
 
 
 def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
-                                   rtol=1e-5):
+                                   atol=0., rtol=1e-5):
     x = tf.convert_to_tensor(x)
     self.assertTrue(flow.explicitly_invertible)
 
@@ -72,7 +79,20 @@ def invertible_flow_standard_check(self, flow, session, x, feed_dict=None,
     y, log_det_y = flow.transform(x)
     x2, log_det_x = flow.inverse_transform(y)
 
+    x_out, y_out, log_det_y_out, x2_out, log_det_x_out = \
+        session.run([x, y, log_det_y, x2, log_det_x], feed_dict=feed_dict)
+    np.testing.assert_allclose(x2_out, x_out, atol=atol, rtol=rtol)
+
     np.testing.assert_allclose(
-        *session.run([x, x2], feed_dict=feed_dict), rtol=rtol)
-    np.testing.assert_allclose(
-        *session.run([log_det_y, -log_det_x], feed_dict=feed_dict), rtol=rtol)
+        -log_det_x_out, log_det_y_out, atol=atol, rtol=rtol)
+    self.assertEqual(np.size(x_out), np.size(y_out))
+
+    x_batch_shape = x_out.shape
+    y_batch_shape = y_out.shape
+    if flow.x_value_ndims > 0:
+        x_batch_shape = x_batch_shape[:-flow.x_value_ndims]
+    if flow.y_value_ndims > 0:
+        y_batch_shape = y_batch_shape[:-flow.y_value_ndims]
+    self.assertTupleEqual(log_det_y_out.shape, x_batch_shape)
+    self.assertTupleEqual(log_det_x_out.shape, y_batch_shape)
+    self.assertTupleEqual(log_det_y_out.shape, log_det_x_out.shape)

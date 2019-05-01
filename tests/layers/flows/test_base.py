@@ -2,6 +2,7 @@ import pytest
 
 from tfsnippet.layers import *
 from tests.layers.flows.helper import *
+from tfsnippet.layers.flows import FeatureMappingFlow
 
 
 class FlowTestCase(tf.test.TestCase):
@@ -33,24 +34,30 @@ class FlowTestCase(tf.test.TestCase):
             np.testing.assert_allclose(sess.run(y), test_y)
 
     def test_error(self):
+        # test invertibility
         class _Flow(BaseFlow):
             @property
             def explicitly_invertible(self):
                 return False
         with pytest.raises(RuntimeError,
                            match='The flow is not explicitly invertible'):
-            _ = _Flow().inverse_transform(tf.constant(0.))
+            _ = _Flow(x_value_ndims=0).inverse_transform(tf.constant(0.))
 
-        # specify neither `compute_y` nor `compute_log_det` would cause error
+        # test build without input will cause error
+        with pytest.raises(ValueError,
+                           match='`input` is required to build _Flow'):
+            _ = _Flow(x_value_ndims=0).build(None)
+
+        # specify neither `compute_y` nor `compute_log_det` will cause error
         flow = QuadraticFlow(2., 5.)
         with pytest.raises(
-                RuntimeError, match='At least one of `compute_y` and '
-                                    '`compute_log_det` should be True'):
+                ValueError, match='At least one of `compute_y` and '
+                                  '`compute_log_det` should be True'):
             _ = flow.transform(
                 tf.constant(0.), compute_y=False, compute_log_det=False)
         with pytest.raises(
-                RuntimeError, match='At least one of `compute_x` and '
-                                    '`compute_log_det` should be True'):
+                ValueError, match='At least one of `compute_x` and '
+                                  '`compute_log_det` should be True'):
             _ = flow.inverse_transform(
                 tf.constant(0.), compute_x=False, compute_log_det=False)
 
@@ -78,40 +85,49 @@ class FlowTestCase(tf.test.TestCase):
                 return y, y - 1.
 
         with self.test_session() as sess:
-            flow = _Flow(value_ndims=1)
+            # shape assertions
+            flow = _Flow(x_value_ndims=1, y_value_ndims=2)
 
-            # shape assertions in transform
-            with pytest.raises(Exception,
-                               match='The shape of `log_det` does not match '
-                                     'the shape of `input`'):
-                sess.run(flow.transform(tf.zeros([3, 4])))
             with pytest.raises(Exception,
                                match='`x.ndims` must be known and >= '
-                                     '`value_ndims`'):
-                sess.run(flow.transform(tf.constant(0.)))
+                                     '`x_value_ndims`'):
+                flow.build(tf.zeros([]))
 
-            # shape assertions in inverse_transform
-            with pytest.raises(Exception,
-                               match='The shape of `log_det` does not match '
-                                     'the shape of `input`'):
-                sess.run(flow.inverse_transform(tf.zeros([3, 4])))
-            with pytest.raises(Exception,
-                               match='`y.ndims` must be known and >= '
-                                     '`value_ndims`'):
-                sess.run(flow.inverse_transform(tf.constant(0.)))
+            flow.build(tf.zeros([2, 3]))
+            self.assertEqual(flow._x_input_spec.shape, ('...', '?'))
+            self.assertEqual(flow._y_input_spec.shape, ('...', '?', '?'))
 
-            # shape assertions in build
-            flow = _Flow(value_ndims=1)
+            with pytest.raises(Exception, match='The shape of `x` is invalid'):
+                sess.run(flow.transform(tf.zeros([])))
+
+            with pytest.raises(Exception, match='The shape of `y` is invalid'):
+                sess.run(flow.inverse_transform(tf.zeros([3])))
+
+            # shape assertions, require_batch_ndims is True
+            flow = _Flow(x_value_ndims=1, y_value_ndims=2,
+                         require_batch_dims=True)
+
             with pytest.raises(Exception,
-                               match='`input.ndims` must be known and >= '
-                                     '`value_ndims`'):
-                sess.run(flow.build(tf.constant(0.)))
+                               match=r'`x.ndims` must be known and >= '
+                                     r'`x_value_ndims \+ 1`'):
+                flow.build(tf.zeros([3]))
+
+            flow.build(tf.zeros([2, 3]))
+            self.assertEqual(flow._x_input_spec.shape, ('...', '?', '?'))
+            self.assertEqual(flow._y_input_spec.shape, ('...', '?', '?', '?'))
+
+            with pytest.raises(Exception, match='The shape of `x` is invalid'):
+                sess.run(flow.transform(tf.zeros([3])))
+
+            with pytest.raises(Exception, match='The shape of `y` is invalid'):
+                sess.run(flow.inverse_transform(tf.zeros([2, 3])))
 
 
 class MultiLayerQuadraticFlow(MultiLayerFlow):
 
     def __init__(self, n_layers):
-        super(MultiLayerQuadraticFlow, self).__init__(n_layers=n_layers)
+        super(MultiLayerQuadraticFlow, self).__init__(x_value_ndims=0,
+                                                      n_layers=n_layers)
         self._flows = []
 
         with tf.variable_scope(None, default_name='MultiLayerQuadraticFlow'):
@@ -158,7 +174,9 @@ class MultiLayerFlowTestCase(tf.test.TestCase):
             test_y, tmp = quadratic_transform(
                 npyops, test_y, i + 1., i * 2 + 1.)
             test_log_det += tmp
+
         y, log_det_y = flow.transform(tf.constant(test_x))
+
         with self.test_session() as sess:
             np.testing.assert_allclose(sess.run(y), test_y)
             np.testing.assert_allclose(sess.run(log_det_y), test_log_det)
@@ -168,3 +186,63 @@ class MultiLayerFlowTestCase(tf.test.TestCase):
         with pytest.raises(ValueError,
                            match='`n_layers` must be larger than 0'):
             _ = MultiLayerFlow(0)
+
+
+class FeatureMappingFlowTestCase(tf.test.TestCase):
+
+    def test_property(self):
+        class _MyFlow(FeatureMappingFlow):
+            def _build(self, input=None):
+                pass
+
+        # test axis is integer
+        flow = _MyFlow(axis=1, value_ndims=2)
+        flow.build(tf.zeros([2, 3, 4]))
+        self.assertEqual(flow.axis, -2)
+
+        # test axis is tuple
+        flow = _MyFlow(axis=[-1, 1], value_ndims=2)
+        flow.build(tf.zeros([2, 3, 4]))
+        self.assertEqual(flow.axis, (-2, -1))
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match='`axis` must not be empty'):
+            _ = FeatureMappingFlow(axis=(), value_ndims=1)
+
+        with pytest.raises(ValueError, match='Specifying `x_value_ndims` or '
+                                             '`y_value_ndims` for a '
+                                             '`FeatureMappingFlow` is not '
+                                             'allowed'):
+            _ = FeatureMappingFlow(axis=-1, value_ndims=1, x_value_ndims=2)
+
+        with pytest.raises(ValueError, match='Specifying `x_value_ndims` or '
+                                             '`y_value_ndims` for a '
+                                             '`FeatureMappingFlow` is not '
+                                             'allowed'):
+            _ = FeatureMappingFlow(axis=-1, value_ndims=1, y_value_ndims=2)
+
+        with pytest.raises(ValueError, match='`axis` out of range, or not '
+                                             'covered by `value_ndims`'):
+            layer = FeatureMappingFlow(axis=-2, value_ndims=1)
+            _ = layer.apply(tf.zeros([2, 3]))
+
+        with pytest.raises(ValueError, match='Duplicated elements after '
+                                             'resolving negative `axis` with '
+                                             'respect to the `input`'):
+            layer = FeatureMappingFlow(axis=[1, -1], value_ndims=1)
+            _ = layer.apply(tf.zeros([2, 3]))
+
+        with pytest.raises(ValueError, match='`axis` out of range, or not '
+                                             'covered by `value_ndims`'):
+            layer = FeatureMappingFlow(axis=-2, value_ndims=1)
+            _ = layer.apply(tf.zeros([2, 3]))
+
+        with pytest.raises(ValueError, match='The feature axis of `input` '
+                                             'is not deterministic'):
+            layer = FeatureMappingFlow(axis=(-1, -2), value_ndims=2)
+            _ = layer.apply(tf.placeholder(dtype=tf.float32, shape=[None, 3]))
+
+        with pytest.raises(ValueError, match='The feature axis of `input` '
+                                             'is not deterministic'):
+            layer = FeatureMappingFlow(axis=-2, value_ndims=2)
+            _ = layer.apply(tf.placeholder(dtype=tf.float32, shape=[None, 3]))

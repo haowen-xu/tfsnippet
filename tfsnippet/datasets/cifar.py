@@ -1,3 +1,4 @@
+import hashlib
 import os
 
 import six
@@ -13,8 +14,10 @@ else:
 __all__ = ['load_cifar10', 'load_cifar100']
 
 CIFAR_10_URI = 'https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
+CIFAR_10_MD5 = 'c58f30108f718f92721af3b95e74349a'
 CIFAR_10_CONTENT_DIR = 'cifar-10-batches-py'
 CIFAR_100_URI = 'https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz'
+CIFAR_100_MD5 = 'eb9058c3a382ffc7106e4002c42a8d85'
 CIFAR_100_CONTENT_DIR = 'cifar-100-python'
 
 
@@ -86,7 +89,8 @@ def load_cifar10(channels_last=True, x_shape=None, x_dtype=np.float32,
     x_shape = _validate_x_shape(x_shape, channels_last)
 
     # fetch data
-    path = CacheDir('cifar').download_and_extract(CIFAR_10_URI)
+    path = CacheDir('cifar').download_and_extract(
+        CIFAR_10_URI, hasher=hashlib.md5(), expected_hash=CIFAR_10_MD5)
     data_dir = os.path.join(path, CIFAR_10_CONTENT_DIR)
 
     # load the data
@@ -141,7 +145,8 @@ def load_cifar100(label_mode='fine', channels_last=True, x_shape=None,
     x_shape = _validate_x_shape(x_shape, channels_last)
 
     # fetch data
-    path = CacheDir('cifar').download_and_extract(CIFAR_100_URI)
+    path = CacheDir('cifar').download_and_extract(
+        CIFAR_100_URI, hasher=hashlib.md5(), expected_hash=CIFAR_100_MD5)
     data_dir = os.path.join(path, CIFAR_100_CONTENT_DIR)
 
     # load the data
@@ -164,4 +169,3 @@ def load_cifar100(label_mode='fine', channels_last=True, x_shape=None,
     assert(len(test_x) == len(test_y) == 10000)
 
     return (train_x, train_y), (test_x, test_y)
-

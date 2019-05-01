@@ -6,11 +6,10 @@ import six
 import tensorflow as tf
 
 from tfsnippet.dataflows import DataFlow
-from tfsnippet.utils import get_default_session_or_error
-from tfsnippet.scaffold import TrainLoop
+from tfsnippet.utils import get_default_session_or_error, EventSource
+from tfsnippet.scaffold import TrainLoop, EventKeys
 
 from .feed_dict import resolve_feed_dict, merge_feed_dict
-from .hooks import HookList
 
 __all__ = ['auto_batch_weight', 'Evaluator']
 
@@ -39,6 +38,15 @@ class Evaluator(object):
     It is a common practice to compute one or more metrics for evaluation
     and validation during the training process.  This class provides a
     convenient interface for computing metrics by mini-batches.
+
+    The event schedule of an :class:`Evaluator` can be briefly described as
+    follows::
+
+        events.fire(EventKeys.BEFORE_EXECUTION, self)
+
+        ...  # actually run the evaluation
+
+        events.reverse_fire(EventKeys.AFTER_EXECUTION, self)
     """
 
     def __init__(self, loop, metrics, inputs, data_flow, feed_dict=None,
@@ -85,9 +93,11 @@ class Evaluator(object):
                 raise ValueError('Metric is not a scalar tensor: {!r}'.
                                  format(v))
 
-        self._before_run = HookList()
-        self._after_run = HookList()
         self._loop = loop
+        self._events = EventSource([
+            EventKeys.BEFORE_EXECUTION,
+            EventKeys.AFTER_EXECUTION,
+        ])
         self._metrics = metrics
         self._inputs = list(inputs or ())
         self._data_flow = data_flow
@@ -97,24 +107,14 @@ class Evaluator(object):
         self._last_metrics_dict = {}  # store the metrics of last evaluation
 
     @property
-    def before_run(self):
+    def events(self):
         """
-        Get the hooks run before evaluation.
+        Get the event source object.
 
         Returns:
-            HookList: The hook list.
+            EventSource: The event source object.
         """
-        return self._before_run
-
-    @property
-    def after_run(self):
-        """
-        Get the hooks run after evaluation.
-
-        Returns:
-            HookList: The hook list.
-        """
-        return self._after_run
+        return self._events
 
     @property
     def loop(self):
@@ -213,8 +213,8 @@ class Evaluator(object):
         metric_weights = []
 
         with timeit():
-            # run before evaluation hooks
-            self.before_run.call_hooks()
+            # trigger before evaluation event
+            self.events.fire(EventKeys.BEFORE_EXECUTION, self)
 
             for batch_data in self.data_flow:
                 # prepare for the batch feed dict
@@ -258,5 +258,5 @@ class Evaluator(object):
                 }
                 self.loop.collect_metrics(metrics_dict)
 
-            # run after evaluation hooks
-            self.after_run.call_hooks()
+            # trigger after evaluation event
+            self.events.reverse_fire(EventKeys.AFTER_EXECUTION, self)

@@ -2,23 +2,23 @@ TFSnippet
 =========
 
 +---------+-----------------+-----------------+---------------+
-| Master  | |master_build|  | |master_cover|  | |master_doc|  |
+| Stable  | |stable_build|  | |stable_cover|  | |stable_doc|  |
 +---------+-----------------+-----------------+---------------+
 | Develop | |develop_build| | |develop_cover| | |develop_doc| |
 +---------+-----------------+-----------------+---------------+
 
-.. |master_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=master
+.. |stable_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=stable
     :target: https://travis-ci.org/haowen-xu/tfsnippet
-.. |master_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=master
-    :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=master
-.. |master_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=latest
-    :target: http://tfsnippet.readthedocs.io/en/latest/?badge=latest
+.. |stable_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=stable
+    :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=stable
+.. |stable_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=stable
+    :target: http://tfsnippet.readthedocs.io/en/stable/
 .. |develop_build| image:: https://travis-ci.org/haowen-xu/tfsnippet.svg?branch=develop
     :target: https://travis-ci.org/haowen-xu/tfsnippet
 .. |develop_cover| image:: https://coveralls.io/repos/github/haowen-xu/tfsnippet/badge.svg?branch=develop
     :target: https://coveralls.io/github/haowen-xu/tfsnippet?branch=develop
-.. |develop_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=develop
-    :target: http://tfsnippet.readthedocs.io/en/develop/?badge=develop
+.. |develop_doc| image:: https://readthedocs.org/projects/tfsnippet/badge/?version=latest
+    :target: http://tfsnippet.readthedocs.io/en/latest/
 
 TFSnippet is a set of utilities for writing and testing TensorFlow models.
 
@@ -36,7 +36,6 @@ Installation
 
 .. code-block:: bash
 
-    pip install git+https://github.com/thu-ml/zhusuan.git
     pip install git+https://github.com/haowen-xu/tfsnippet.git
 
 Documentation
@@ -48,15 +47,17 @@ Examples
 --------
 
 * Classification:
-    `MNIST <tfsnippet/examples/classification/mnist.py>`_,
-    `Convolutional MNIST <tfsnippet/examples/classification/mnist_conv.py>`_.
+   - `MNIST <tfsnippet/examples/classification/mnist.py>`_.
+   - `Convolutional MNIST <tfsnippet/examples/classification/mnist_conv.py>`_.
+
 * Auto Encoders:
-    `VAE <tfsnippet/examples/auto_encoders/vae.py>`_,
-    `Convolutional VAE <tfsnippet/examples/auto_encoders/vae_conv.py>`_,
-    `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_,
-    `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_.
-* Normalizing Flows:
-    `Planar Normalizing Flow <tfsnippet/examples/auto_encoders/planar_nf.py>`_.
+   - `VAE <tfsnippet/examples/auto_encoders/vae.py>`_.
+   - `Convolutional VAE <tfsnippet/examples/auto_encoders/conv_vae.py>`_: VAE with convolutional layers.
+   - `Bernoulli Latent VAE <tfsnippet/examples/auto_encoders/bernoulli_latent_vae.py>`_: VAE with `q(z|x)` and `p(z)` being Bernoulli distribution.
+   - `Mixture Prior VAE <tfsnippet/examples/auto_encoders/mixture_vae.py>`_: VAE with `p(z)` being a mixture of Gaussian.
+   - `Gaussian Mixture VAE <tfsnippet/examples/auto_encoders/gm_vae.py>`_: GM-VAE, with auxiliary categorical variable `y`.
+   - `Planar Normalizing Flow <tfsnippet/examples/auto_encoders/planar_nf.py>`_: VAE with `q(z|x)` derived by a planar normalizing flow.
+   - `Dense Real NVP <tfsnippet/examples/auto_encoders/dense_real_nvp.py>`_: VAE with `q(z|x)` derived by a Real NVP (with dense layers).
 
 Quick Tutorial
 --------------
@@ -65,7 +66,7 @@ From the very beginning, you might import the TFSnippet as:
 
 .. code-block:: python
 
-    import tfsnippet as ts
+    import tfsnippet as spt
 
 Distributions
 ~~~~~~~~~~~~~
@@ -76,7 +77,7 @@ log-likelihood by simply calling ``log_prob()``.
 
 .. code-block:: python
 
-    normal = ts.Normal(0., 1.)
+    normal = spt.Normal(0., 1.)
     # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
     samples = normal.sample(n_samples=100)
     # You may obtain the log-likelhood of `samples` under `normal` by:
@@ -93,7 +94,7 @@ haven't provided a wrapper for a certain ZhuSuan distribution:
 
     import zhusuan as zs
 
-    uniform = ts.as_distribution(zs.distributions.Uniform())
+    uniform = spt.as_distribution(zs.distributions.Uniform())
     # The type of `samples` is :class:`tfsnippet.stochastic.StochasticTensor`.
     samples = uniform.sample(n_samples=100)
 
@@ -108,7 +109,7 @@ the mini-batch iterators.
 
     # Obtain a shuffled, two-array data flow, with batch-size 64.
     # Any batch with samples fewer than 64 would be discarded.
-    flow = ts.DataFlow.arrays(
+    flow = spt.DataFlow.arrays(
         [x, y], batch_size=64, shuffle=True, skip_incomplete=True)
     for batch_x, batch_y in flow:
         ...  # Do something with batch_x and batch_y
@@ -149,37 +150,36 @@ quickly run a training-loop by using utilities from TFSnippet:
 
     # We shall adopt learning-rate annealing, the initial learning rate is
     # 0.001, and we would anneal it by a factor of 0.99995 after every step.
-    learning_rate = tf.placeholder(shape=(), dtype=tf.float32)
-    learning_rate_var = ts.AnnealingDynamicValue(0.001, 0.99995)
+    learning_rate = spt.AnnealingVariable('learning_rate', 0.001, 0.99995)
 
     # Build the training operation by AdamOptimizer
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_op = optimizer.minimize(loss, var_list=params)
 
     # Build the training data-flow
-    train_flow = ts.DataFlow.arrays(
+    train_flow = spt.DataFlow.arrays(
         [train_x, train_y], batch_size=64, shuffle=True, skip_incomplete=True)
     # Build the validation data-flow
-    valid_flow = ts.DataFlow.arrays([valid_x, valid_y], batch_size=256)
+    valid_flow = spt.DataFlow.arrays([valid_x, valid_y], batch_size=256)
 
-    with ts.TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
-        trainer = ts.Trainer(loop, train_op, [input_x, input_y], train_flow,
-                             metrics={'loss': loss})
+    with spt.TrainLoop(params, max_epoch=max_epoch, early_stopping=True) as loop:
+        trainer = spt.Trainer(loop, train_op, [input_x, input_y], train_flow,
+                              metrics={'loss': loss})
         # Anneal the learning-rate after every step by 0.99995.
-        trainer.anneal_after_steps(learning_rate_var, freq=1)
+        trainer.anneal_after_steps(learning_rate, freq=1)
         # Do validation and apply early-stopping after every epoch.
         trainer.evaluate_after_epochs(
-            ts.Evaluator(loop, loss, [input_x, input_y], valid_flow),
+            spt.Evaluator(loop, loss, [input_x, input_y], valid_flow),
             freq=1
         )
-        # You may log the learning-rate after every epoch by adding a callback
-        # hook.  Surely you may also add any other callbacks.
-        trainer.after_epochs.add_hook(
-            lambda: trainer.loop.collect_metrics(lr=learning_rate_var),
-            freq=1
+        # You may log the learning-rate after every epoch registering an
+        # event handler.  Surely you may also add any other handlers.
+        trainer.events.on(
+            EventKeys.AFTER_EPOCH,
+            lambda epoch: trainer.loop.collect_metrics(lr=learning_rate),
         )
         # Print training metrics after every epoch.
         trainer.log_after_epochs(freq=1)
         # Run all the training epochs and steps.
-        trainer.run(feed_dict={learning_rate: learning_rate_var})
+        trainer.run()
 

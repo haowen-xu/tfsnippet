@@ -5,7 +5,7 @@ from .doc_utils import DocInherit
 from .shape_utils import get_static_shape
 from .type_utils import is_integer
 
-__all__ = ['InputSpec', 'ParamSpec']
+__all__ = ['TensorSpec', 'InputSpec', 'ParamSpec']
 
 
 def _try_parse_int(x):
@@ -16,7 +16,7 @@ def _try_parse_int(x):
 
 
 @DocInherit
-class _TensorSpec(object):
+class TensorSpec(object):
     """
     Base class to describe and validate the specification of a tensor.
     """
@@ -90,7 +90,7 @@ class _TensorSpec(object):
 
     def __eq__(self, other):
         return (
-                isinstance(other, _TensorSpec) and
+                isinstance(other, TensorSpec) and
                 self._value_shape == other._value_shape and
                 self._allow_more_dims == other._allow_more_dims and
                 self._dtype == other._dtype
@@ -162,15 +162,16 @@ class _TensorSpec(object):
         else:
             return '({})'.format(','.join(str(s) for s in shape))
 
-    def _validate_shape(self, x):
+    def _validate_shape(self, name, x):
         if self._value_shape is None:
             return
 
         x_shape = get_static_shape(x)
 
         def raise_error():
-            raise ValueError('The shape of `x` is invalid: expected {}, but '
-                             'got {}.'.format(self._format_shape(), x_shape))
+            raise ValueError('The shape of `{}` is invalid: expected {}, but '
+                             'got {}.'.
+                             format(name, self._format_shape(), x_shape))
 
         if x_shape is None:
             raise_error()
@@ -197,18 +198,19 @@ class _TensorSpec(object):
                     if a != b:
                         raise_error()
 
-    def _validate_dtype(self, x):
+    def _validate_dtype(self, name, x):
         if self._dtype is not None:
             if x.dtype.base_dtype != self._dtype:
-                raise TypeError('The dtype of `x` is invalid: expected {}, '
+                raise TypeError('The dtype of `{}` is invalid: expected {}, '
                                 'but got {}.'.
-                                format(self._dtype, x.dtype.base_dtype))
+                                format(name, self._dtype, x.dtype.base_dtype))
 
-    def validate(self, x):
+    def validate(self, name, x):
         """
         Validate the input tensor `x`.
 
         Args:
+            name (str): The name of the tensor, used in error messages.
             x: The input tensor.
 
         Returns:
@@ -218,12 +220,12 @@ class _TensorSpec(object):
             ValueError, TypeError: If `x` cannot pass validation.
         """
         x = tf.convert_to_tensor(x)
-        self._validate_shape(x)
-        self._validate_dtype(x)
+        self._validate_shape(name, x)
+        self._validate_dtype(name, x)
         return x
 
 
-class InputSpec(_TensorSpec):
+class InputSpec(TensorSpec):
     """
     Class to describe the specification for an input tensor.
 
@@ -231,7 +233,7 @@ class InputSpec(_TensorSpec):
     """
 
 
-class ParamSpec(_TensorSpec):
+class ParamSpec(TensorSpec):
     """
     Class to describe the specification for a parameter.
 

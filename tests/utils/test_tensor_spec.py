@@ -5,50 +5,50 @@ import pytest
 import tensorflow as tf
 
 from tfsnippet.utils import *
-from tfsnippet.utils.tensor_spec import _TensorSpec
+from tfsnippet.utils.tensor_spec import TensorSpec
 
 
 class TensorSpecTestCase(tf.test.TestCase):
 
     def test_repr_and_properties(self):
         # test empty spec
-        s = _TensorSpec()
-        self.assertEqual(repr(s), '_TensorSpec()')
+        s = TensorSpec()
+        self.assertEqual(repr(s), 'TensorSpec()')
         self.assertIsNone(s.shape)
         self.assertIsNone(s.value_shape)
         self.assertIsNone(s.value_ndims)
         self.assertIsNone(s.dtype)
 
         # test empty spec by shape == ('...',)
-        s = _TensorSpec(shape=('...',))
-        self.assertEqual(repr(s), '_TensorSpec()')
+        s = TensorSpec(shape=('...',))
+        self.assertEqual(repr(s), 'TensorSpec()')
         self.assertIsNone(s.shape)
         self.assertIsNone(s.value_shape)
         self.assertIsNone(s.value_ndims)
         self.assertIsNone(s.dtype)
 
         # test shape spec
-        s = _TensorSpec(shape=('...', '?', '*', '2?', 3, -1, None))
-        self.assertEqual(repr(s), '_TensorSpec(shape=(...,?,*,2?,3,?,?))')
+        s = TensorSpec(shape=('...', '?', '*', '2?', 3, -1, None))
+        self.assertEqual(repr(s), 'TensorSpec(shape=(...,?,*,2?,3,?,?))')
         self.assertEqual(s.shape, ('...', '?', '*', '2?', 3, '?', '?'))
         self.assertEqual(s.value_shape, ('?', '*', '2?', 3, '?', '?'))
         self.assertEqual(s.value_ndims, 6)
 
         # test one element shape spec
-        s = _TensorSpec(shape=(1,))
-        self.assertEqual(repr(s), '_TensorSpec(shape=(1,))')
+        s = TensorSpec(shape=(1,))
+        self.assertEqual(repr(s), 'TensorSpec(shape=(1,))')
         self.assertEqual(s.shape, (1,))
         self.assertEqual(s.value_shape, (1,))
         self.assertEqual(s.value_ndims, 1)
 
         # test dtype spec
-        s = _TensorSpec(dtype=tf.int64)
-        self.assertEqual(repr(s), '_TensorSpec(dtype=int64)')
+        s = TensorSpec(dtype=tf.int64)
+        self.assertEqual(repr(s), 'TensorSpec(dtype=int64)')
         self.assertEqual(s.dtype, tf.int64)
 
         # test shape & dtype spec
-        s = _TensorSpec(shape=(), dtype=tf.int32)
-        self.assertEqual(repr(s), '_TensorSpec(shape=(),dtype=int32)')
+        s = TensorSpec(shape=(), dtype=tf.int32)
+        self.assertEqual(repr(s), 'TensorSpec(shape=(),dtype=int32)')
         self.assertEqual(s.shape, ())
         self.assertEqual(s.value_shape, ())
         self.assertEqual(s.value_ndims, 0)
@@ -63,18 +63,18 @@ class TensorSpecTestCase(tf.test.TestCase):
 
     def test_equal_and_hash(self):
         equivalent_classes = [
-            [_TensorSpec(), _TensorSpec()],
-            [_TensorSpec(dtype=tf.int32), _TensorSpec(dtype=tf.int32)],
-            [_TensorSpec(dtype=tf.int64), _TensorSpec(dtype=tf.int64)],
-            [_TensorSpec(shape=(1, 2)), _TensorSpec(shape=(1, 2))],
-            [_TensorSpec(shape=(1, 3), dtype=tf.int32),
-             _TensorSpec(shape=(1, 3), dtype=tf.int32)],
-            [_TensorSpec(shape=(1, 3), dtype=tf.int64),
-             _TensorSpec(shape=(1, 3), dtype=tf.int64)],
-            [_TensorSpec(shape=(1, 2), dtype=tf.int64),
-             _TensorSpec(shape=(1, 2), dtype=tf.int64)],
-            [_TensorSpec(shape=('...', 1, 2), dtype=tf.int64),
-             _TensorSpec(shape=('...', 1, 2), dtype=tf.int64)],
+            [TensorSpec(), TensorSpec()],
+            [TensorSpec(dtype=tf.int32), TensorSpec(dtype=tf.int32)],
+            [TensorSpec(dtype=tf.int64), TensorSpec(dtype=tf.int64)],
+            [TensorSpec(shape=(1, 2)), TensorSpec(shape=(1, 2))],
+            [TensorSpec(shape=(1, 3), dtype=tf.int32),
+             TensorSpec(shape=(1, 3), dtype=tf.int32)],
+            [TensorSpec(shape=(1, 3), dtype=tf.int64),
+             TensorSpec(shape=(1, 3), dtype=tf.int64)],
+            [TensorSpec(shape=(1, 2), dtype=tf.int64),
+             TensorSpec(shape=(1, 2), dtype=tf.int64)],
+            [TensorSpec(shape=('...', 1, 2), dtype=tf.int64),
+             TensorSpec(shape=('...', 1, 2), dtype=tf.int64)],
         ]
 
         for equivalent_class in equivalent_classes:
@@ -88,33 +88,33 @@ class TensorSpecTestCase(tf.test.TestCase):
     def test_parse_error(self):
         with pytest.raises(ValueError, match='`...` should only be the first '
                                              'item of `shape`'):
-            _ = _TensorSpec((1, '...'))
+            _ = TensorSpec((1, '...'))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec(('x',))
+            _ = TensorSpec(('x',))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec((object(),))
+            _ = TensorSpec((object(),))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec((0,))
+            _ = TensorSpec((0,))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec((-2,))
+            _ = TensorSpec((-2,))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec(('0?',))
+            _ = TensorSpec(('0?',))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec(('-1?',))
+            _ = TensorSpec(('-1?',))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec(('-2?',))
+            _ = TensorSpec(('-2?',))
         with pytest.raises(ValueError, match='Invalid value in `shape`'):
-            _ = _TensorSpec(('x?',))
+            _ = TensorSpec(('x?',))
 
     def test_validate(self):
         def good(s, t):
             t = tf.convert_to_tensor(t)
-            self.assertIs(s.validate(t), t)
+            self.assertIs(s.validate('x', t), t)
 
         def bad(s, t, err_class, err_msg):
             t = tf.convert_to_tensor(t)
             with pytest.raises(err_class, match=err_msg):
-                _ = s.validate(t)
+                _ = s.validate('x', t)
 
         bad_dtype = functools.partial(
             bad, err_class=TypeError, err_msg='The dtype of `x` is invalid')
@@ -122,17 +122,17 @@ class TensorSpecTestCase(tf.test.TestCase):
             bad, err_class=ValueError, err_msg='The shape of `x` is invalid')
 
         # test empty validation
-        s = _TensorSpec()
+        s = TensorSpec()
         good(s, tf.constant(1))
         good(s, tf.placeholder(tf.float32, None))
 
         # test dtype
-        s = _TensorSpec(dtype=tf.int64)
+        s = TensorSpec(dtype=tf.int64)
         good(s, tf.constant(1, tf.int64))
         bad_dtype(s, tf.constant(1., tf.float32))
 
         # test empty shape
-        s = _TensorSpec(shape=())
+        s = TensorSpec(shape=())
         good(s, tf.placeholder(tf.float32, ()))
         bad_shape(s, tf.placeholder(tf.float32, None))
         bad_shape(s, tf.placeholder(tf.float32, [2]))
@@ -140,7 +140,7 @@ class TensorSpecTestCase(tf.test.TestCase):
         bad_shape(s, tf.placeholder(tf.float32, [3, 1, 2]))
 
         # test static shape
-        s = _TensorSpec(shape=(1, 2))
+        s = TensorSpec(shape=(1, 2))
         good(s, tf.placeholder(tf.float32, [1, 2]))
         bad_shape(s, tf.placeholder(tf.float32, None))
         bad_shape(s, tf.placeholder(tf.float32, ()))
@@ -149,7 +149,7 @@ class TensorSpecTestCase(tf.test.TestCase):
         bad_shape(s, tf.placeholder(tf.float32, [3, 1, 2]))
 
         # test dynamic shape
-        s = _TensorSpec(shape=('?', 3))
+        s = TensorSpec(shape=('?', 3))
         good(s, tf.placeholder(tf.float32, [2, 3]))
         good(s, tf.placeholder(tf.float32, [None, 3]))
         bad_shape(s, tf.placeholder(tf.float32, None))
@@ -159,7 +159,7 @@ class TensorSpecTestCase(tf.test.TestCase):
         bad_shape(s, tf.placeholder(tf.float32, [3, 2, 3]))
 
         # test allow more dims
-        s = _TensorSpec(shape=('...', '?', 3))
+        s = TensorSpec(shape=('...', '?', 3))
         good(s, tf.placeholder(tf.float32, [2, 3]))
         good(s, tf.placeholder(tf.float32, [None, 3]))
         good(s, tf.placeholder(tf.float32, [3, 2, 3]))
@@ -171,13 +171,13 @@ class TensorSpecTestCase(tf.test.TestCase):
         bad_shape(s, tf.placeholder(tf.float32, [3, 2, 1]))
 
         # test unknown but fixed dimensions
-        s = _TensorSpec(shape=('*', 3))
+        s = TensorSpec(shape=('*', 3))
         good(s, tf.placeholder(tf.float32, [2, 3]))
         bad_shape(s, tf.placeholder(tf.float32, [None, 3]))
         bad_shape(s, tf.placeholder(tf.float32, [3]))
 
         # test known or dynamic dimensions
-        s = _TensorSpec(shape=('2?', 3))
+        s = TensorSpec(shape=('2?', 3))
         good(s, tf.placeholder(tf.float32, [2, 3]))
         good(s, tf.placeholder(tf.float32, [None, 3]))
         bad_shape(s, tf.placeholder(tf.float32, [4, 3]))

@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from tfsnippet.reuse import VarScopeObject
+from tfsnippet.shortcuts import VarScopeObject
 from tfsnippet.utils import (DocInherit, add_name_and_scope_arg_doc,
                              get_default_scope_name, is_tensor_object,
                              reopen_variable_scope)
@@ -21,9 +21,15 @@ class BaseLayer(VarScopeObject):
     Base class for all neural network layers.
     """
 
+    _build_require_input = False  #: whether or not `build` requires input
+
     @add_name_and_scope_arg_doc
-    def __init__(self, name=None, scope=None):
-        """Construct a new :class:`BaseLayer`."""
+    def __init__(self,
+                 name=None,
+                 scope=None):
+        """
+        Construct a new :class:`BaseLayer`.
+        """
         super(BaseLayer, self).__init__(name=name, scope=scope)
 
         self._has_built = False
@@ -43,6 +49,9 @@ class BaseLayer(VarScopeObject):
         if self._has_built:
             raise RuntimeError('Layer has already been built: {!r}'.
                                format(self))
+        if self._build_require_input and input is None:
+            raise ValueError('`{}` requires `input` to build.'.
+                             format(self.__class__.__name__))
         with reopen_variable_scope(self.variable_scope):
             self._build(input)
             self._has_built = True

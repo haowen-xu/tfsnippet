@@ -13,6 +13,7 @@ from tfsnippet.utils import (humanize_duration,
                              StatisticsCollector,
                              get_default_session_or_error,
                              DocInherit)
+from .scheduled_var import ScheduledVariable
 
 __all__ = [
     'MetricFormatter',
@@ -61,32 +62,16 @@ class DefaultMetricFormatter(MetricFormatter):
     """
     Default training metric formatter.
 
-    This class sorts the metrics as follows:
-
-    1.  The metrics are first divided into groups according to the suffices
-        of their names as follows:
-
-        1.  Names ending with "time" or "timer" should come the first;
-
-        2.  Other metrics should come the second;
-
-        3.  Names ending with "loss" or "cost" should come the third;
-
-        4.  Names ending with "acc", "accuracy", "nll", "lb" or "lower_bound"
-            should come the fourth.
-
-    2.  The metrics are then sorted according to their names, within each group.
-
+    The time metrics (names ending with "time" or "timer") should be placed
+    before all other metrics.
     The values of the metrics would be formatted into 6-digit real numbers,
     except for metrics with "time" or "timer" as suffices in their names,
     which would be formatted using :func:`~tfsnippet.utils.humanize_duration`.
     """
 
-    METRIC_ORDERS = (
-        (-1, re.compile(r'.*timer?$')),
-        (998, re.compile(r'.*(loss|cost)$')),
-        (999, re.compile(r'(.*(acc(uracy)?|lower_bound))|((^|.*_)(nll|lb))$')),
-    )
+    METRIC_ORDERS = [
+        (-1, re.compile(r'.*timer?$'))
+    ]
 
     def sort_metrics(self, names):
         def sort_key(name):
@@ -168,6 +153,16 @@ class MetricLogger(object):
         self._metrics_skip_counter = {}
         self.clear()
 
+    @property
+    def metrics(self):
+        """
+        Get the dict of metric collectors.
+
+        Returns:
+            dict[str, StatisticsCollector]: The metric collectors.
+        """
+        return self._metrics
+
     def clear(self):
         """Clear all the metric statistics."""
         # Instead of calling ``self._metrics.clear()``, we reset every
@@ -184,7 +179,7 @@ class MetricLogger(object):
         Collect the statistics of metrics.
 
         Args:
-            metrics (dict[str, float or np.ndarray or DynamicValue]):
+            metrics (dict[str, float or np.ndarray or ScheduledVariable]):
                 Dict from metrics names to their values.
                 For :meth:`format_logs`, there is no difference between
                 calling :meth:`collect_metrics` only once, with an array
@@ -196,10 +191,9 @@ class MetricLogger(object):
             global_step (int or tf.Variable or tf.Tensor): The global step
                 counter. (optional)
         """
-        from tfsnippet.trainer import DynamicValue
         tf_summary_values = []
         for k, v in six.iteritems(metrics):
-            if isinstance(v, DynamicValue):
+            if isinstance(v, ScheduledVariable):
                 v = v.get()
             v = np.asarray(v)
             self._metrics[k].collect(v)
@@ -248,6 +242,8 @@ class MetricLogger(object):
                 buf.append('{}: {}{}'.format(name, val, std))
         return '; '.join(buf)
 
+
+# TODO: rewrite `summarize_variables` with `ConsoleTable`
 
 def _var_size(v):
     return int(np.prod(v.get_shape().as_list(), dtype=np.int32))

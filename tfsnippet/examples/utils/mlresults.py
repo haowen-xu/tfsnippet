@@ -10,7 +10,7 @@ from fs import open_fs
 from fs.base import FS
 from fs.errors import NoSysPath
 
-from tfsnippet.utils import makedirs
+from tfsnippet.utils import makedirs, get_config_defaults
 from .jsonutils import JsonEncoder
 
 __all__ = ['MLResults']
@@ -203,3 +203,31 @@ class MLResults(object):
             return imageio.imwrite(f, im, format=format, **kwargs)
 
     imwrite = save_image
+
+    def save_config(self, config):
+        """
+        Save `config` object into the result directory.
+
+        This will write `config.json` and `config.defaults.json`.
+
+        Args:
+            config (Config): The config object.
+        """
+        def to_json(d):
+            s = json.dumps(d, sort_keys=True, cls=JsonEncoder)
+            if not isinstance(s, six.binary_type):
+                s = s.encode('utf-8')
+            return s
+
+        defaults_dict = get_config_defaults(config)
+        config_dict = {k: v for k, v in six.iteritems(config.to_dict())
+                       if k not in defaults_dict or defaults_dict[k] != v}
+
+        defaults_dict = to_json(defaults_dict)
+        config_dict = to_json(config_dict)
+
+        with self.fs.open(ensure_unicode_path('config.json'), 'wb') as f:
+            f.write(config_dict)
+        with self.fs.open(ensure_unicode_path('config.defaults.json'),
+                          'wb') as f:
+            f.write(defaults_dict)

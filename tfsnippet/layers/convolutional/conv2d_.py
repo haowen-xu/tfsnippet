@@ -2,19 +2,19 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from tfsnippet.ops import assert_rank, assert_scalar_equal
-from tfsnippet.utils import (validate_positive_int_arg, validate_enum_arg,
-                             ParamSpec, unflatten, flatten, is_tensor_object,
-                             get_static_shape, assert_deps, add_name_arg_doc,
-                             get_shape, InputSpec, add_name_and_scope_arg_doc)
+from tfsnippet.ops import (assert_rank, assert_scalar_equal, flatten_to_ndims,
+                           unflatten_from_ndims)
+from tfsnippet.utils import (validate_positive_int_arg, ParamSpec,
+                             is_tensor_object, assert_deps,
+                             get_shape,
+                             add_name_and_scope_arg_doc, model_variable,
+                             maybe_check_numerics, maybe_add_histogram)
 from .utils import *
 from ..initialization import default_kernel_initializer
 from ..utils import validate_weight_norm_arg
 
 __all__ = [
-    'conv2d', 'deconv2d', 'conv2d_maybe_transpose_axis',
-    'conv2d_channels_last_to_x', 'conv2d_channels_x_to_last',
-    'conv2d_flatten_spatial_channel',
+    'conv2d', 'deconv2d',
 ]
 
 
@@ -30,7 +30,10 @@ def conv2d(input,
            activation_fn=None,
            normalizer_fn=None,
            weight_norm=False,
+           gated=False,
+           gate_sigmoid_bias=2.,
            kernel=None,
+           kernel_mask=None,
            kernel_initializer=None,
            kernel_regularizer=None,
            kernel_constraint=None,
@@ -65,7 +68,13 @@ def conv2d(input,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
+        kernel_mask (Tensor): If specified, multiply this mask onto `kernel`,
+            i.e., the actual kernel to use will be `kernel * kernel_mask`.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
         kernel_regularizer: The regularizer for `kernel`.
@@ -88,11 +97,15 @@ def conv2d(input,
         validate_conv2d_input(input, channels_last)
     out_channels = validate_positive_int_arg('out_channels', out_channels)
     dtype = input.dtype.base_dtype
+    if gated:
+        out_channels *= 2
 
     # check functional arguments
     padding = validate_enum_arg(
         'padding', str(padding).upper(), ['VALID', 'SAME'])
-    strides = validate_conv2d_strides_tuple('strides', strides, channels_last)
+    original_strides = validate_conv2d_size_tuple('strides', strides)
+    strides = validate_conv2d_strides_tuple(
+        'strides', original_strides, channels_last)
     dilations = validate_positive_int_arg('dilations', dilations)
 
     if dilations > 1 and not channels_last:
@@ -114,17 +127,24 @@ def conv2d(input,
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
+    if kernel_mask is not None:
+        kernel_mask_spec = InputSpec(dtype=dtype)
+        kernel_mask = kernel_mask_spec.validate('kernel_mask', kernel_mask)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the conv2d layer
     with tf.variable_scope(scope, default_name=name or 'conv2d'):
+        c_axis = -1 if channels_last else -3
+
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -136,9 +156,14 @@ def conv2d(input,
 
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
+        if kernel_mask is not None:
+            kernel = kernel * kernel_mask
+
+        maybe_add_histogram(kernel, 'kernel')
+        kernel = maybe_check_numerics(kernel, 'kernel')
 
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 initializer=bias_initializer,
@@ -146,27 +171,44 @@ def conv2d(input,
                 constraint=bias_constraint,
                 trainable=trainable
             )
+            maybe_add_histogram(bias, 'bias')
+            bias = maybe_check_numerics(bias, 'bias')
 
-        # flatten to 4d
-        output, s1, s2 = flatten(input, 4)
+        # special optimization: use dense instead of 1x1 conv if possible
+        if dilations == 1 and kernel_size == (1, 1) and channels_last:
+            with tf.name_scope('conv2d_1x1'):
+                conv2d_1x1_kernel = tf.reshape(
+                    kernel, kernel_shape[2:], name='conv2d_1x1_kernel')
+                output = input[...,
+                               ::original_strides[0],
+                               ::original_strides[1],
+                               :]
 
-        # do convolution
-        if dilations > 1:
-            output = tf.nn.atrous_conv2d(
-                value=output,
-                filters=kernel,
-                rate=dilations,
-                padding=padding
-            )
+                # flatten to 2d
+                output, s1, s2 = flatten_to_ndims(output, 2)
+                output = tf.matmul(output, conv2d_1x1_kernel)
+
         else:
-            output = tf.nn.conv2d(
-                input=output,
-                filter=kernel,
-                strides=strides,
-                padding=padding,
-                data_format=data_format,
-                dilations=[1] * 4
-            )
+            # flatten to 4d
+            output, s1, s2 = flatten_to_ndims(input, 4)
+
+            # do convolution
+            if dilations > 1:
+                output = tf.nn.atrous_conv2d(
+                    value=output,
+                    filters=kernel,
+                    rate=dilations,
+                    padding=padding
+                )
+            else:
+                output = tf.nn.conv2d(
+                    input=output,
+                    filter=kernel,
+                    strides=strides,
+                    padding=padding,
+                    data_format=data_format,
+                    dilations=[1] * 4
+                )
 
         # add bias
         if use_bias:
@@ -176,13 +218,23 @@ def conv2d(input,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=c_axis)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
 
-        # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
 
+        # unflatten back to original shape
+        output = unflatten_from_ndims(output, s1, s2)
+
+        maybe_add_histogram(output, 'output')
+        output = maybe_check_numerics(output, 'output')
     return output
 
 
@@ -198,6 +250,8 @@ def deconv2d(input,
              activation_fn=None,
              normalizer_fn=None,
              weight_norm=False,
+             gated=False,
+             gate_sigmoid_bias=2.,
              kernel=None,
              kernel_initializer=None,
              kernel_regularizer=None,
@@ -240,6 +294,10 @@ def deconv2d(input,
             If it is a callable function, then it will be used to normalize
             the `kernel` instead of :func:`~tfsnippet.layers.weight_norm`.
             The user must ensure the axis reduction is correct by themselves.
+        gated (bool): Whether or not to use gate on output?
+            `output = activation_fn(output) * sigmoid(gate)`.
+        gate_sigmoid_bias (Tensor): The bias added to `gate` before applying
+            the `sigmoid` activation.
         kernel (Tensor): Instead of creating a new variable, use this tensor.
         kernel_initializer: The initializer for `kernel`.
             Would be ``default_kernel_initializer(...)`` if not specified.
@@ -263,6 +321,8 @@ def deconv2d(input,
         validate_conv2d_input(input, channels_last)
     out_channels = validate_positive_int_arg('out_channels', out_channels)
     dtype = input.dtype.base_dtype
+    if gated:
+        out_channels *= 2
 
     # check functional arguments
     padding = validate_enum_arg(
@@ -289,11 +349,13 @@ def deconv2d(input,
 
     # validate the parameters
     if kernel is not None:
-        kernel = ParamSpec(shape=kernel_shape, dtype=dtype).validate(kernel)
+        kernel_spec = ParamSpec(shape=kernel_shape, dtype=dtype)
+        kernel = kernel_spec.validate('kernel', kernel)
     if kernel_initializer is None:
         kernel_initializer = default_kernel_initializer(weight_norm)
     if bias is not None:
-        bias = ParamSpec(shape=bias_shape, dtype=dtype).validate(bias)
+        bias_spec = ParamSpec(shape=bias_shape, dtype=dtype)
+        bias = bias_spec.validate('bias', bias)
 
     # the main part of the conv2d layer
     with tf.variable_scope(scope, default_name=name or 'deconv2d'):
@@ -367,7 +429,7 @@ def deconv2d(input,
 
         # create the variables
         if kernel is None:
-            kernel = tf.get_variable(
+            kernel = model_variable(
                 'kernel',
                 shape=kernel_shape,
                 dtype=dtype,
@@ -380,8 +442,11 @@ def deconv2d(input,
         if weight_norm_fn is not None:
             kernel = weight_norm_fn(kernel)
 
+        maybe_add_histogram(kernel, 'kernel')
+        kernel = maybe_check_numerics(kernel, 'kernel')
+
         if use_bias and bias is None:
-            bias = tf.get_variable(
+            bias = model_variable(
                 'bias',
                 shape=bias_shape,
                 initializer=bias_initializer,
@@ -389,9 +454,11 @@ def deconv2d(input,
                 constraint=bias_constraint,
                 trainable=trainable
             )
+            maybe_add_histogram(bias, 'bias')
+            bias = maybe_check_numerics(bias, 'bias')
 
         # flatten to 4d
-        output, s1, s2 = flatten(input, 4)
+        output, s1, s2 = flatten_to_ndims(input, 4)
 
         # do convolution or deconvolution
         output = tf.nn.conv2d_transpose(
@@ -413,133 +480,22 @@ def deconv2d(input,
         if normalizer_fn is not None:
             output = normalizer_fn(output)
 
+        # split into halves if gated
+        if gated:
+            output, gate = tf.split(output, 2, axis=c_axis)
+
         # apply the activation function if specified
         if activation_fn is not None:
             output = activation_fn(output)
 
+        # apply the gate if required
+        if gated:
+            output = output * tf.sigmoid(gate + gate_sigmoid_bias, name='gate')
+
         # unflatten back to original shape
-        output = unflatten(output, s1, s2)
+        output = unflatten_from_ndims(output, s1, s2)
+
+        maybe_add_histogram(output, 'output')
+        output = maybe_check_numerics(output, 'output')
 
     return output
-
-
-@add_name_arg_doc
-def conv2d_maybe_transpose_axis(input, from_channels_last, to_channels_last,
-                                name=None):
-    """
-    Ensure the channels axis of `input` tensor to be placed at the desired axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        from_channels_last (bool): Whether or not the channels axis
-            is the last axis in `input`? (i.e., the data format is "NHWC")
-        to_channels_last (bool): Whether or not the channels axis
-            should be the last axis in the output tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    if from_channels_last:
-        input_spec = InputSpec(shape=('...', '?', '?', '?', '*'))
-    else:
-        input_spec = InputSpec(shape=('...', '?', '*', '?', '?'))
-    input = input_spec.validate(input)
-    input_shape = get_static_shape(input)
-    sample_and_batch_axis = [i for i in range(len(input_shape) - 3)]
-
-    # check whether or not axis should be transpose
-    if from_channels_last and not to_channels_last:
-        transpose_axis = [-1, -3, -2]
-    elif not from_channels_last and to_channels_last:
-        transpose_axis = [-2, -1, -3]
-    else:
-        transpose_axis = None
-
-    # transpose the axis
-    if transpose_axis is not None:
-        transpose_axis = [i + len(input_shape) for i in transpose_axis]
-        input = tf.transpose(input, sample_and_batch_axis + transpose_axis,
-                             name=name or 'conv2d_maybe_transpose_axis')
-
-    return input
-
-
-@add_name_arg_doc
-def conv2d_channels_last_to_x(input, channels_last, name=None):
-    """
-    Ensure the channels axis (known to be the last axis) of `input` tensor
-    to be placed at the desired axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        channels_last (bool): Whether or not the channels axis
-            should be the last axis in the output tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    return conv2d_maybe_transpose_axis(
-        input, from_channels_last=True, to_channels_last=channels_last,
-        name=name
-    )
-
-
-@add_name_arg_doc
-def conv2d_channels_x_to_last(input, channels_last, name=None):
-    """
-    Ensure the channels axis of `input` tensor to be placed at the last axis.
-
-    Args:
-        input (tf.Tensor): The input tensor, at least 4-d.
-        channels_last (bool): Whether or not the channels axis
-            is the last axis in the `input` tensor?
-
-    Returns:
-        tf.Tensor: The (maybe) transposed output tensor.
-    """
-    return conv2d_maybe_transpose_axis(
-        input, from_channels_last=channels_last, to_channels_last=True,
-        name=name
-    )
-
-
-@add_name_arg_doc
-def conv2d_flatten_spatial_channel(input, name=None):
-    """
-    Flatten the last three axis of `input` into one dimension.
-
-    Args:
-        input: The input tensor.
-
-    Returns:
-        tf.Tensor: The output tensor.
-    """
-    input_spec = InputSpec(shape=('...', '?', '?', '?', '?'))
-    input = input_spec.validate(input)
-
-    with tf.name_scope(name, default_name='conv2d_flatten', values=[input]):
-        input_shape = get_static_shape(input)
-
-        # inspect the static shape
-        left_shape = input_shape[:-3]
-        right_shape = input_shape[-3:]
-
-        if any(i is None for i in right_shape):
-            static_shape = left_shape + (None,)
-        else:
-            static_shape = left_shape + (int(np.prod(right_shape)),)
-        static_shape = tf.TensorShape(static_shape)
-
-        # inspect the dynamic shape
-        if any(i is None for i in left_shape):
-            left_shape = get_shape(input)[:-3]
-            shape = tf.concat([left_shape, [-1]], axis=0)
-        else:
-            shape = left_shape + (-1,)
-
-        # now reshape the tensor
-        output = tf.reshape(input, shape)
-        output.set_shape(static_shape)
-
-    return output
-

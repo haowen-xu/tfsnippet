@@ -1,3 +1,4 @@
+import hashlib
 import mimetypes
 import os
 import shutil
@@ -197,22 +198,94 @@ class CacheDirTestCase(unittest.TestCase):
                 self.assertEqual(1, server.counter[0])
 
                 # no cache, because of filename mismatch
+                out_file = LogIO()
                 path = cache_dir.download(url + 'payload.zip',
                                           filename='sub-dir/payload2.zip',
-                                          show_progress=False)
+                                          show_progress=False,
+                                          progress_file=out_file)
                 self.assertEqual(
                     os.path.join(cache_dir.path, 'sub-dir/payload2.zip'), path)
                 self.assertTrue(os.path.isfile(path))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
                 self.assertEqual(2, server.counter[0])
+                self.assertEqual(
+                    out_file.getvalue(),
+                    'Downloading ' + url + 'payload.zip ... ok\n'
+                )
 
                 # test download error
+                out_file = LogIO()
                 with pytest.raises(Exception, match='404'):
-                    _ = cache_dir.download(
-                        url + 'not-exist.zip')
+                    _ = cache_dir.download(url + 'not-exist.zip',
+                                           progress_file=out_file)
                 path = os.path.join(cache_dir.path, 'not-exist.zip')
                 self.assertFalse(os.path.isfile(path))
                 self.assertFalse(os.path.isfile(path + '._downloading_'))
+                self.assertEqual(
+                    out_file.getvalue(),
+                    'Downloading ' + url + 'not-exist.zip ... error\n'
+                )
+
+    def test_download_validate_hash(self):
+        def compute_hash(hasher, path):
+            with open(path, 'rb') as f:
+                hasher.update(f.read())
+            return hasher.hexdigest()
+
+        with TemporaryDirectory() as tmpdir:
+            cache_dir = CacheDir('sub-dir', cache_root=tmpdir)
+            payload_zip_md5 = compute_hash(
+                hashlib.md5(), get_asset_path('payload.zip'))
+            payload_tar_sha1 = compute_hash(
+                hashlib.sha1(), get_asset_path('payload.tar'))
+
+            with assets_server() as (server, url):
+                # test md5 okay
+                path = cache_dir.download(url + 'payload.zip',
+                                          show_progress=True,
+                                          hasher=hashlib.md5(),
+                                          expected_hash=payload_zip_md5)
+                cache_path = os.path.join(cache_dir.path, 'payload.zip')
+                self.assertEqual(path, cache_path)
+                self.assertTrue(os.path.isfile(cache_path))
+                self.assertEqual(compute_hash(hashlib.md5(), cache_path),
+                                 payload_zip_md5)
+
+                # test md5 mismatch
+                with pytest.raises(IOError,
+                                   match='Hash not match for file downloaded '
+                                         'from {}payload.tar'.format(url)):
+                    _ = cache_dir.download(url + 'payload.tar',
+                                           show_progress=True,
+                                           hasher=hashlib.md5(),
+                                           expected_hash=payload_tar_sha1)
+                cache_path = os.path.join(cache_dir.path, 'payload.tar')
+                self.assertFalse(os.path.isfile(cache_path))
+
+                # test sha1 okay
+                path = cache_dir.download(url + 'payload.tar',
+                                          show_progress=True,
+                                          hasher=hashlib.sha1(),
+                                          expected_hash=payload_tar_sha1)
+                self.assertEqual(path, cache_path)
+                self.assertTrue(os.path.isfile(cache_path))
+                self.assertEqual(compute_hash(hashlib.sha1(), cache_path),
+                                 payload_tar_sha1)
+
+                # test validate cached file
+                with scoped_set_config(settings, file_cache_checksum=True):
+                    path = cache_dir.download(url + 'payload.tar',
+                                              hasher=hashlib.sha1(),
+                                              expected_hash=payload_tar_sha1)
+
+                    with open(path, 'wb') as f:
+                        f.write(b'12345')
+
+                    with pytest.raises(IOError, match='Hash not match for '
+                                                      'cached file'):
+                        _ = cache_dir.download(url + 'payload.tar',
+                                               hasher=hashlib.sha1(),
+                                               expected_hash=payload_tar_sha1)
 
     @mock.patch('tfsnippet.utils.caching.Extractor', PatchedExtractor)
     def test_extract_file(self):
@@ -233,7 +306,7 @@ class CacheDirTestCase(unittest.TestCase):
             self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
             self.assertFalse(os.path.isdir(path + '._extracting_'))
             self.assertEqual(
-                'Extracting {} ... done\n'.format(
+                'Extracting {} ... ok\n'.format(
                     get_asset_path('payload.tar.gz')),
                 log_file.getvalue()
             )
@@ -261,7 +334,11 @@ class CacheDirTestCase(unittest.TestCase):
                 os.path.join(cache_dir.path, 'sub-dir/payload2'), path)
             self.assertListEqual(PAYLOAD_CONTENT, summarize_dir(path))
             self.assertFalse(os.path.isdir(path + '._extracting_'))
-            self.assertEqual('', log_file.getvalue())
+            self.assertEqual(
+                'Extracting {} ... ok\n'.format(
+                    get_asset_path('payload.tar.bz2')),
+                log_file.getvalue()
+            )
 
             # test extracting error
             err_archive = os.path.join(cache_dir.path, 'invalid.txt')

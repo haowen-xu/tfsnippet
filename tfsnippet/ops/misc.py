@@ -2,7 +2,9 @@ import tensorflow as tf
 
 from tfsnippet.utils import add_name_arg_doc, validate_int_tuple_arg
 
-__all__ = ['add_n_broadcast', 'log_mean_exp', 'log_sum_exp']
+__all__ = [
+    'add_n_broadcast', 'log_mean_exp', 'log_sum_exp', 'maybe_clip_value'
+]
 
 
 @add_name_arg_doc
@@ -103,3 +105,27 @@ def log_mean_exp(x, axis=None, keepdims=False, name=None):
         mean_exp = tf.reduce_mean(tf.exp(x - x_max_keepdims), axis=axis,
                                   keepdims=keepdims)
         return x_max + tf.log(mean_exp)
+
+
+@add_name_arg_doc
+def maybe_clip_value(x, min_val=None, max_val=None, name=None):
+    """
+    Maybe clip the elements of `x`.
+
+    Args:
+        x: The tensor maybe to be clipped.
+        min_val: The minimum value.
+        max_val: The maximum value.
+
+    Returns:
+        tf.Tensor: The clipped tensor.
+    """
+    name = name or 'maybe_clip_value'
+    x = tf.convert_to_tensor(x)
+    if min_val is not None and max_val is not None:
+        x = tf.clip_by_value(x, min_val, max_val, name=name)
+    elif min_val is not None:
+        x = tf.maximum(x, min_val, name=name)
+    elif max_val is not None:
+        x = tf.minimum(x, max_val, name=name)
+    return x

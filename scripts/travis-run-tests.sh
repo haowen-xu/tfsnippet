@@ -4,12 +4,14 @@ function runTest() {
   PY_VER="$1"
   TF_VER="$2"
   RUN_EXAMPLES_TEST_CASE="$3"
+  RUN_DATASETS_TEST_CASE="${RUN_EXAMPLES_TEST_CASE}"
 
   echo "TFSnippet Tests
 
     PYTHON_VERSION=${PY_VER}
     TENSORFLOW_VERSION=${TF_VER}
     RUN_EXAMPLES_TEST_CASE=${RUN_EXAMPLES_TEST_CASE}
+    RUN_DATASETS_TEST_CASE=${RUN_DATASETS_TEST_CASE}
   "
 
   IMAGE_NAME="haowenxu/travis-tensorflow-docker:py${PY_VER}tf${TF_VER}"
@@ -24,6 +26,7 @@ function runTest() {
       -e PYTHON_VERSION="${PYTHON_VERSION}" \
       -e TENSORFLOW_VERSION="${TENSORFLOW_VERSION}" \
       -e RUN_EXAMPLES_TEST_CASE="${RUN_EXAMPLES_TEST_CASE}" \
+      -e RUN_DATASETS_TEST_CASE="${RUN_DATASETS_TEST_CASE}" \
       "${IMAGE_NAME}" \
       bash "scripts/travis-docker-entry.sh"
 }

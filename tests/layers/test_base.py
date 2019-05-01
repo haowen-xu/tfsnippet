@@ -7,8 +7,8 @@ from tfsnippet.layers import BaseLayer
 
 class MyLayer(BaseLayer):
 
-    def __init__(self, output):
-        super(MyLayer, self).__init__()
+    def __init__(self, output, **kwargs):
+        super(MyLayer, self).__init__(**kwargs)
         self._build = Mock(wraps=self._build)
         self._apply = Mock(return_value=output)
 
@@ -35,6 +35,12 @@ class BaseLayerTestCase(tf.test.TestCase):
         self.assertEqual(layer._apply.call_args, ((input,), {}))
 
         with pytest.raises(RuntimeError, match='Layer has already been built'):
+            _ = layer.build()
+
+        layer = MyLayer(output)
+        layer._build_require_input = True
+        with pytest.raises(ValueError,
+                           match='`MyLayer` requires `input` to build'):
             _ = layer.build()
 
         # test call build automatically

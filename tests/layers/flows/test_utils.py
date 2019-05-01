@@ -1,8 +1,16 @@
+import functools
+
 import numpy as np
 import pytest
 import tensorflow as tf
 
-from tfsnippet.layers import *
+from tfsnippet.layers import MultiLayerFlow
+from tfsnippet.layers.flows.utils import (is_log_det_shape_matches_input,
+                                          assert_log_det_shape_matches_input,
+                                          broadcast_log_det_against_input,
+                                          SigmoidScale, ExpScale, LinearScale,
+                                          ZeroLogDet)
+from tfsnippet.utils import scoped_set_config, settings
 
 
 class IsLogDetShapeMatchesInputTestCase(tf.test.TestCase):
@@ -193,3 +201,145 @@ class BroadcastLogDetAgainstInputTestCase(tf.test.TestCase):
                     broadcast_log_det_against_input(log_det_ph, input_ph, 5),
                     feed_dict={input_ph: input, log_det_ph: log_det[..., 0]}
                 )
+
+
+class ScaleTestCase(tf.test.TestCase):
+
+    def test_scale(self):
+        def check(f, cls, x, pre_scale):
+            x_tensor = tf.convert_to_tensor(x)
+            o = cls(pre_scale, epsilon=1e-6)
+            assert_allclose = functools.partial(
+                np.testing.assert_allclose, rtol=1e-5)
+            assert_allclose(sess.run(o.scale()), f(pre_scale))
+            assert_allclose(sess.run(o.inv_scale()), 1. / f(pre_scale))
+            assert_allclose(sess.run(o.log_scale()), np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(o.neg_log_scale()),
+                            -np.log(np.abs(f(pre_scale))))
+            assert_allclose(sess.run(x_tensor * o), x * f(pre_scale))
+            assert_allclose(sess.run(x_tensor / o), x / f(pre_scale))
+
+        with self.test_session() as sess:
+            pre_scale = np.random.normal(size=[2, 3, 4, 5])
+            x = np.random.normal(size=pre_scale.shape)
+
+            check((lambda x: 1. / (1 + np.exp(-x))), SigmoidScale,
+                  x, pre_scale)
+            check(np.exp, ExpScale, x, pre_scale)
+            check((lambda x: x), LinearScale, x, pre_scale)
+
+
+class ZeroLogDetTestCase(tf.test.TestCase):
+
+    def test_zero_tensor(self):
+        with self.test_session() as sess:
+            # test static shape
+            shape = [2, 3, 4]
+            t = ZeroLogDet(shape, tf.float64)
+            x = tf.random_normal(shape=shape[-2:], dtype=tf.float64)
+            z = tf.zeros(shape, dtype=tf.float64)
+
+            self.assertEqual(repr(t), 'ZeroLogDet((2, 3, 4),float64)')
+            self.assertEqual(t.dtype, tf.float64)
+            self.assertEqual(t.log_det_shape, tuple(shape))
+
+            self.assertIs(-t, t)
+            np.testing.assert_equal(*sess.run([t + x, z + x]))
+            np.testing.assert_equal(*sess.run([t - x, z - x]))
+
+            self.assertIsNone(t._self_tensor)
+
+            np.testing.assert_equal(*sess.run([t, z]))
+            np.testing.assert_equal(*sess.run([x + t, x + z]))
+            np.testing.assert_equal(*sess.run([x - t, x - z]))
+            self.assertIsNotNone(t.tensor)
+            self.assertIs(t.tensor, t.tensor)
+
+            # test dynamic shape
+            shape_ph = tf.placeholder(dtype=tf.int32, shape=None)
+            t = ZeroLogDet(shape_ph, tf.float64)
+            x = tf.random_normal(shape=shape[-2:], dtype=tf.float64)
+            z = tf.zeros(shape, dtype=tf.float64)
+
+            self.assertEqual(t.dtype, tf.float64)
+            self.assertIsInstance(t.log_det_shape, tf.Tensor)
+            np.testing.assert_equal(
+                sess.run(t.log_det_shape, feed_dict={shape_ph: shape}),
+                shape
+            )
+
+            self.assertIs(-t, t)
+            np.testing.assert_equal(
+                *sess.run([t + x, z + x], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([t - x, z - x], feed_dict={shape_ph: shape}))
+
+            self.assertIsNone(t._self_tensor)
+
+            np.testing.assert_equal(
+                *sess.run([t, z], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([x + t, x + z], feed_dict={shape_ph: shape}))
+            np.testing.assert_equal(
+                *sess.run([x - t, x - z], feed_dict={shape_ph: shape}))
+            self.assertIsNotNone(t.tensor)
+            self.assertIs(t.tensor, t.tensor)
+
+    def test_multi_layer_flow(self):
+        class _MyFlow(MultiLayerFlow):
+            def __init__(self, log_det_list, **kwargs):
+                self._log_det_list = list(log_det_list)
+                super(_MyFlow, self).__init__(
+                    len(self._log_det_list), x_value_ndims=0, y_value_ndims=0,
+                    **kwargs
+                )
+
+            def explicitly_invertible(self):
+                return True
+
+            def _build(self, input=None):
+                pass
+
+            def _transform_layer(self, layer_id, x, compute_y, compute_log_det):
+                return x, self._log_det_list[layer_id]
+
+            def _inverse_transform_layer(self, layer_id, y, compute_x,
+                                         compute_log_det):
+                return y, self._log_det_list[layer_id]
+
+        np.random.seed(1234)
+        with self.test_session() as sess, \
+                scoped_set_config(settings, enable_assertions=False):
+            x = np.random.normal(size=[2, 3, 4]).astype(np.float32)
+            log_det = np.zeros_like(x, dtype=np.float32)
+            log_det_2 = np.random.normal(size=log_det.shape).astype(np.float32)
+
+            # ZeroLogDet is the only element, test transform
+            zero_log_det = ZeroLogDet(x.shape, tf.float32)
+            flow = _MyFlow([
+                ZeroLogDet(x.shape, tf.float32),
+            ])
+            _, log_det_out = flow.transform(x)
+            self.assertIsNone(zero_log_det._self_tensor)
+            self.assertIsInstance(log_det_out, ZeroLogDet)
+            np.testing.assert_allclose(sess.run(log_det_out), log_det)
+
+            # test ZeroLogDet is first element, test transform
+            zero_log_det = ZeroLogDet(x.shape, tf.float32)
+            flow = _MyFlow([
+                ZeroLogDet(x.shape, tf.float32),
+                tf.constant(log_det_2),
+            ])
+            _, log_det_out = flow.transform(x)
+            self.assertIsNone(zero_log_det._self_tensor)
+            np.testing.assert_allclose(sess.run(log_det_out), log_det_2)
+
+            # test ZeroLogDet is second element, test transform
+            zero_log_det = ZeroLogDet(x.shape, tf.float32)
+            flow = _MyFlow([
+                tf.constant(log_det_2),
+                ZeroLogDet(x.shape, tf.float32),
+            ])
+            _, log_det_out = flow.transform(x)
+            self.assertIsNone(zero_log_det._self_tensor)
+            np.testing.assert_allclose(sess.run(log_det_out), log_det_2)

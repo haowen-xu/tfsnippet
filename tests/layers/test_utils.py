@@ -10,13 +10,13 @@ class ValidateWeightNormArgTestCase(tf.test.TestCase):
     def test_validate_weight_norm_arg(self):
         # noinspection PyUnresolvedReferences
         import tfsnippet.layers.utils
-        
+
         # test callable
         f = lambda t: t
         self.assertIs(validate_weight_norm_arg(f, -1, True), f)
 
         # test True: should generate a function that wraps true weight_norm
-        with mock.patch('tfsnippet.layers.utils.weight_norm_fn') as m:
+        with mock.patch('tfsnippet.layers.normalization.weight_norm') as m:
             f = validate_weight_norm_arg(True, -2, False)
             t = tf.reshape(tf.range(6, dtype=tf.float32), [1, 2, 3])
             _ = f(t)
