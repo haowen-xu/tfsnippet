@@ -79,67 +79,6 @@ class VariationalInference(object):
         """
         return self._axis
 
-    def zs_objective(self, func, **kwargs):
-        """
-        Create a :class:`zhusuan.variational.VariationalObjective` with
-        pre-computed log-joint, by specified algorithm.
-
-        Args:
-            func: The variational algorithm from ZhuSuan. Supported
-                functions are: 1. :func:`zhusuan.variational.elbo`
-                2. :func:`zhusuan.variational.importance_weighted_objective`
-                3. :func:`zhusuan.variational.klpq`
-            \\**kwargs: Named arguments passed to `func`.
-
-        Returns:
-            zhusuan.variational.VariationalObjective: The constructed
-                per-data variational objective.
-        """
-        return func(
-            log_joint=lambda observed: self._log_joint,
-            observed={},
-            latent={i: (None, log_prob)
-                    for i, log_prob in enumerate(self._latent_log_probs)},
-            axis=self._axis,
-            **kwargs
-        )
-
-    def zs_elbo(self):
-        """
-        Create a :class:`zhusuan.variational.EvidenceLowerBoundObjective`,
-        with pre-computed log-joint.
-
-        Returns:
-            zhusuan.variational.EvidenceLowerBoundObjective: The constructed
-                per-data ELBO objective.
-        """
-        import zhusuan as zs
-        return self.zs_objective(zs.variational.elbo)
-
-    def zs_importance_weighted_objective(self):
-        """
-        Create a :class:`zhusuan.variational.ImportanceWeightedObjective`,
-        with pre-computed log-joint.
-
-        Returns:
-            zhusuan.variational.ImportanceWeightedObjective: The constructed
-                per-data importance weighted objective.
-        """
-        import zhusuan as zs
-        return self.zs_objective(zs.variational.importance_weighted_objective)
-
-    def zs_klpq(self):
-        """
-        Create a :class:`zhusuan.variational.InclusiveKLObjective`,
-        with pre-computed log-joint.
-
-        Returns:
-            zhusuan.variational.InclusiveKLObjective: The constructed
-                per-data inclusive KL objective.
-        """
-        import zhusuan as zs
-        return self.zs_objective(zs.variational.klpq)
-
     @property
     def lower_bound(self):
         """
@@ -319,27 +258,15 @@ class VariationalTrainingObjectives(object):
             tf.Tensor: The per-data VIMCO training objective.
 
         See Also:
-            :meth:`zhusuan.variational.ImportanceWeightedObjective.vimco`
+            :meth:`tfsnippet.variational.vimco_estimator`
         """
         _require_multi_samples(self._vi.axis, 'vimco training objective')
         with tf.name_scope(name, default_name='vimco'):
-            return self._vi.zs_importance_weighted_objective().vimco()
-
-    @add_name_arg_doc
-    def rws_wake(self, name=None):
-        """
-        Get the wake-phase Reweighted Wake-Sleep (RWS) training objective.
-
-        Returns:
-            tf.Tensor: The per-data wake-phase RWS training objective.
-
-        See Also:
-            :meth:`zhusuan.variational.InclusiveKLObjective.rws`
-        """
-        _require_multi_samples(
-            self._vi.axis, 'reweighted wake-sleep training objective')
-        with tf.name_scope(name, default_name='rws_wake'):
-            return self._vi.zs_klpq().rws()
+            return -vimco_estimator(
+                log_values=self._vi.log_joint - self._vi.latent_log_prob,
+                latent_log_joint=self._vi.latent_log_prob,
+                axis=self._vi.axis
+            )
 
 
 class VariationalEvaluation(object):
@@ -363,7 +290,7 @@ class VariationalEvaluation(object):
             tf.Tensor: The per-data :math:`log p(x)`.
 
         See Also:
-            :meth:`zhusuan.evaluation.is_loglikelihood`
+            :meth:`tfsnippet.variational.importance_sampling_log_likelihood`
         """
         _require_multi_samples(
             self._vi.axis, 'importance sampling log-likelihood')

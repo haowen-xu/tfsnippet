@@ -12,4 +12,4 @@ scipy >= 1.2.0
 semver >= 2.7.9
 six >= 1.11.0
 tqdm >= 4.23.0
-git+https://github.com/thu-ml/zhusuan.git
+git+https://github.com/thu-ml/zhusuan.git@48c0f4e

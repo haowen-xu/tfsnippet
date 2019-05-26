@@ -1,4 +1,4 @@
-__version__ = '0.2.0a3'
+__version__ = '0.2.0a4'
 
 
 from . import (dataflows, datasets, distributions, evaluation, layers,

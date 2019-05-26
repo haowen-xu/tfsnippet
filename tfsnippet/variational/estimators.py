@@ -3,11 +3,12 @@ from contextlib import contextmanager
 import tensorflow as tf
 
 from tfsnippet.ops import log_mean_exp, convert_to_tensor_and_cast
-from tfsnippet.utils import (add_name_arg_doc, get_static_shape)
+from tfsnippet.utils import (add_name_arg_doc, get_static_shape,
+                             get_dimension_size, is_tensor_object, assert_deps)
 from .utils import _require_multi_samples
 
 __all__ = [
-    'sgvb_estimator', 'iwae_estimator', 'nvil_estimator',
+    'sgvb_estimator', 'iwae_estimator', 'nvil_estimator', 'vimco_estimator',
 ]
 
 
@@ -202,3 +203,151 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
                 cost = tf.reduce_mean(cost, axis, keepdims=keepdims)
 
         return cost, baseline_cost
+
+
+def _vimco_replace_diag(x, y, axis):
+    assert(isinstance(axis, int))
+    assert(get_static_shape(x) is not None)
+    assert(get_static_shape(y) is not None)
+
+    rank = len(get_static_shape(x))
+    assert(rank >= 2)
+    assert(len(get_static_shape(y)) == rank)
+    assert(-rank <= axis < -1)
+
+    k = get_static_shape(x)[axis]
+    assert(get_static_shape(x)[axis + 1] == k)
+    assert(get_static_shape(y)[axis] == k)
+    assert(get_static_shape(y)[axis + 1] == 1)
+
+    if k is None:
+        k = tf.shape(x)[axis]
+
+    diag_mask = tf.reshape(
+        tf.eye(k, k, dtype=x.dtype),
+        tf.stack([1] * (rank + axis) + [k, k] + [1] * (-axis - 2), axis=0)
+    )
+
+    return x * (1 - diag_mask) + y * diag_mask
+
+
+def _vimco_control_variate(log_f, axis):
+    assert(isinstance(axis, int))
+    assert(get_static_shape(log_f) is not None)
+    rank = len(get_static_shape(log_f))
+    assert(rank >= 1)
+    assert(-rank <= axis <= -1)
+
+    K = get_dimension_size(log_f, axis=axis)
+    K_f = tf.cast(K, dtype=log_f.dtype)
+
+    mean_except_k = (
+        (tf.reduce_mean(log_f, axis=axis, keepdims=True) - log_f / K_f) *
+        (K_f / (K_f - 1))
+    )
+    mean_except_k = tf.expand_dims(mean_except_k, axis=axis)
+
+    x_expand = tf.expand_dims(log_f, axis=axis - 1)
+    tile_rep = [1] * (rank + axis) + [K] + [1] * (-axis)
+    x_tiled = tf.tile(x_expand, tile_rep)
+
+    merged = _vimco_replace_diag(x_tiled, mean_except_k, axis=axis - 1)
+    return log_mean_exp(merged, axis=axis)
+
+
+@add_name_arg_doc
+def vimco_estimator(log_values, latent_log_joint, axis=None, keepdims=False,
+                    name=None):
+    """
+    Derive the gradient estimator for
+    :math:`\\mathbb{E}_{q(\\mathbf{z}^{(1:K)}|\\mathbf{x})}\\Big[\\log \\frac{1}{K} \\sum_{k=1}^K f\\big(\\mathbf{x},\\mathbf{z}^{(k)}\\big)\\Big]`,
+    by VIMCO (Minh and Rezende, 2016) algorithm.
+
+    .. math::
+
+        \\begin{aligned}
+&\\nabla\\,\\mathbb{E}_{q(\\mathbf{z}^{(1:K)}|\\mathbf{x})}\\Big[\\log \\frac{1}{K} \\sum_{k=1}^K f\\big(\\mathbf{x},\\mathbf{z}^{(k)}\\big)\\Big] \\\\
+        &\\quad =  \\mathbb{E}_{q(\\mathbf{z}^{(1:K)}|\\mathbf{x})}\\bigg[{\\sum_{k=1}^K \\hat{L}(\\mathbf{z}^{(k)}|\\mathbf{z}^{(-k)}) \\, \\nabla \\log q(\\mathbf{z}^{(k)}|\\mathbf{x})}\\bigg] +
+         \\mathbb{E}_{q(\\mathbf{z}^{(1:K)}|\\mathbf{x})}\\bigg[{\\sum_{k=1}^K \\widetilde{w}_k\\,\\nabla\\log f(\\mathbf{x},\\mathbf{z}^{(k)})}\\bigg]
+\\end{aligned}
+
+    where :math:`w_k = f\\big(\\mathbf{x},\\mathbf{z}^{(k)}\\big)$, $\\widetilde{w}_k = w_k / \\sum_{i=1}^K w_i`, and:
+
+    .. math::
+
+        \\begin{aligned}
+            \\hat{L}(\\mathbf{z}^{(k)}|\\mathbf{z}^{(-k)})
+                &= \\hat{L}(\\mathbf{z}^{(1:K)}) - \\log \\frac{1}{K} \\bigg(\\hat{f}(\\mathbf{x},\\mathbf{z}^{(-k)})+\\sum_{i \\neq k} f(\\mathbf{x},\\mathbf{z}^{(i)})\\bigg) \\\\
+            \\hat{L}(\\mathbf{z}^{(1:K)}) &= \\log \\frac{1}{K} \\sum_{k=1}^K f(\\mathbf{x},\\mathbf{z}^{(k)}) \\\\
+                \\hat{f}(\\mathbf{x},\\mathbf{z}^{(-k)}) &= \\exp\\big(\\frac{1}{K-1} \\sum_{i \\neq k} \\log f(\\mathbf{x},\\mathbf{z}^{(i)})\\big)
+        \\end{aligned}
+
+    Args:
+        log_values: Log values of the target function given `z` and `x`, i.e.,
+            :math:`\\log f(\\mathbf{z},\\mathbf{x})`.
+        latent_log_joint: Values of :math:`\\log q(\\mathbf{z}|\\mathbf{x})`.
+        axis: The sampling axes to be reduced in outputs.
+        keepdims (bool): When `axis` is specified, whether or not to keep
+            the reduced axes?  (default :obj:`False`)
+
+    Returns:
+        tf.Tensor: The surrogate for optimizing the original target.
+            Maximizing/minimizing this surrogate via gradient descent will
+            effectively maximize/minimize the original target.
+    """
+    _require_multi_samples(axis, 'vimco_estimator')
+
+    # check axis and rank
+    if get_static_shape(log_values) is None:
+        raise ValueError('vimco_estimator only supports `log_values` with '
+                         'deterministic ndims.')
+    rank = len(get_static_shape(log_values))
+
+    try:
+        axis = int(axis)
+    except TypeError:
+        raise TypeError('vimco_estimator only supports integer `axis`: '
+                        'got {!r}'.format(axis))
+    if not (-rank <= axis < rank):
+        raise ValueError('`axis` out of range: rank {} vs axis {}'.
+                         format(rank, axis))
+
+    # prepare for the computation
+    log_values = tf.convert_to_tensor(log_values)  # log f(x,z)
+    latent_log_joint = tf.convert_to_tensor(latent_log_joint)  # log q(z|x)
+
+    with tf.name_scope(name, default_name='vimco_estimator',
+                       values=[log_values, latent_log_joint]):
+        # check whether or not the sampling axis has more than 1 sample
+        sample_size = get_dimension_size(log_values, axis=axis)
+        err_msg = ('VIMCO requires sample size >= 2: '
+                   'sample axis is {}'.format(axis))
+        if is_tensor_object(sample_size):
+            with assert_deps([
+                        tf.assert_greater_equal(
+                            sample_size, 2,
+                            message=err_msg
+                        )
+                    ]):
+                log_values = tf.identity(log_values)
+        else:
+            if sample_size < 2:
+                raise ValueError(err_msg)
+
+        # the variance reduction term
+        if axis >= 0:
+            axis -= rank
+        control_variate = _vimco_control_variate(log_values, axis=axis)
+
+        # the final estimator
+        true_term = log_mean_exp(log_values, axis=axis, keepdims=True)
+        fake_term = tf.reduce_sum(
+            latent_log_joint * tf.stop_gradient(true_term - control_variate),
+            axis=axis,
+            keepdims=keepdims
+        )
+        if not keepdims:
+            true_term = tf.squeeze(true_term, axis=axis)
+
+        estimator = true_term + fake_term
+        return estimator

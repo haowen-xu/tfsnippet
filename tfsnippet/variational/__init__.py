@@ -9,4 +9,5 @@ __all__ = [
     'VariationalLowerBounds', 'VariationalTrainingObjectives',
     'elbo_objective', 'importance_sampling_log_likelihood', 'iwae_estimator',
     'monte_carlo_objective', 'nvil_estimator', 'sgvb_estimator',
+    'vimco_estimator',
 ]
