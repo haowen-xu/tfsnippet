@@ -12,13 +12,33 @@ def safe_sigmoid(x):
     return np.where(x < 0, np.exp(x) / (1. + np.exp(x)), 1. / (1. + np.exp(-x)))
 
 
+def discretize(x, bin_size, min_val=None, max_val=None):
+    if min_val is not None:
+        x = x - min_val
+    x = np.floor(x / bin_size + .5) * bin_size
+    if min_val is not None:
+        x = x + min_val
+
+    if min_val is not None:
+        x = np.maximum(x, min_val)
+    if max_val is not None:
+        x = np.minimum(x, max_val)
+
+    return x
+
+
 def naive_discretized_logistic_pdf(
         x, mean, log_scale, bin_size, min_val=None, max_val=None,
-        biased_edges=True, group_ndims=0):
+        biased_edges=True, discretize_given=True, group_ndims=0):
+    # discretize x
+    if discretize_given:
+        x = discretize(x, bin_size, min_val, max_val)
+
     # middle pdfs
     x_hi = (x - mean + bin_size * 0.5) / np.exp(log_scale)
     x_low = (x - mean - bin_size * 0.5) / np.exp(log_scale)
-    middle_pdf = np.log(safe_sigmoid(x_hi) - safe_sigmoid(x_low))
+    cdf_delta = safe_sigmoid(x_hi) - safe_sigmoid(x_low)
+    middle_pdf = np.log(np.maximum(cdf_delta, 1e-7))
     log_prob = middle_pdf
 
     # left edge
@@ -43,14 +63,12 @@ def naive_discretized_logistic_pdf(
 
 
 def naive_discretized_logistic_sample(
-        uniform_samples, mean, log_scale, bin_size, min_val=None, max_val=None):
+        uniform_samples, mean, log_scale, bin_size, min_val=None, max_val=None,
+        discretize_sample=True):
     u = uniform_samples
     samples = mean + np.exp(log_scale) * (np.log(u) - np.log(1. - u))
-    samples = np.floor(samples / bin_size + .5) * bin_size
-    if min_val is not None:
-        samples = np.maximum(samples, min_val)
-    if max_val is not None:
-        samples = np.minimum(samples, max_val)
+    if discretize_sample:
+        samples = discretize(samples, bin_size, min_val, max_val)
     return samples
 
 
@@ -99,14 +117,23 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                                     dtype=tf.int32)
 
         with pytest.raises(ValueError,
-                           match='`min_val` must be multiples of `bin_size`'):
-            _ = DiscretizedLogistic(tf.zeros([]), tf.zeros([]), 0.15,
-                                    min_val=-1)
+                           match='`min_val` and `max_val` must be both None '
+                                 'or neither None.'):
+            _ = DiscretizedLogistic(tf.zeros([2, 3]), 0., bin_size=.1,
+                                    min_val=-1.)
 
         with pytest.raises(ValueError,
-                           match='`max_val` must be multiples of `bin_size`'):
-            _ = DiscretizedLogistic(tf.zeros([]), tf.zeros([]), 0.15,
-                                    max_val=1)
+                           match='`min_val` and `max_val` must be both None '
+                                 'or neither None.'):
+            _ = DiscretizedLogistic(tf.zeros([2, 3]), 0., bin_size=.1,
+                                    max_val=1.)
+
+        with pytest.raises(ValueError,
+                           match='`min_val - max_val` must be multiples of '
+                                 '`bin_size`: max_val - min_val = 1.5 vs '
+                                 'bin_size = 1.'):
+            _ = DiscretizedLogistic(tf.zeros([2, 3]), 0., bin_size=1.0,
+                                    min_val=-0.5, max_val=1.)
 
         with pytest.raises(ValueError,
                            match='The shape of `mean` and `log_scale` cannot '
@@ -120,13 +147,13 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
         np.random.seed(1234)
         mean = 3 * np.random.uniform(size=[2, 1, 4]).astype(np.float64) - 1
         log_scale = np.random.normal(size=[3, 1, 5, 1]).astype(np.float64)
-        bin_size = 1 / 256.
+        bin_size = 1 / 255.
         epsilon = 1e-7
 
         with self.test_session() as sess:
             # n_samples == None
-            min_val = -1.
-            max_val = 2.
+            min_val = -1.5
+            max_val = 1.5
             n_samples = None
             sample_shape = [3, 2, 5, 4]
             u = np.random.uniform(low=epsilon, high=1. - epsilon,
@@ -159,50 +186,17 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                 )
             )
 
-            # n_samples == 11, min_val = None
+            # n_samples == 11, min_val = max_val = None
             min_val = None
-            max_val = 2.
-            n_samples = 11
-            sample_shape = [11, 3, 2, 5, 4]
-            u = np.random.uniform(low=epsilon, high=1. - epsilon,
-                                  size=sample_shape).astype(np.float64)
-            x_ans = naive_discretized_logistic_sample(
-                u, mean, log_scale, bin_size, min_val, max_val)
-
-            def patched_rnd_uniform(*args, **kwargs):
-                return tf.convert_to_tensor(u)
-
-            with mock.patch('tensorflow.random_uniform',
-                            Mock(wraps=patched_rnd_uniform)) as rnd_uniform:
-                d = DiscretizedLogistic(
-                    mean=mean, log_scale=log_scale, bin_size=bin_size,
-                    min_val=min_val, max_val=max_val, biased_edges=True,
-                    dtype=tf.float64
-                )
-                x = d.sample(n_samples=n_samples, group_ndims=1)
-                args = rnd_uniform.call_args[1]
-                self.assertEqual(list(sess.run(args['shape'])), sample_shape)
-                self.assertEqual(args['minval'], epsilon)
-                self.assertEqual(args['maxval'], 1. - epsilon)
-                self.assertEqual(args['dtype'], tf.float64)
-                assert_allclose(sess.run(x), x_ans)
-            assert_allclose(
-                sess.run(x.log_prob()),
-                naive_discretized_logistic_pdf(
-                    x_ans, mean, log_scale, bin_size, min_val, max_val,
-                    group_ndims=1
-                )
-            )
-
-            # n_samples == 9, max_val = None
-            min_val = -1.
             max_val = None
             n_samples = 11
             sample_shape = [11, 3, 2, 5, 4]
             u = np.random.uniform(low=epsilon, high=1. - epsilon,
                                   size=sample_shape).astype(np.float64)
             x_ans = naive_discretized_logistic_sample(
-                u, mean, log_scale, bin_size, min_val, max_val)
+                u, mean, log_scale, bin_size, min_val, max_val,
+                discretize_sample=False
+            )
 
             def patched_rnd_uniform(*args, **kwargs):
                 return tf.convert_to_tensor(u)
@@ -212,7 +206,8 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                 d = DiscretizedLogistic(
                     mean=mean, log_scale=log_scale, bin_size=bin_size,
                     min_val=min_val, max_val=max_val, biased_edges=True,
-                    dtype=tf.float64
+                    dtype=tf.float64, discretize_sample=False,
+                    discretize_given=False
                 )
                 x = d.sample(n_samples=n_samples, group_ndims=1)
                 args = rnd_uniform.call_args[1]
@@ -225,7 +220,7 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                 sess.run(x.log_prob()),
                 naive_discretized_logistic_pdf(
                     x_ans, mean, log_scale, bin_size, min_val, max_val,
-                    group_ndims=1
+                    group_ndims=1, discretize_given=False
                 )
             )
 
@@ -246,7 +241,21 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
         max_val = 2.
 
         with self.test_session() as sess:
-            # biased_edges = False
+            # biased_edges = False, discretize_given = True
+            d = DiscretizedLogistic(
+                mean=mean, log_scale=log_scale, bin_size=bin_size,
+                min_val=None, max_val=None, biased_edges=False,
+                dtype=tf.float64
+            )
+
+            assert_allclose(
+                sess.run(d.log_prob(x, group_ndims=0)),
+                naive_discretized_logistic_pdf(
+                    x, mean, log_scale, bin_size, None, None,
+                    biased_edges=False, group_ndims=0)
+            )
+
+            # biased_edges = False, discretize_given = True
             d = DiscretizedLogistic(
                 mean=mean, log_scale=log_scale, bin_size=bin_size,
                 min_val=min_val, max_val=max_val, biased_edges=False,
@@ -260,35 +269,21 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                     biased_edges=False, group_ndims=0)
             )
 
-            # min_val = None, biased_edges = True
+            # biased_edges = False, discretize_given = False
             d = DiscretizedLogistic(
                 mean=mean, log_scale=log_scale, bin_size=bin_size,
-                min_val=None, max_val=max_val, biased_edges=True,
-                dtype=tf.float64
+                min_val=min_val, max_val=max_val, biased_edges=False,
+                dtype=tf.float64, discretize_given=False
             )
 
             assert_allclose(
                 sess.run(d.log_prob(x, group_ndims=0)),
                 naive_discretized_logistic_pdf(
-                    x, mean, log_scale, bin_size, None, max_val,
-                    biased_edges=True, group_ndims=0)
+                    x, mean, log_scale, bin_size, min_val, max_val,
+                    biased_edges=False, discretize_given=False, group_ndims=0)
             )
 
-            # max_val = None, biased_edges = True
-            d = DiscretizedLogistic(
-                mean=mean, log_scale=log_scale, bin_size=bin_size,
-                min_val=min_val, max_val=None, biased_edges=True,
-                dtype=tf.float64
-            )
-
-            assert_allclose(
-                sess.run(d.log_prob(x, group_ndims=0)),
-                naive_discretized_logistic_pdf(
-                    x, mean, log_scale, bin_size, min_val, None,
-                    biased_edges=True, group_ndims=0)
-            )
-
-            # biased_edges = True
+            # biased_edges = True, discretize_given = True
             d = DiscretizedLogistic(
                 mean=mean, log_scale=log_scale, bin_size=bin_size,
                 min_val=min_val, max_val=max_val, biased_edges=True,
@@ -360,4 +355,17 @@ class DiscretizedLogisticTestCase(tf.test.TestCase):
                 naive_discretized_logistic_pdf(
                     x, mean, log_scale, bin_size, None, None,
                     biased_edges=True, group_ndims=0)
+            )
+
+            # now compute the log-probability of this extreme case,
+            # but discretize_given = False
+            d = DiscretizedLogistic(
+                mean=mean, log_scale=log_scale, bin_size=bin_size,
+                epsilon=1e-7, discretize_given=False
+            )
+            assert_allclose(
+                sess.run(d.log_prob(x, group_ndims=0)),
+                naive_discretized_logistic_pdf(
+                    x, mean, log_scale, bin_size, None, None,
+                    biased_edges=True, discretize_given=False, group_ndims=0)
             )
