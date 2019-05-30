@@ -6,8 +6,7 @@ import tensorflow as tf
 
 from tfsnippet.utils import get_static_shape, ensure_variables_initialized
 from tfsnippet.variational import *
-from tfsnippet.variational.estimators import (_vimco_replace_diag,
-                                              _vimco_control_variate)
+from tfsnippet.variational.estimators import _vimco_control_variate
 
 
 def prepare_test_payload(is_reparameterized):
@@ -236,26 +235,6 @@ def vimco_control_variate(log_f, axis):
 
 
 class VIMCOEstimatorTestCase(tf.test.TestCase):
-
-    def test_vimco_replace_diag(self):
-        with self.test_session() as sess:
-            # 2-d
-            x = tf.constant([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-            y = tf.constant([[10], [11], [12]])
-            z = sess.run(_vimco_replace_diag(x, y, -2))
-            np.testing.assert_equal(z, [[10, 2, 3], [4, 11, 6], [7, 8, 12]])
-
-            # 4-d
-            x = np.arange(4 * 3 * 3 * 5, dtype=np.int32).reshape([4, 3, 3, 5])
-            y = -np.arange(4 * 3 * 1 * 5, dtype=np.int32).reshape([4, 3, 1, 5])
-            x_ph = tf.placeholder(tf.int32, [None] * 4)
-            y_ph = tf.placeholder(tf.int32, [None, None, 1, None])
-            diag_mask = np.eye(3, 3).reshape([1, 3, 3, 1])
-            z = sess.run(_vimco_replace_diag(
-                tf.convert_to_tensor(x_ph), tf.convert_to_tensor(y_ph), -3),
-                feed_dict={x_ph: x, y_ph: y}
-            )
-            np.testing.assert_equal(z, x * (1 - diag_mask) + y * diag_mask)
 
     def test_vimco_control_variate(self):
         with self.test_session() as sess:

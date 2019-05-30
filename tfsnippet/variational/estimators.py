@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 import tensorflow as tf
+import numpy as np
 
 from tfsnippet.ops import log_mean_exp, convert_to_tensor_and_cast
 from tfsnippet.utils import (add_name_arg_doc, get_static_shape,
@@ -205,32 +206,6 @@ def nvil_estimator(values, latent_log_joint, baseline=None,
         return cost, baseline_cost
 
 
-def _vimco_replace_diag(x, y, axis):
-    assert(isinstance(axis, int))
-    assert(get_static_shape(x) is not None)
-    assert(get_static_shape(y) is not None)
-
-    rank = len(get_static_shape(x))
-    assert(rank >= 2)
-    assert(len(get_static_shape(y)) == rank)
-    assert(-rank <= axis < -1)
-
-    k = get_static_shape(x)[axis]
-    assert(get_static_shape(x)[axis + 1] == k)
-    assert(get_static_shape(y)[axis] == k)
-    assert(get_static_shape(y)[axis + 1] == 1)
-
-    if k is None:
-        k = tf.shape(x)[axis]
-
-    diag_mask = tf.reshape(
-        tf.eye(k, k, dtype=x.dtype),
-        tf.stack([1] * (rank + axis) + [k, k] + [1] * (-axis - 2), axis=0)
-    )
-
-    return x * (1 - diag_mask) + y * diag_mask
-
-
 def _vimco_control_variate(log_f, axis):
     assert(isinstance(axis, int))
     assert(get_static_shape(log_f) is not None)
@@ -245,14 +220,34 @@ def _vimco_control_variate(log_f, axis):
         (tf.reduce_mean(log_f, axis=axis, keepdims=True) - log_f / K_f) *
         (K_f / (K_f - 1))
     )
-    mean_except_k = tf.expand_dims(mean_except_k, axis=axis)
 
-    x_expand = tf.expand_dims(log_f, axis=axis - 1)
-    tile_rep = [1] * (rank + axis) + [K] + [1] * (-axis)
-    x_tiled = tf.tile(x_expand, tile_rep)
+    assert (isinstance(axis, int))
+    assert (get_static_shape(log_f) is not None)
+    assert (get_static_shape(mean_except_k) is not None)
 
-    merged = _vimco_replace_diag(x_tiled, mean_except_k, axis=axis - 1)
-    return log_mean_exp(merged, axis=axis)
+    assert (rank >= 2)
+    assert (len(get_static_shape(mean_except_k)) == rank)
+
+    k = get_static_shape(log_f)[axis]
+    assert (get_static_shape(mean_except_k)[axis] == k)
+
+    if k is None:
+        k = tf.shape(log_f)[axis]
+
+    change_dims = np.arange(rank)
+    change_dims[axis] = rank - 1
+    change_dims[rank - 1] = axis + rank
+    perm = tf.convert_to_tensor(change_dims, tf.int32)
+
+    multiples = tf.concat([tf.ones([rank], tf.int32), [k]], axis=0)
+
+    x = tf.transpose(log_f, perm=perm)
+    y = tf.transpose(mean_except_k, perm=perm)
+    x_expand = tf.tile(tf.expand_dims(x, rank), multiples)
+    x_expand = x_expand - tf.matrix_diag(x) + tf.matrix_diag(y)
+    control_variate = tf.transpose(log_mean_exp(x_expand, rank - 1), perm=perm)
+
+    return control_variate
 
 
 @add_name_arg_doc
