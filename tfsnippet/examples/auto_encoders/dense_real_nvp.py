@@ -52,12 +52,12 @@ def q_net(x, posterior_flow, observed=None, n_z=None):
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h_x = tf.to_float(x)
-        h_x = spt.layers.dense(h_x, 500)
-        h_x = spt.layers.dense(h_x, 500)
+        h_x = spt.layers.dense(h_x, 500, scope='hidden_0')
+        h_x = spt.layers.dense(h_x, 500, scope='hidden_1')
 
     # sample z ~ q(z|x)
-    z_mean = spt.layers.dense(h_x, config.z_dim, name='z_mean')
-    z_logstd = spt.layers.dense(h_x, config.z_dim, name='z_logstd')
+    z_mean = spt.layers.dense(h_x, config.z_dim, scope='z_mean')
+    z_logstd = spt.layers.dense(h_x, config.z_dim, scope='z_logstd')
     z_distribution = spt.FlowDistribution(
         spt.Normal(mean=z_mean, logstd=z_logstd),
         posterior_flow
@@ -82,11 +82,11 @@ def p_net(observed=None, n_z=None):
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h_z = z
-        h_z = spt.layers.dense(h_z, 500)
-        h_z = spt.layers.dense(h_z, 500)
+        h_z = spt.layers.dense(h_z, 500, scope='hidden_0')
+        h_z = spt.layers.dense(h_z, 500, scope='hidden_1')
 
     # sample x ~ p(x|z)
-    x_logits = spt.layers.dense(h_z, config.x_dim, name='x_logits')
+    x_logits = spt.layers.dense(h_z, config.x_dim, scope='x_logits')
     x = net.add('x', spt.Bernoulli(logits=x_logits), group_ndims=1)
 
     return net
@@ -98,17 +98,17 @@ def coupling_layer_shift_and_scale(x1, n2):
                    activation_fn=tf.nn.leaky_relu,
                    kernel_regularizer=spt.layers.l2_regularizer(config.l2_reg)):
         h = x1
-        for _ in range(config.n_flow_hidden_layers):
-            h = spt.layers.dense(h, 500)
+        for i in range(config.n_flow_hidden_layers):
+            h = spt.layers.dense(h, 500, scope='hidden_{}'.format(i))
 
     # compute shift and scale
     shift = spt.layers.dense(
         h, n2, kernel_initializer=tf.zeros_initializer(),
-        bias_initializer=tf.zeros_initializer(), name='shift'
+        bias_initializer=tf.zeros_initializer(), scope='shift'
     )
     scale = spt.layers.dense(
         h, n2, kernel_initializer=tf.zeros_initializer(),
-        bias_initializer=tf.zeros_initializer(), name='scale'
+        bias_initializer=tf.zeros_initializer(), scope='scale'
     )
     return shift, scale
 

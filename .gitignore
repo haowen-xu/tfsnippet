@@ -1,6 +1,7 @@
 .idea
 .cache
 .pytest_cache
+.vscode
 *.iml
 *.lock
 /config.py
