@@ -79,14 +79,17 @@ class BaseTrainer(object):
         trainer.log_after_steps(1000)  # call `loop.print_logs` every 1000 steps
     """
 
-    def __init__(self, loop):
+    def __init__(self, loop, ensure_variables_initialized=True):
         """
         Initialize the internal states of :class:`BaseTrainer`.
 
         Args:
             loop (TrainLoop): The training loop object.
+            ensure_variables_initialized (bool): Whether or not to ensure
+                the variables are initialized in :meth:`run()`?
         """
         self._loop = loop
+        self._ensure_variables_initialized = ensure_variables_initialized
         self._events = EventSource([
             EventKeys.BEFORE_EXECUTION,
             EventKeys.AFTER_EXECUTION,
@@ -134,7 +137,8 @@ class BaseTrainer(object):
 
             # initialize global training status
             session = get_default_session_or_error()
-            ensure_variables_initialized()
+            if self._ensure_variables_initialized:
+                ensure_variables_initialized()
             self.loop.print_training_summary()
 
             for _ in self.loop.iter_epochs():

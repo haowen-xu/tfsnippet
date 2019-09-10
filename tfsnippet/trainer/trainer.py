@@ -65,7 +65,8 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, loop, train_op, inputs, data_flow, feed_dict=None,
-                 metrics=None, summaries=None):
+                 metrics=None, summaries=None, 
+                 ensure_variables_initialized=True):
         """
 
         Args:
@@ -90,13 +91,18 @@ class Trainer(BaseTrainer):
                 of summaries to be run and along with `train_op`, and later
                 to be added to ``loop.summary_writer``.
                 If ``loop.summary_writer`` is None, then no summary will be run.
+            ensure_variables_initialized (bool): Whether or not to ensure
+                the variables are initialized in :meth:`run()`?
         """
         if loop.max_epoch is None and loop.max_step is None:
             raise ValueError('At least one of `max_epoch`, `max_step` should '
                              'be configured for `loop`.')
         if summaries is not None and is_tensor_object(summaries):
             summaries = [summaries]
-        super(Trainer, self).__init__(loop=loop)
+        super(Trainer, self).__init__(
+            loop=loop,
+            ensure_variables_initialized=ensure_variables_initialized
+        )
 
         # memorize the arguments
         self._inputs = tuple(inputs or ())
